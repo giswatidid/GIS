@@ -1,0 +1,32 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com 'sha256-12AaFjOGaw+e2Riitn+eMuEg/RLSq0p2fS9LYAc1Veo=' 'sha256-RCzvkCiK6fi8mSakGssTGY1RiCXOYAZVIn+rVcKonIU=' 'sha256-S8HD6PbQQ9UHtUcsd5WWvzC5B1dzMM2Kw9JFJZzYiJM=' 'sha256-d36bJ8ynDzGyUej0EpZdPVBT4kkCBgXXpMEuFh7zuE8=' 'sha256-gxz+l/zXbmf+CBSrjXHwnPC8XTu4i1SDi3M+cNEZ6ho=' 'sha256-kpiapGjeKdSAGXbRIpfhmK1GoEM0kaRjbMV1cYWaOwM=' 'sha256-orMJOabC8v57NAUr2Suff0URyIE4W9AWBnpKouq2cWA=' 'sha256-Ea3Kdt8rZ4bpwc6ELy+FmDxhwjWI9EF74C5OBVTsUiE=' 'sha256-JziYzTC8+ficVPFS1sKNSU3O9EItCLWBNp0CE2Eiz8o='; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com; connect-src 'self' https://unpkg.com https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com; worker-src 'self' blob:; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' mailto:; manifest-src 'self'; upgrade-insecure-requests
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(), microphone=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/robots.txt
+  Cache-Control: public, max-age=3600
+
+/sitemap.xml
+  Cache-Control: public, max-age=3600
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json; charset=utf-8
+  Cache-Control: public, max-age=86400
+
+/assets/*
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*.png
+  Cache-Control: public, max-age=604800
+
+/favicon.ico
+  Cache-Control: public, max-age=604800
