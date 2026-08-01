@@ -8,6 +8,11 @@
   let panel=null;
   let activeTab='layers';
   let renderQueued=false;
+  let remoteDiscovery=null;
+  let remoteDiscoveryBusy=false;
+  let remoteForm={name:'Remote data',mode:'editable',url:'',color:'#1664d6'};
+  let remoteNameEdited=false;
+  let remoteStatus={message:'',kind:''};
 
   function status(message,kind=''){
     const el=byId('gisWorkspaceStatus');
@@ -140,6 +145,37 @@
       ${layers.length===0?'<div class="gis-empty">No layers yet. Open a local file or add a remote source.</div>':''}`;
   }
 
+  function renderRemoteDiscovery(){
+    const result=remoteDiscovery;
+    if(!result)return '';
+    const count=result.featureCount==null?'Feature count available when imported':`${Number(result.featureCount).toLocaleString()} feature${Number(result.featureCount)===1?'':'s'}`;
+    if(result.kind==='ready'){
+      return `<div class="gis-remote-result is-ready">
+        <div class="gis-remote-result-head"><div><strong>${html(result.name||result.title||'Web data')}</strong><span>${html(result.sourceType==='arcgis-layer'?'ArcGIS feature layer':'GeoJSON data')}</span></div><span class="gis-found-badge">Found</span></div>
+        <div class="gis-remote-facts"><span>${html(result.geometryLabel||result.geometryType||'Spatial features')}</span><span>${html(count)}</span>${result.sourceCrs?`<span>${html(result.sourceCrs)}</span>`:''}</div>
+        ${result.item?.title?`<p class="gis-help">Resolved from ArcGIS item: ${html(result.item.title)}</p>`:''}
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-import">Import layer</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+      </div>`;
+    }
+    if(result.kind==='choose-layer'){
+      return `<div class="gis-remote-result">
+        <div class="gis-remote-result-head"><div><strong>${html(result.title||result.name||'ArcGIS service')}</strong><span>${result.layers.length.toLocaleString()} available layer${result.layers.length===1?'':'s'}</span></div><span class="gis-found-badge">Service</span></div>
+        <label class="gis-remote-choice">Choose a layer<select id="gisRemoteChoice">${result.layers.map(layer=>`<option value="${html(layer.url)}">${html(layer.name)}${layer.geometryLabel?` — ${html(layer.geometryLabel)}`:''}</option>`).join('')}</select></label>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Use selected layer</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+      </div>`;
+    }
+    if(result.kind==='choose-service'){
+      const serviceOptions=result.services.map(service=>`<option value="${html(service.url)}">${html(service.name)} — ${html(service.serviceType)}</option>`).join('');
+      const folderOptions=result.folders.map(folder=>`<option value="${html(folder.url)}">Folder: ${html(folder.name)}</option>`).join('');
+      return `<div class="gis-remote-result">
+        <div class="gis-remote-result-head"><div><strong>${html(result.title||'ArcGIS services directory')}</strong><span>${result.services.length.toLocaleString()} service${result.services.length===1?'':'s'}${result.folders.length?` · ${result.folders.length.toLocaleString()} folder${result.folders.length===1?'':'s'}`:''}</span></div><span class="gis-found-badge">Directory</span></div>
+        <label class="gis-remote-choice">Choose a service or folder<select id="gisRemoteChoice">${serviceOptions}${folderOptions}</select></label>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Find layers</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+      </div>`;
+    }
+    return '';
+  }
+
   function renderAddData(){
     return `<div class="gis-privacy-callout"><strong>Data boundary</strong><p>Local files and their geometry remain inside this browser. Remote tiles and services are contacted directly by your browser only when you add or display them. EditPolygon does not proxy these requests.</p></div>
       <section class="gis-add-section"><h3>Local browser data</h3><div class="gis-quick-actions"><button type="button" class="primary" data-gis-action="open-files">Open GIS files</button><button type="button" data-gis-action="open-image">Add image</button><button type="button" data-gis-action="open-overlays">Existing overlay tools</button></div><p class="gis-help">Use the existing importer for GeoJSON, KML/KMZ, GML, Shapefile ZIP, CSV, WKT, TopoJSON and project files.</p></section>
@@ -163,12 +199,14 @@
         <label>Opacity<input id="gisWmsOpacity" type="range" min="5" max="100" value="80"><span class="gis-range-value">80%</span></label>
         <label class="gis-check"><input id="gisWmsTransparent" type="checkbox" checked> Transparent background</label>
       </div><div class="gis-form-actions"><button type="submit" class="primary">Add WMS</button><span class="gis-inline-status" id="gisWmsStatus"></span></div></form>
-      <form class="gis-add-section" id="gisRemoteGeoJsonForm"><h3>Remote GeoJSON or ArcGIS FeatureServer layer</h3><div class="gis-form-grid">
-        <label>Name<input id="gisRemoteName" value="Remote data"></label>
-        <label>Import as<select id="gisRemoteMode"><option value="editable">Editable local copy</option><option value="reference">Read-only reference copy</option></select></label>
-        <label class="gis-span-2">URL<input id="gisRemoteUrl" required placeholder="https://example.com/data.geojson or .../FeatureServer/0"></label>
-        <label>Layer colour<input id="gisRemoteColor" type="color" value="#1664d6"></label>
-      </div><p class="gis-help">The browser downloads the source directly. Once imported, the working copy is processed locally and is included in the saved project.</p><div class="gis-form-actions"><button type="submit" class="primary">Fetch and import</button><span class="gis-inline-status" id="gisRemoteStatus"></span></div></form>`;
+      <form class="gis-add-section" id="gisRemoteGeoJsonForm"><h3>Add web data</h3><div class="gis-form-grid">
+        <label>Name<input id="gisRemoteName" value="${html(remoteForm.name)}"></label>
+        <label>Import as<select id="gisRemoteMode"><option value="editable" ${remoteForm.mode==='editable'?'selected':''}>Editable local copy</option><option value="reference" ${remoteForm.mode==='reference'?'selected':''}>Read-only reference copy</option></select></label>
+        <label class="gis-span-2">Paste a web data link<input id="gisRemoteUrl" required value="${html(remoteForm.url)}" placeholder="ArcGIS directory, service, layer, item page, query or GeoJSON URL"></label>
+        <label>Layer colour<input id="gisRemoteColor" type="color" value="${html(remoteForm.color)}"></label>
+      </div><p class="gis-help">Paste the link you have. EditPolygon will identify ArcGIS directories, services, layers, item pages and queries, build the data request, and retrieve all available records in batches. You do not need to add <code>/query</code> or JSON parameters yourself.</p>
+      ${renderRemoteDiscovery()}
+      <div class="gis-form-actions"><button type="submit" class="primary" ${remoteDiscoveryBusy?'disabled':''}>${remoteDiscoveryBusy?'Finding data…':'Find data'}</button><span class="gis-inline-status" id="gisRemoteStatus" data-kind="${html(remoteStatus.kind)}">${html(remoteStatus.message)}</span></div></form>`;
   }
 
   function renderBasemaps(){
@@ -229,7 +267,77 @@
 
   function layerKeyFrom(target){return target.closest('[data-layer-key]')?.dataset.layerKey||'';}
 
-  function handlePanelClick(event){
+  function syncRemoteForm(){
+    if(byId('gisRemoteName'))remoteForm.name=byId('gisRemoteName').value;
+    if(byId('gisRemoteMode'))remoteForm.mode=byId('gisRemoteMode').value;
+    if(byId('gisRemoteUrl'))remoteForm.url=byId('gisRemoteUrl').value;
+    if(byId('gisRemoteColor'))remoteForm.color=byId('gisRemoteColor').value;
+  }
+
+  function setRemoteStatus(message='',kind=''){
+    remoteStatus={message:String(message||''),kind:String(kind||'')};
+    inlineStatus('gisRemoteStatus',remoteStatus.message,remoteStatus.kind);
+  }
+
+  async function discoverRemoteUrl(url){
+    syncRemoteForm();
+    const target=String(url||remoteForm.url||'').trim();
+    if(!target){setRemoteStatus('Paste a web data link first.','error');return;}
+    remoteDiscoveryBusy=true;
+    remoteDiscovery=null;
+    setRemoteStatus('Checking the address and looking for spatial data…');
+    render();
+    try{
+      const result=await api.discoverRemoteData({url:target});
+      remoteDiscovery=result;
+      remoteForm.url=target;
+      if(result.kind==='ready'&&!remoteNameEdited&&result?.name)remoteForm.name=result.name;
+      if(result.kind==='ready')setRemoteStatus('Data found. Review it, then import the layer.','ok');
+      else if(result.kind==='choose-layer')setRemoteStatus('ArcGIS service found. Choose a layer to continue.','ok');
+      else setRemoteStatus('ArcGIS directory found. Choose a service or folder to continue.','ok');
+    }catch(error){
+      remoteDiscovery=null;
+      setRemoteStatus(error?.message||String(error),'error');
+    }finally{
+      remoteDiscoveryBusy=false;
+      render();
+    }
+  }
+
+  async function importRemoteResult(){
+    if(!remoteDiscovery||remoteDiscovery.kind!=='ready')return;
+    syncRemoteForm();
+    remoteDiscoveryBusy=true;
+    setRemoteStatus('Importing the selected data…');
+    render();
+    try{
+      const result=await api.importRemoteGeoJson({
+        url:remoteForm.url,
+        name:remoteForm.name,
+        mode:remoteForm.mode,
+        color:remoteForm.color,
+        discovery:remoteDiscovery,
+        onProgress:progress=>{
+          const loaded=Number(progress?.loaded||0),total=Number(progress?.total||0);
+          setRemoteStatus(total?`Downloading ${loaded.toLocaleString()} of ${total.toLocaleString()} features…`:`Downloading features…`);
+        }
+      });
+      const count=result.file?.features?.length||result.item?.data?.features?.length||0;
+      setRemoteStatus(`Imported ${count.toLocaleString()} feature${count===1?'':'s'}.`,'ok');
+      remoteDiscovery=null;
+      remoteForm={name:'Remote data',mode:remoteForm.mode,url:'',color:remoteForm.color};
+      remoteNameEdited=false;
+      activeTab='layers';
+      setTimeout(render,200);
+    }catch(error){
+      setRemoteStatus(error?.message||String(error),'error');
+    }finally{
+      remoteDiscoveryBusy=false;
+      if(activeTab==='add')render();
+    }
+  }
+
+  async function handlePanelClick(event){
     if(!api)return;
     const groupAction=event.target.closest('[data-gis-group-action]');
     if(groupAction){
@@ -257,6 +365,14 @@
     else if(action==='go-add-basemap'){activeTab='add';render();setTimeout(()=>byId('gisTileName')?.focus(),0);}
     else if(action==='export-sources')api.exportSourceDefinitions();
     else if(action==='simple-workspace')api.setWorkspaceMode('simple');
+    else if(action==='remote-continue'){
+      const choice=byId('gisRemoteChoice')?.value;
+      if(choice)await discoverRemoteUrl(choice);
+    }
+    else if(action==='remote-import')await importRemoteResult();
+    else if(action==='remote-reset'){
+      syncRemoteForm();remoteDiscovery=null;remoteStatus={message:'',kind:''};if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
+    }
   }
 
   function handlePanelChange(event){
@@ -268,6 +384,7 @@
       const input=byId('gisTileUrl');
       if(input)input.placeholder=event.target.value==='tilejson'?'https://server/style/tilejson.json':'https://server/{z}/{x}/{y}.png';
     }
+    if(event.target.id==='gisRemoteMode')remoteForm.mode=event.target.value;
   }
 
   function handlePanelInput(event){
@@ -279,6 +396,16 @@
     if(['gisTileOpacity','gisWmsOpacity'].includes(event.target.id)){
       const span=event.target.parentElement.querySelector('.gis-range-value');if(span)span.textContent=`${event.target.value}%`;
     }
+    if(event.target.id==='gisRemoteName'){remoteForm.name=event.target.value;remoteNameEdited=true;}
+    else if(event.target.id==='gisRemoteUrl'){
+      remoteForm.url=event.target.value;
+      if(remoteDiscovery&&event.target.value.trim()!==String(remoteDiscovery.url||remoteDiscovery.importUrl||'').trim()){
+        remoteDiscovery=null;remoteStatus={message:'Link changed. Click Find data to check it.',kind:''};
+        panel?.querySelector('.gis-remote-result')?.remove();
+        inlineStatus('gisRemoteStatus',remoteStatus.message,'');
+      }
+    }
+    else if(event.target.id==='gisRemoteColor')remoteForm.color=event.target.value;
   }
 
   function inlineStatus(id,message,kind=''){
@@ -302,12 +429,8 @@
         inlineStatus('gisWmsStatus','Added.','ok');activeTab=selectedRole==='basemap'?'basemaps':'layers';setTimeout(render,200);
       }catch(err){inlineStatus('gisWmsStatus',err.message||String(err),'error');}
     }else if(event.target.id==='gisRemoteGeoJsonForm'){
-      inlineStatus('gisRemoteStatus','Fetching directly from the source…');
-      try{
-        const result=await api.importRemoteGeoJson({url:byId('gisRemoteUrl').value,name:byId('gisRemoteName').value,mode:byId('gisRemoteMode').value,color:byId('gisRemoteColor').value});
-        const count=result.file?.features?.length||result.item?.data?.features?.length||0;
-        inlineStatus('gisRemoteStatus',`Imported ${count.toLocaleString()} feature${count===1?'':'s'}.`,'ok');activeTab='layers';setTimeout(render,250);
-      }catch(err){inlineStatus('gisRemoteStatus',err.message||String(err),'error');}
+      syncRemoteForm();
+      await discoverRemoteUrl(remoteForm.url);
     }
   }
 
