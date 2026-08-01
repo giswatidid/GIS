@@ -20254,5 +20254,177 @@ gisLayerUiSnapshot=function(){
 Object.assign(window.EditPolygonGIS,{crsVersion:GIS_CRS_VERSION,getCrsCatalog:()=>gisCrsCore().catalog(),getLayerCrsInfo:gisCrsLayerInfo,getEditableLayer:gisEditableSnapshot,getEditableLayers:()=>project.files.map(file=>gisEditableSnapshot(file.id)),setCrs:gisAssignCrs,assignCrs:gisAssignCrs,interpretCoordinates:gisInterpretCoordinates,setExportCrs:gisSetExportCrs,exportLayerCrs:gisExportLayerCrs,transformCoordinate:(c,f,t)=>gisCrsCore().transformCoordinate(c,f,t),transformGeometry:(g,f,t)=>gisCrsCore().transformGeometry(g,f,t),getSelectedFeature:gisSelectedFeatureDetails,getLayerUiSnapshot:gisLayerUiSnapshot});
 window.__editPolygonCrs={version:GIS_CRS_VERSION};
 
+// ArcGIS and remote web-data discovery. This accepts directory, service, layer,
+// query and ArcGIS item-page links, while keeping the final import browser-local.
+const GIS_REMOTE_SOURCE_VERSION='1.45.0';
+function gisRemoteResolver(){
+  const resolver=window.EditPolygonRemoteSource;
+  if(!resolver)throw Error('The remote-source resolver did not load. Refresh the page and try again.');
+  return resolver;
+}
+async function gisDiscoverRemoteData({url}={}){
+  const resolver=gisRemoteResolver();
+  try{return await resolver.discover(url);}
+  catch(error){throw resolver.friendlyError(error);}
+}
+function gisArcGisSourceCrs(metadata){
+  const sr=metadata?.extent?.spatialReference||metadata?.sourceSpatialReference||{};
+  const wkid=sr.latestWkid||sr.wkid;
+  return wkid?gisCrsCore().normalise(`EPSG:${wkid}`):'EPSG:4326';
+}
+async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSourceCrs=''}={}){
+  const resolver=gisRemoteResolver();
+  const options=resolver.queryOptions(source);
+  let sourceCrs=knownSourceCrs||'EPSG:4326';
+  let maxRecordCount=500;
+  try{
+    const metadata=await resolver.fetchJson(resolver.setFormat(options.layerUrl,'json'));
+    sourceCrs=knownSourceCrs||gisArcGisSourceCrs(metadata);
+    const advertised=Number(metadata?.maxRecordCount);
+    if(Number.isFinite(advertised)&&advertised>0)maxRecordCount=Math.max(50,Math.min(500,Math.floor(advertised)));
+  }catch(_){ }
+
+  const directObjectIds=options.params.get('objectIds');
+  if(directObjectIds){
+    const data=await resolver.fetchJson(resolver.buildQueryUrl(source));
+    if(!Array.isArray(data?.features))throw Error('The ArcGIS layer did not return GeoJSON features.');
+    data.__sourceCrs=sourceCrs;
+    onProgress({loaded:data.features.length,total:data.features.length,complete:true});
+    return data;
+  }
+
+  const idParams=new URLSearchParams(options.params);
+  for(const key of ['outFields','returnGeometry','outSR','f','resultOffset','resultRecordCount'])idParams.delete(key);
+  idParams.set('returnIdsOnly','true');
+  idParams.set('f','json');
+  let idsJson;
+  try{idsJson=await resolver.fetchJson(`${options.layerUrl}/query?${idParams}`);}
+  catch(error){
+    // Some older/query-limited services do not support returnIdsOnly. A direct
+    // GeoJSON query is still preferable to exposing a parser or REST error.
+    const data=await resolver.fetchJson(resolver.buildQueryUrl(source));
+    if(!Array.isArray(data?.features))throw resolver.friendlyError(error);
+    data.__sourceCrs=sourceCrs;
+    onProgress({loaded:data.features.length,total:data.features.length,complete:true});
+    return data;
+  }
+  const ids=Array.isArray(idsJson?.objectIds)?idsJson.objectIds:(Array.isArray(idsJson?.uniqueIds)?idsJson.uniqueIds:[]);
+  if(!ids.length){
+    const empty={type:'FeatureCollection',features:[]};
+    empty.__sourceCrs=sourceCrs;
+    onProgress({loaded:0,total:0,complete:true});
+    return empty;
+  }
+
+  const features=[];
+  const batches=[];
+  let pending=[];
+  let pendingChars=0;
+  for(const id of ids){
+    const chars=String(id).length+1;
+    if(pending.length&&(pending.length>=maxRecordCount||pendingChars+chars>6000)){batches.push(pending);pending=[];pendingChars=0;}
+    pending.push(id);pendingChars+=chars;
+  }
+  if(pending.length)batches.push(pending);
+  for(const batch of batches){
+    const params=new URLSearchParams(options.params);
+    params.set('objectIds',batch.join(','));
+    params.set('outFields',options.outFields||'*');
+    params.set('returnGeometry','true');
+    params.set('outSR','4326');
+    params.set('f','geojson');
+    params.delete('resultOffset');
+    params.delete('resultRecordCount');
+    const json=await resolver.fetchJson(`${options.layerUrl}/query?${params}`);
+    if(!Array.isArray(json?.features))throw Error('The ArcGIS service did not return GeoJSON features.');
+    features.push(...json.features);
+    onProgress({loaded:features.length,total:ids.length,complete:features.length>=ids.length});
+  }
+  const collection={type:'FeatureCollection',features};
+  collection.__sourceCrs=sourceCrs;
+  return collection;
+}
+
+// Replace the narrow FeatureServer-only loader with the resolved layer/query
+// loader. Both FeatureServer and queryable MapServer layers are supported.
+gisFetchArcGisGeoJson=async function(source){
+  return gisFetchArcGisGeoJsonResolved(source);
+};
+
+window.EditPolygonGIS.discoverRemoteData=gisDiscoverRemoteData;
+window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editable',color='#1664d6',discovery=null,onProgress=()=>{}}={}){
+  const resolver=gisRemoteResolver();
+  const originalUrl=String(url||'').trim();
+  if(!originalUrl)throw Error('Paste a web data link first.');
+  let resolved=discovery;
+  try{
+    if(!resolved)resolved=await resolver.discover(originalUrl);
+    if(!resolved||resolved.kind!=='ready'){
+      const count=(resolved?.layers?.length||resolved?.services?.length||resolved?.folders?.length||0);
+      const noun=resolved?.kind==='choose-layer'?'layer':'service';
+      const error=new resolver.RemoteSourceError('choice-required',`This address contains ${count||'multiple'} ${noun}${count===1?'':'s'}. Choose the data you want to import.`,{discovery:resolved});
+      throw error;
+    }
+
+    const target=resolved.importUrl||resolved.layerUrl||resolved.url||originalUrl;
+    const classification=resolver.classify(target);
+    let data;
+    let sourceCrs=resolved.sourceCrs||'EPSG:4326';
+    let geometryCrs='EPSG:4326';
+    if(resolved.sourceType==='arcgis-layer'||['arcgis-layer','arcgis-query'].includes(classification.type)){
+      data=await gisFetchArcGisGeoJsonResolved(target,{onProgress,knownSourceCrs:sourceCrs});
+      sourceCrs=data.__sourceCrs||sourceCrs||'EPSG:4326';
+      geometryCrs='EPSG:4326';
+    }else{
+      data=resolved.cachedData||await resolver.fetchJson(target);
+      sourceCrs=gisCrsCore().detectGeoJSONCrs(data);
+      geometryCrs=sourceCrs;
+    }
+
+    let fc=ensureFC(data);
+    if(geometryCrs!=='EPSG:4326'){
+      if(!gisCrsCore().supported(geometryCrs))throw Error(`Remote GeoJSON reports unsupported CRS ${geometryCrs}.`);
+      fc=gisCrsCore().transformFeatureCollection(fc,geometryCrs,'EPSG:4326');
+    }
+    const suggestedName=resolved.name||resolved.title||'Remote data';
+    const enteredName=String(name||'').trim();
+    const safeName=(!enteredName||enteredName==='Remote data'?suggestedName:enteredName)||'Remote data';
+    const sourceUrl=resolved.layerUrl||target;
+    const sourceDetails={
+      originalUrl,
+      resolvedUrl:sourceUrl,
+      serviceUrl:resolved.serviceUrl||'',
+      serviceType:resolved.serviceType||'',
+      layerId:resolved.layerId??null,
+      item:resolved.item||null,
+      discoveredAt:new Date().toISOString()
+    };
+
+    if(mode==='reference'){
+      const store=gisReferenceStore();
+      const item={id:uid('ref'),type:'geojson',name:safeName,data:fc,color,fillColor:color,opacity:.8,weight:2,fillOpacity:.15,visible:true,locked:false,remoteUrl:sourceUrl,sourceCrs,storageCrs:'EPSG:4326',remoteSource:sourceDetails,createdAt:new Date().toISOString()};
+      store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-web-data-reference');gisNotify();
+      try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }
+      setStatus(`Added remote reference: ${safeName}.`);
+      return {mode,item,resolved};
+    }
+
+    const models=[];
+    flattenSupportedFeatures(fc.features||[]).forEach((raw,index)=>{
+      const model=normalize(raw,featureName(raw,`${safeName} ${index+1}`));
+      if(model){applyColor(model,color);models.push(model);}
+    });
+    if(!models.length)throw Error('The selected source contains no supported Point, LineString or Polygon features.');
+    const nativeCrs=gisCrsCore().supported(sourceCrs)?sourceCrs:'EPSG:4326';
+    const file={id:uid('file'),name:safeName,sourceFormat:resolved.sourceType==='arcgis-layer'?'arcgis-feature-layer':'remote-geojson',sourceUrl,sourceOriginalUrl:originalUrl,remoteSource:sourceDetails,visible:true,color,features:models,gisStorageCrs:'EPSG:4326',gisSourceCrs:sourceCrs,gisCrs:nativeCrs,gisExportCrs:nativeCrs};
+    project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);
+    logOperation('remote-web-data-imported',{originalUrl,sourceUrl,features:models.length,sourceCrs,sourceType:resolved.sourceType});
+    gisNotify();fitAllProjectElements();setStatus(`Imported ${models.length} remote feature${models.length===1?'':'s'} into an editable browser-local layer.`);
+    return {mode,file,resolved};
+  }catch(error){throw resolver.friendlyError(error);}
+};
+Object.assign(window.EditPolygonGIS,{remoteSourceVersion:GIS_REMOTE_SOURCE_VERSION,discoverRemoteData:gisDiscoverRemoteData});
+window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
+
 // Close the main EditPolygon application scope after all enhancements.
 })();
