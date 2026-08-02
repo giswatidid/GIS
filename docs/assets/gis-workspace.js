@@ -9,6 +9,7 @@
   let activeTab='layers';
   let renderQueued=false;
   let remoteDiscovery=null;
+  let remoteDiscoveryTrail=[];
   let remoteDiscoveryBusy=false;
   let remoteForm={name:'Remote data',mode:'editable',url:'',color:'#1664d6'};
   let remoteNameEdited=false;
@@ -154,14 +155,14 @@
         <div class="gis-remote-result-head"><div><strong>${html(result.name||result.title||'Web data')}</strong><span>${html(result.sourceType==='arcgis-layer'?'ArcGIS feature layer':'GeoJSON data')}</span></div><span class="gis-found-badge">Found</span></div>
         <div class="gis-remote-facts"><span>${html(result.geometryLabel||result.geometryType||'Spatial features')}</span><span>${html(count)}</span>${result.sourceCrs?`<span>${html(result.sourceCrs)}</span>`:''}</div>
         ${result.item?.title?`<p class="gis-help">Resolved from ArcGIS item: ${html(result.item.title)}</p>`:''}
-        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-import">Import layer</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-import">Import layer</button>${remoteDiscoveryTrail.length?'<button type="button" data-gis-action="remote-back">Choose another layer</button>':''}<button type="button" data-gis-action="remote-reset">Use another link</button></div>
       </div>`;
     }
     if(result.kind==='choose-layer'){
       return `<div class="gis-remote-result">
         <div class="gis-remote-result-head"><div><strong>${html(result.title||result.name||'ArcGIS service')}</strong><span>${result.layers.length.toLocaleString()} available layer${result.layers.length===1?'':'s'}</span></div><span class="gis-found-badge">Service</span></div>
         <label class="gis-remote-choice">Choose a layer<select id="gisRemoteChoice">${result.layers.map(layer=>`<option value="${html(layer.url)}">${html(layer.name)}${layer.geometryLabel?` — ${html(layer.geometryLabel)}`:''}</option>`).join('')}</select></label>
-        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Use selected layer</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Use selected layer</button>${remoteDiscoveryTrail.length?'<button type="button" data-gis-action="remote-back">Back to services</button>':''}<button type="button" data-gis-action="remote-reset">Use another link</button></div>
       </div>`;
     }
     if(result.kind==='choose-service'){
@@ -170,7 +171,7 @@
       return `<div class="gis-remote-result">
         <div class="gis-remote-result-head"><div><strong>${html(result.title||'ArcGIS services directory')}</strong><span>${result.services.length.toLocaleString()} service${result.services.length===1?'':'s'}${result.folders.length?` · ${result.folders.length.toLocaleString()} folder${result.folders.length===1?'':'s'}`:''}</span></div><span class="gis-found-badge">Directory</span></div>
         <label class="gis-remote-choice">Choose a service or folder<select id="gisRemoteChoice">${serviceOptions}${folderOptions}</select></label>
-        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Find layers</button><button type="button" data-gis-action="remote-reset">Use another link</button></div>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Find layers</button>${remoteDiscoveryTrail.length?'<button type="button" data-gis-action="remote-back">Back</button>':''}<button type="button" data-gis-action="remote-reset">Use another link</button></div>
       </div>`;
     }
     return '';
@@ -206,7 +207,7 @@
         <label>Layer colour<input id="gisRemoteColor" type="color" value="${html(remoteForm.color)}"></label>
       </div><p class="gis-help">Paste the link you have. EditPolygon will identify ArcGIS directories, services, layers, item pages and queries, build the data request, and retrieve all available records in batches. You do not need to add <code>/query</code> or JSON parameters yourself.</p>
       ${renderRemoteDiscovery()}
-      <div class="gis-form-actions"><button type="submit" class="primary" ${remoteDiscoveryBusy?'disabled':''}>${remoteDiscoveryBusy?'Finding data…':'Find data'}</button><span class="gis-inline-status" id="gisRemoteStatus" data-kind="${html(remoteStatus.kind)}">${html(remoteStatus.message)}</span></div></form>`;
+      ${(!remoteDiscovery||remoteDiscoveryBusy||remoteStatus.message)?`<div class="gis-form-actions">${!remoteDiscovery?`<button type="submit" class="primary" ${remoteDiscoveryBusy?'disabled':''}>${remoteDiscoveryBusy?'Finding data…':'Find data'}</button>`:''}<span class="gis-inline-status" id="gisRemoteStatus" data-kind="${html(remoteStatus.kind)}">${html(remoteStatus.message)}</span></div>`:''}</form>`;
   }
 
   function renderBasemaps(){
@@ -279,10 +280,13 @@
     inlineStatus('gisRemoteStatus',remoteStatus.message,remoteStatus.kind);
   }
 
-  async function discoverRemoteUrl(url){
+  async function discoverRemoteUrl(url,{preserveInput=false,pushCurrent=false,resetTrail=false}={}){
     syncRemoteForm();
     const target=String(url||remoteForm.url||'').trim();
     if(!target){setRemoteStatus('Paste a web data link first.','error');return;}
+    if(resetTrail)remoteDiscoveryTrail=[];
+    const previous=remoteDiscovery;
+    if(pushCurrent&&previous)remoteDiscoveryTrail.push(previous);
     remoteDiscoveryBusy=true;
     remoteDiscovery=null;
     setRemoteStatus('Checking the address and looking for spatial data…');
@@ -290,13 +294,15 @@
     try{
       const result=await api.discoverRemoteData({url:target});
       remoteDiscovery=result;
-      remoteForm.url=target;
+      if(!preserveInput)remoteForm.url=target;
       if(result.kind==='ready'&&!remoteNameEdited&&result?.name)remoteForm.name=result.name;
-      if(result.kind==='ready')setRemoteStatus('Data found. Review it, then import the layer.','ok');
-      else if(result.kind==='choose-layer')setRemoteStatus('ArcGIS service found. Choose a layer to continue.','ok');
-      else setRemoteStatus('ArcGIS directory found. Choose a service or folder to continue.','ok');
+      // The result card or chooser contains the successful next step. Clear any
+      // earlier parser/network warning so a resolved ArcGIS webpage never remains
+      // displayed as an error beside a valid layer.
+      setRemoteStatus('','');
     }catch(error){
-      remoteDiscovery=null;
+      if(pushCurrent&&remoteDiscoveryTrail.length)remoteDiscovery=remoteDiscoveryTrail.pop();
+      else remoteDiscovery=null;
       setRemoteStatus(error?.message||String(error),'error');
     }finally{
       remoteDiscoveryBusy=false;
@@ -325,6 +331,7 @@
       const count=result.file?.features?.length||result.item?.data?.features?.length||0;
       setRemoteStatus(`Imported ${count.toLocaleString()} feature${count===1?'':'s'}.`,'ok');
       remoteDiscovery=null;
+      remoteDiscoveryTrail=[];
       remoteForm={name:'Remote data',mode:remoteForm.mode,url:'',color:remoteForm.color};
       remoteNameEdited=false;
       activeTab='layers';
@@ -367,11 +374,19 @@
     else if(action==='simple-workspace')api.setWorkspaceMode('simple');
     else if(action==='remote-continue'){
       const choice=byId('gisRemoteChoice')?.value;
-      if(choice)await discoverRemoteUrl(choice);
+      if(choice)await discoverRemoteUrl(choice,{preserveInput:true,pushCurrent:true});
+    }
+    else if(action==='remote-back'){
+      syncRemoteForm();
+      if(remoteDiscoveryTrail.length){
+        remoteDiscovery=remoteDiscoveryTrail.pop();
+        remoteStatus={message:'',kind:''};
+        render();
+      }
     }
     else if(action==='remote-import')await importRemoteResult();
     else if(action==='remote-reset'){
-      syncRemoteForm();remoteDiscovery=null;remoteStatus={message:'',kind:''};if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
+      syncRemoteForm();remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'',kind:''};remoteForm.url='';if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
     }
   }
 
@@ -398,9 +413,11 @@
     }
     if(event.target.id==='gisRemoteName'){remoteForm.name=event.target.value;remoteNameEdited=true;}
     else if(event.target.id==='gisRemoteUrl'){
-      remoteForm.url=event.target.value;
-      if(remoteDiscovery&&event.target.value.trim()!==String(remoteDiscovery.url||remoteDiscovery.importUrl||'').trim()){
-        remoteDiscovery=null;remoteStatus={message:'Link changed. Click Find data to check it.',kind:''};
+      const nextUrl=event.target.value;
+      const changed=nextUrl.trim()!==String(remoteForm.url||'').trim();
+      remoteForm.url=nextUrl;
+      if(remoteDiscovery&&changed){
+        remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'Link changed. Click Find data to check it.',kind:''};
         panel?.querySelector('.gis-remote-result')?.remove();
         inlineStatus('gisRemoteStatus',remoteStatus.message,'');
       }
@@ -430,7 +447,7 @@
       }catch(err){inlineStatus('gisWmsStatus',err.message||String(err),'error');}
     }else if(event.target.id==='gisRemoteGeoJsonForm'){
       syncRemoteForm();
-      await discoverRemoteUrl(remoteForm.url);
+      await discoverRemoteUrl(remoteForm.url,{resetTrail:true});
     }
   }
 
