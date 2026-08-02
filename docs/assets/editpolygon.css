@@ -4829,3 +4829,257 @@ body.night-mode .v137-circle-edit-center{background:#111827;border-color:var(--a
 .v137-circle-export-notice[hidden]{display:none!important}
 body.night-mode .v137-circle-conversion-advanced,body.night-mode .v137-circle-export-advanced{background:#1f252d;border-color:#46515e}
 body.night-mode .v137-circle-export-notice{background:#352d18;border-color:#8a6d2d;color:#f5df9c}
+
+/* v149 Layers panel cleanup and horizontal resize -------------------------- */
+.app{
+  --v149-left-sidebar-user-width:305px;
+  --v120-left-sidebar-width:var(--v149-left-sidebar-user-width);
+}
+.app.v120-left-sidebar-collapsed{--v120-left-sidebar-width:34px;}
+.sidebar{position:relative!important;}
+.v149-sidebar-width-resizer{
+  position:absolute;
+  top:0;
+  right:0;
+  bottom:0;
+  z-index:1200;
+  width:9px;
+  cursor:ew-resize;
+  touch-action:none;
+  user-select:none;
+  background:transparent;
+  outline:none;
+}
+.v149-sidebar-width-resizer::before{
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  right:0;
+  width:1px;
+  background:#c7ccd2;
+  transition:width .12s ease,background .12s ease;
+}
+.v149-sidebar-width-resizer:hover::before,
+.v149-sidebar-width-resizer:focus-visible::before,
+.v149-sidebar-width-resizer.is-dragging::before{
+  width:4px;
+  background:#1f5fbf;
+}
+.v149-sidebar-width-resizer[aria-disabled="true"]{display:none!important;}
+.v149-sidebar-width-tooltip{
+  position:absolute;
+  top:50%;
+  right:12px;
+  transform:translateY(-50%);
+  display:none;
+  min-width:54px;
+  padding:4px 6px;
+  border:1px solid #9da5ae;
+  background:#fff;
+  color:#27313c;
+  font-size:10px;
+  font-weight:700;
+  text-align:center;
+  white-space:nowrap;
+  box-shadow:0 3px 10px rgba(15,23,42,.14);
+  pointer-events:none;
+}
+.v149-sidebar-width-resizer.is-dragging .v149-sidebar-width-tooltip{display:block;}
+body.v149-sidebar-width-resizing,
+body.v149-sidebar-width-resizing *{cursor:ew-resize!important;user-select:none!important;}
+body.v149-sidebar-width-resizing .app{transition:none!important;}
+body.night-mode .v149-sidebar-width-resizer::before{background:#3d444d;}
+body.night-mode .v149-sidebar-width-resizer:hover::before,
+body.night-mode .v149-sidebar-width-resizer:focus-visible::before,
+body.night-mode .v149-sidebar-width-resizer.is-dragging::before{background:#72a7e7;}
+body.night-mode .v149-sidebar-width-tooltip{border-color:#4a5565;background:#20252b;color:#edf1f5;}
+
+/* Keep the Layers header functional without the old instructional clutter. */
+#filesSection{container-type:inline-size;padding:8px!important;}
+#filesSection > .section-title{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+  gap:5px!important;
+  min-height:28px;
+  margin:0 0 7px!important;
+}
+#filesSection > .section-title::after{display:none!important;content:none!important;}
+#filesSection > .section-title > span:first-child{margin-right:auto!important;}
+#filesSection > .section-title .v135-new-group-button,
+#filesSection > .section-title .v133-layer-sort-button,
+#filesSection > .section-title .v120-sidebar-toggle{
+  flex:0 0 auto!important;
+  margin-left:0!important;
+}
+#filesSection > .section-title .v135-new-group-button{white-space:nowrap;}
+
+/* Flatten the nested search/filter card and keep the common filters on one row. */
+#filesSection .v54-layer-tools{
+  margin:0 0 7px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+}
+#filesSection .v54-layer-search-row{
+  display:flex!important;
+  gap:5px!important;
+  padding:0 0 6px!important;
+  border:0!important;
+  background:transparent!important;
+}
+#filesSection .v54-layer-search-row input{
+  height:31px!important;
+  border-radius:3px!important;
+  border-color:#c7ccd2!important;
+  font-size:11px!important;
+}
+#filesSection .v54-layer-search-row button{
+  width:31px!important;
+  min-width:31px!important;
+  height:31px!important;
+  border-radius:3px!important;
+}
+#filesSection .v54-filter-row{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+  gap:3px!important;
+  padding:0 0 6px!important;
+  border:0!important;
+  background:transparent!important;
+  overflow:visible!important;
+}
+#filesSection .v54-filter-row > button,
+#filesSection .v149-filter-more > summary{
+  min-height:24px!important;
+  height:24px!important;
+  padding:0 7px!important;
+  border:1px solid #d4d9df!important;
+  border-radius:3px!important;
+  background:#fff!important;
+  color:#47515c!important;
+  font-size:10px!important;
+  font-weight:600!important;
+  line-height:22px!important;
+  white-space:nowrap;
+  cursor:pointer;
+}
+#filesSection .v54-filter-row > button.active,
+#filesSection .v149-filter-more.active > summary{
+  border-color:#8fb0d7!important;
+  background:#eaf2fb!important;
+  color:#174f9f!important;
+}
+.v149-filter-more{position:relative;margin-left:auto;flex:0 0 auto;}
+.v149-filter-more > summary{list-style:none;display:flex;align-items:center;gap:4px;}
+.v149-filter-more > summary::-webkit-details-marker{display:none;}
+.v149-filter-more > summary::after{content:"▾";font-size:9px;color:#697481;}
+.v149-filter-more[open] > summary::after{content:"▴";}
+.v149-filter-menu{
+  position:absolute;
+  top:28px;
+  right:0;
+  z-index:1300;
+  display:grid;
+  gap:3px;
+  min-width:112px;
+  padding:5px;
+  border:1px solid #b9c0c8;
+  background:#fff;
+  box-shadow:0 6px 18px rgba(15,23,42,.16);
+}
+.v149-filter-menu button{
+  min-height:27px!important;
+  padding:0 8px!important;
+  border:0!important;
+  border-radius:2px!important;
+  background:transparent!important;
+  color:#39434d!important;
+  font-size:11px!important;
+  text-align:left;
+}
+.v149-filter-menu button:hover{background:#eef2f6!important;}
+.v149-filter-menu button.active{background:#eaf2fb!important;color:#174f9f!important;font-weight:700!important;}
+body.night-mode .v149-filter-menu{border-color:#4a525d;background:#20252b;}
+body.night-mode .v149-filter-menu button{color:#dce2e8!important;}
+body.night-mode .v149-filter-menu button:hover{background:#2a3038!important;}
+
+/* A compact selection action surface replaces the tall grid of equal buttons. */
+#filesSection .v54-bulk-bar{
+  margin:0 0 6px!important;
+  padding:7px!important;
+  border-radius:3px!important;
+  gap:0!important;
+}
+#filesSection .v54-bulk-bar.active{display:block!important;}
+.v149-bulk-head,.v149-bulk-actions{display:flex;align-items:center;gap:5px;min-width:0;}
+.v149-bulk-head{margin-bottom:6px;}
+.v149-bulk-head strong{margin-right:auto!important;font-size:11px!important;}
+.v149-bulk-actions{flex-wrap:wrap;}
+.v149-bulk-head button,.v149-bulk-actions button,.v149-bulk-more > summary{
+  min-height:26px!important;
+  height:26px!important;
+  padding:0 7px!important;
+  border-radius:3px!important;
+  font-size:10px!important;
+  line-height:24px!important;
+  white-space:nowrap;
+}
+.v149-bulk-more{position:relative;margin-left:auto;}
+.v149-bulk-more > summary{list-style:none;border:1px solid #d8b978;background:#fff7ed;color:#7a4a08;cursor:pointer;}
+.v149-bulk-more > summary::-webkit-details-marker{display:none;}
+.v149-bulk-more > summary::after{content:" ▾";}
+.v149-bulk-more[open] > summary::after{content:" ▴";}
+.v149-bulk-menu{
+  position:absolute;
+  z-index:1350;
+  top:30px;
+  right:0;
+  display:grid;
+  gap:3px;
+  min-width:158px;
+  padding:5px;
+  border:1px solid #c9ab69;
+  background:#fff;
+  box-shadow:0 7px 18px rgba(15,23,42,.18);
+}
+.v149-bulk-menu button{width:100%;justify-content:flex-start;text-align:left;}
+.v149-bulk-menu .danger{margin-top:3px;border-top-color:#efb3b3!important;}
+body.night-mode .v149-bulk-menu{background:#20252b;border-color:#8a6a2a;}
+
+#filesSection .v54-layer-results{
+  min-height:18px;
+  padding:0 1px 5px!important;
+  color:#697481!important;
+  font-size:10px!important;
+  line-height:1.3;
+  white-space:normal;
+}
+
+/* Give names the space and hierarchy they need. */
+#filesSection .file-card,#filesSection .v54-file-card{margin-bottom:6px!important;}
+#filesSection .file-head,#filesSection .feature-row{min-width:0!important;}
+#filesSection .file-main,#filesSection .feature-main{min-width:44px!important;}
+#filesSection .file-name,#filesSection .feature-name{font-size:11px!important;}
+#filesSection .file-meta,#filesSection .feature-meta{font-size:9px!important;}
+#filesSection .file-card.gis-dataset-layer .file-head::after{display:none!important;content:none!important;}
+#filesSection .v54-layer-quick{gap:1px!important;margin-left:2px!important;}
+#filesSection .v54-icon-btn,#filesSection .layer-kebab,#filesSection .v135-target-button{
+  width:24px!important;
+  min-width:24px!important;
+  height:24px!important;
+  min-height:24px!important;
+}
+
+@container (max-width:340px){
+  #filesSection .v54-geom-badge,#filesSection .v133-sort-badge,#filesSection .v135-draw-target-badge{display:none!important;}
+  #filesSection .v133-drag-handle{width:14px;min-width:14px;flex-basis:14px;}
+  #filesSection .v54-filter-row > button,#filesSection .v149-filter-more > summary{padding-left:5px!important;padding-right:5px!important;}
+}
+@media(max-width:760px){
+  .v149-sidebar-width-resizer{display:none!important;}
+}
