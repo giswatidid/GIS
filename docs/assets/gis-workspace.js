@@ -11,9 +11,10 @@
   let remoteDiscovery=null;
   let remoteDiscoveryTrail=[];
   let remoteDiscoveryBusy=false;
+  let remoteDiscoveryRequestId=0;
   let remoteForm={name:'Remote data',mode:'editable',url:'',color:'#1664d6'};
   let remoteNameEdited=false;
-  let remoteStatus={message:'',kind:''};
+  let remoteStatus={message:'',kind:'',scope:''};
 
   function status(message,kind=''){
     const el=byId('gisWorkspaceStatus');
@@ -207,7 +208,15 @@
         <label>Layer colour<input id="gisRemoteColor" type="color" value="${html(remoteForm.color)}"></label>
       </div><p class="gis-help">Paste the link you have. EditPolygon will identify ArcGIS directories, services, layers, item pages and queries, build the data request, and retrieve all available records in batches. You do not need to add <code>/query</code> or JSON parameters yourself.</p>
       ${renderRemoteDiscovery()}
-      ${(!remoteDiscovery||remoteDiscoveryBusy||remoteStatus.message)?`<div class="gis-form-actions">${!remoteDiscovery?`<button type="submit" class="primary" ${remoteDiscoveryBusy?'disabled':''}>${remoteDiscoveryBusy?'Finding data…':'Find data'}</button>`:''}<span class="gis-inline-status" id="gisRemoteStatus" data-kind="${html(remoteStatus.kind)}">${html(remoteStatus.message)}</span></div>`:''}</form>`;
+      ${(()=>{
+        // A valid discovery card is the authoritative result. Never leave an
+        // earlier discovery/parser error visible beside it. Import errors are
+        // kept because they relate to the user's next action, not discovery.
+        const visibleStatus=remoteDiscovery&&remoteStatus.scope==='discovery'?'':remoteStatus.message;
+        const visibleKind=visibleStatus?remoteStatus.kind:'';
+        const showActions=!remoteDiscovery||remoteDiscoveryBusy||!!visibleStatus;
+        return showActions?`<div class="gis-form-actions">${!remoteDiscovery?`<button type="submit" class="primary" ${remoteDiscoveryBusy?'disabled':''}>${remoteDiscoveryBusy?'Finding data…':'Find data'}</button>`:''}<span class="gis-inline-status" id="gisRemoteStatus" data-kind="${html(visibleKind)}">${html(visibleStatus)}</span></div>`:'';
+      })()}</form>`;
   }
 
   function renderBasemaps(){
@@ -275,38 +284,46 @@
     if(byId('gisRemoteColor'))remoteForm.color=byId('gisRemoteColor').value;
   }
 
-  function setRemoteStatus(message='',kind=''){
-    remoteStatus={message:String(message||''),kind:String(kind||'')};
+  function setRemoteStatus(message='',kind='',scope=''){
+    remoteStatus={message:String(message||''),kind:String(kind||''),scope:String(scope||'')};
     inlineStatus('gisRemoteStatus',remoteStatus.message,remoteStatus.kind);
+  }
+
+  function clearRemoteStatus(scope=''){
+    if(scope&&remoteStatus.scope&&remoteStatus.scope!==scope)return;
+    setRemoteStatus('','','');
   }
 
   async function discoverRemoteUrl(url,{preserveInput=false,pushCurrent=false,resetTrail=false}={}){
     syncRemoteForm();
     const target=String(url||remoteForm.url||'').trim();
-    if(!target){setRemoteStatus('Paste a web data link first.','error');return;}
+    if(!target){setRemoteStatus('Paste a web data link first.','error','discovery');return;}
     if(resetTrail)remoteDiscoveryTrail=[];
     const previous=remoteDiscovery;
     if(pushCurrent&&previous)remoteDiscoveryTrail.push(previous);
+    const requestId=++remoteDiscoveryRequestId;
     remoteDiscoveryBusy=true;
     remoteDiscovery=null;
-    setRemoteStatus('Checking the address and looking for spatial data…');
+    setRemoteStatus('Checking the address and looking for spatial data…','','discovery');
     render();
     try{
       const result=await api.discoverRemoteData({url:target});
+      if(requestId!==remoteDiscoveryRequestId)return;
       remoteDiscovery=result;
       if(!preserveInput)remoteForm.url=target;
       if(result.kind==='ready'&&!remoteNameEdited&&result?.name)remoteForm.name=result.name;
-      // The result card or chooser contains the successful next step. Clear any
-      // earlier parser/network warning so a resolved ArcGIS webpage never remains
-      // displayed as an error beside a valid layer.
-      setRemoteStatus('','');
+      // The card/chooser is now the authoritative successful state.
+      clearRemoteStatus('discovery');
     }catch(error){
+      if(requestId!==remoteDiscoveryRequestId)return;
       if(pushCurrent&&remoteDiscoveryTrail.length)remoteDiscovery=remoteDiscoveryTrail.pop();
       else remoteDiscovery=null;
-      setRemoteStatus(error?.message||String(error),'error');
+      setRemoteStatus(error?.message||String(error),'error','discovery');
     }finally{
-      remoteDiscoveryBusy=false;
-      render();
+      if(requestId===remoteDiscoveryRequestId){
+        remoteDiscoveryBusy=false;
+        render();
+      }
     }
   }
 
@@ -314,7 +331,7 @@
     if(!remoteDiscovery||remoteDiscovery.kind!=='ready')return;
     syncRemoteForm();
     remoteDiscoveryBusy=true;
-    setRemoteStatus('Importing the selected data…');
+    setRemoteStatus('Importing the selected data…','','import');
     render();
     try{
       const result=await api.importRemoteGeoJson({
@@ -325,11 +342,11 @@
         discovery:remoteDiscovery,
         onProgress:progress=>{
           const loaded=Number(progress?.loaded||0),total=Number(progress?.total||0);
-          setRemoteStatus(total?`Downloading ${loaded.toLocaleString()} of ${total.toLocaleString()} features…`:`Downloading features…`);
+          setRemoteStatus(total?`Downloading ${loaded.toLocaleString()} of ${total.toLocaleString()} features…`:`Downloading features…`,'','import');
         }
       });
       const count=result.file?.features?.length||result.item?.data?.features?.length||0;
-      setRemoteStatus(`Imported ${count.toLocaleString()} feature${count===1?'':'s'}.`,'ok');
+      setRemoteStatus(`Imported ${count.toLocaleString()} feature${count===1?'':'s'}.`,'ok','import');
       remoteDiscovery=null;
       remoteDiscoveryTrail=[];
       remoteForm={name:'Remote data',mode:remoteForm.mode,url:'',color:remoteForm.color};
@@ -337,7 +354,7 @@
       activeTab='layers';
       setTimeout(render,200);
     }catch(error){
-      setRemoteStatus(error?.message||String(error),'error');
+      setRemoteStatus(error?.message||String(error),'error','import');
     }finally{
       remoteDiscoveryBusy=false;
       if(activeTab==='add')render();
@@ -379,14 +396,15 @@
     else if(action==='remote-back'){
       syncRemoteForm();
       if(remoteDiscoveryTrail.length){
+        remoteDiscoveryRequestId++;
         remoteDiscovery=remoteDiscoveryTrail.pop();
-        remoteStatus={message:'',kind:''};
+        remoteStatus={message:'',kind:'',scope:''};
         render();
       }
     }
     else if(action==='remote-import')await importRemoteResult();
     else if(action==='remote-reset'){
-      syncRemoteForm();remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'',kind:''};remoteForm.url='';if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
+      syncRemoteForm();remoteDiscoveryRequestId++;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'',kind:'',scope:''};remoteForm.url='';if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
     }
   }
 
@@ -417,7 +435,7 @@
       const changed=nextUrl.trim()!==String(remoteForm.url||'').trim();
       remoteForm.url=nextUrl;
       if(remoteDiscovery&&changed){
-        remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'Link changed. Click Find data to check it.',kind:''};
+        remoteDiscoveryRequestId++;remoteDiscoveryBusy=false;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'Link changed. Click Find data to check it.',kind:'',scope:'discovery'};
         panel?.querySelector('.gis-remote-result')?.remove();
         inlineStatus('gisRemoteStatus',remoteStatus.message,'');
       }
