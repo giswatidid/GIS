@@ -18506,15 +18506,15 @@ showAutosaveRecoveryIfAvailable();
     bar.innerHTML=`<strong>${selected.length} selected</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">${mergeActionLabel(selected)}</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="visibility">${anyHidden?'Show selected':'Hide selected'}</button><button data-v54-bulk="lock">${allLocked?'Unlock selected':'Lock selected'}</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo selected</button><button class="danger" data-v54-bulk="delete">Delete selected</button>`;
     bar.querySelectorAll('[data-v54-bulk]').forEach(btn=>btn.onclick=e=>{
       e.preventDefault();e.stopPropagation();const action=btn.dataset.v54Bulk;
-      if(action==='clear')v133ClearSelection();
+      if(action==='clear')window.__editPolygonLayersV133?.clear?.();
       else if(action==='merge')mergePicked();
       else if(action==='copy'){if(selected[0])copyStyleFromFeature(selected[0].feature.id);}
       else if(action==='paste')pasteStyleToPickedOrSelected();
       else if(action==='export')v54ExportPicked();
       else if(action==='solo')v54SoloPicked();
       else if(action==='delete')v54DeletePicked();
-      else if(action==='visibility')v133SetSelectedVisibility(anyHidden);
-      else if(action==='lock')v133SetSelectedLock(!allLocked);
+      else if(action==='visibility'){for(const r of selected)r.feature.visible=!!anyHidden;renderMap();renderSidebar();renderSelected();setDirty(true);setStatus(`${anyHidden?'Shown':'Hidden'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);}
+      else if(action==='lock'){const next=!allLocked;for(const r of selected)if(!r.file.locked)r.feature.locked=next;renderSidebar();renderSelected();setDirty(true);setStatus(`${next?'Locked':'Unlocked'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);}
     });
   };
   function v133SetSelectedVisibility(visible){
@@ -21309,6 +21309,214 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.EditPolygonSelectionTools=Object.freeze({open,refresh,close:hide});refresh();
 })();
 
+
+/* v149 — compact Layers workspace and horizontally resizable left sidebar. */
+(function(){
+  'use strict';
+  const V149={
+    version:'v149',
+    storageKey:'editpolygon.leftSidebarWidth.v149',
+    minWidth:280,
+    defaultWidth:305,
+    hardMax:620,
+    resizeRaf:0,
+    enhancing:false
+  };
+
+  function v149Clamp(value,min,max){return Math.min(max,Math.max(min,Number(value)||min));}
+  function v149App(){return document.querySelector('.app');}
+  function v149Sidebar(){return document.querySelector('.sidebar');}
+  function v149MaxWidth(){
+    const sidebar=v149Sidebar();
+    if(!sidebar)return V149.hardMax;
+    const left=sidebar.getBoundingClientRect().left||56;
+    const right=window.innerWidth>1100?(document.getElementById('selectedSection')?.getBoundingClientRect().width||315):0;
+    const mapMinimum=window.innerWidth>1100?360:320;
+    return Math.max(V149.minWidth,Math.min(V149.hardMax,window.innerWidth-left-right-mapMinimum));
+  }
+  function v149StoredWidth(){
+    try{return Number(localStorage.getItem(V149.storageKey))||V149.defaultWidth;}catch(_){return V149.defaultWidth;}
+  }
+  function v149InvalidateMap(){
+    if(V149.resizeRaf)return;
+    V149.resizeRaf=requestAnimationFrame(()=>{
+      V149.resizeRaf=0;
+      try{map?.invalidateSize?.({pan:false,animate:false});}catch(_){ }
+    });
+  }
+  function v149SetWidth(value,{persist=false}={}){
+    const app=v149App();if(!app)return V149.defaultWidth;
+    const width=Math.round(v149Clamp(value,V149.minWidth,v149MaxWidth()));
+    app.style.setProperty('--v149-left-sidebar-user-width',`${width}px`);
+    const handle=document.getElementById('v149SidebarWidthResizer');
+    if(handle){
+      handle.setAttribute('aria-valuemin',String(V149.minWidth));
+      handle.setAttribute('aria-valuemax',String(Math.round(v149MaxWidth())));
+      handle.setAttribute('aria-valuenow',String(width));
+      handle.querySelector('.v149-sidebar-width-tooltip')?.replaceChildren(document.createTextNode(`${width}px`));
+    }
+    if(persist)try{localStorage.setItem(V149.storageKey,String(width));}catch(_){ }
+    v149InvalidateMap();
+    return width;
+  }
+  function v149EnsureWidthHandle(){
+    const sidebar=v149Sidebar(),app=v149App();if(!sidebar||!app)return;
+    let handle=document.getElementById('v149SidebarWidthResizer');
+    if(!handle){
+      handle=document.createElement('div');
+      handle.id='v149SidebarWidthResizer';
+      handle.className='v149-sidebar-width-resizer';
+      handle.tabIndex=0;
+      handle.setAttribute('role','separator');
+      handle.setAttribute('aria-orientation','vertical');
+      handle.setAttribute('aria-label','Resize Project and Layers sidebar');
+      handle.title='Drag to resize the Project and Layers sidebar. Double-click to reset.';
+      handle.innerHTML='<span class="v149-sidebar-width-tooltip" aria-hidden="true"></span>';
+      sidebar.appendChild(handle);
+
+      handle.addEventListener('pointerdown',event=>{
+        if(event.button!==0||app.classList.contains('v120-left-sidebar-collapsed'))return;
+        event.preventDefault();event.stopPropagation();
+        const startX=event.clientX,startWidth=sidebar.getBoundingClientRect().width;
+        handle.classList.add('is-dragging');document.body.classList.add('v149-sidebar-width-resizing');
+        try{handle.setPointerCapture(event.pointerId);}catch(_){ }
+        const move=ev=>{if(ev.pointerId!==event.pointerId)return;v149SetWidth(startWidth+(ev.clientX-startX));};
+        const finish=ev=>{
+          if(ev.pointerId!==event.pointerId)return;
+          handle.removeEventListener('pointermove',move);handle.removeEventListener('pointerup',finish);handle.removeEventListener('pointercancel',finish);
+          handle.classList.remove('is-dragging');document.body.classList.remove('v149-sidebar-width-resizing');
+          try{handle.releasePointerCapture(event.pointerId);}catch(_){ }
+          const width=Math.round(sidebar.getBoundingClientRect().width);v149SetWidth(width,{persist:true});
+          setStatus(`Layers panel width set to ${width}px.`);
+        };
+        handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);
+      });
+      handle.addEventListener('dblclick',event=>{event.preventDefault();v149SetWidth(V149.defaultWidth,{persist:true});setStatus('Layers panel width reset.');});
+      handle.addEventListener('keydown',event=>{
+        if(app.classList.contains('v120-left-sidebar-collapsed'))return;
+        const current=sidebar.getBoundingClientRect().width;
+        let next=null;
+        if(event.key==='ArrowLeft')next=current-(event.shiftKey?40:12);
+        else if(event.key==='ArrowRight')next=current+(event.shiftKey?40:12);
+        else if(event.key==='Home')next=V149.minWidth;
+        else if(event.key==='End')next=v149MaxWidth();
+        if(next==null)return;
+        event.preventDefault();v149SetWidth(next,{persist:true});
+      });
+    }
+    handle.setAttribute('aria-disabled',app.classList.contains('v120-left-sidebar-collapsed')?'true':'false');
+    v149SetWidth(v149StoredWidth());
+  }
+
+  function v149FilterLabel(){
+    const filter=typeof STEP3_LAYERS!=='undefined'?STEP3_LAYERS.filter||'all':'all';
+    return filter==='locked'?'Locked':filter==='invalid'?'Issues':'More';
+  }
+  function v149EnhanceFilters(){
+    const row=document.getElementById('v54FilterRow');if(!row)return;
+    let more=row.querySelector('.v149-filter-more');
+    if(!more){
+      more=document.createElement('details');more.className='v149-filter-more';
+      more.innerHTML='<summary type="button">More</summary><div class="v149-filter-menu"></div>';
+      row.appendChild(more);
+      const menu=more.querySelector('.v149-filter-menu');
+      ['locked','invalid'].forEach(name=>{
+        const button=row.querySelector(`[data-v54-filter="${name}"]`);if(button)menu.appendChild(button);
+      });
+      menu.addEventListener('click',event=>{if(event.target.closest('[data-v54-filter]'))more.removeAttribute('open');});
+    }
+    const filter=typeof STEP3_LAYERS!=='undefined'?STEP3_LAYERS.filter||'all':'all';
+    more.classList.toggle('active',['locked','invalid'].includes(filter));
+    const summary=more.querySelector('summary');if(summary)summary.firstChild.textContent=v149FilterLabel();
+  }
+
+  function v149UpdateLayerResults(){
+    const result=document.getElementById('v54LayerResults');if(!result)return;
+    const files=project.files||[],totalFiles=files.length,total=files.reduce((sum,file)=>sum+(file.features||[]).length,0);
+    if(!totalFiles){result.textContent='No editable layers.';return;}
+    const q=String(typeof STEP3_LAYERS!=='undefined'?STEP3_LAYERS.query||'':'').trim().toLowerCase();
+    const filter=typeof STEP3_LAYERS!=='undefined'?STEP3_LAYERS.filter||'all':'all';
+    if(!q&&filter==='all'){
+      result.textContent=`${total.toLocaleString()} feature${total===1?'':'s'} in ${totalFiles.toLocaleString()} layer${totalFiles===1?'':'s'}`;
+      return;
+    }
+    let shown=0,shownFiles=0;
+    for(const file of files){
+      const fileMatch=!q||String(file.name||'').toLowerCase().includes(q)||String(file.sourceFormat||'').toLowerCase().includes(q);
+      let fileShown=0;
+      for(const feature of file.features||[]){
+        let pass=true;
+        try{pass=v54RowPassesFilter(file,feature)&&(fileMatch||v54TextMatches(q,file,feature));}catch(_){pass=fileMatch;}
+        if(pass){shown++;fileShown++;}
+      }
+      if(fileShown||(!(file.features||[]).length&&fileMatch))shownFiles++;
+    }
+    const suffix=q?` · “${String(STEP3_LAYERS.query||'').trim()}”`:'';
+    result.textContent=`${shown.toLocaleString()} of ${total.toLocaleString()} features · ${shownFiles.toLocaleString()} of ${totalFiles.toLocaleString()} layers${suffix}`;
+  }
+
+  function v149SelectedRefs(){
+    try{return v54PickedRefs();}catch(_){
+      const ids=new Set([...(project.mergeIds||[]),project.selectedFeatureId].filter(Boolean));
+      return [...ids].map(id=>ref(id)).filter(Boolean);
+    }
+  }
+  function v149RenderBulkBar(){
+    const bar=document.getElementById('v54BulkBar');if(!bar)return;
+    const selected=v149SelectedRefs();
+    if(!selected.length){bar.classList.remove('active');bar.innerHTML='';return;}
+    const anyHidden=selected.some(r=>r.file.visible===false||r.feature.visible===false);
+    const allLocked=selected.every(r=>isLocked(r.file,r.feature));
+    bar.classList.add('active');
+    bar.innerHTML=`<div class="v149-bulk-head"><strong>${selected.length} selected</strong><button data-v149-bulk="clear">Clear</button><button class="primary" data-v149-bulk="merge">${mergeActionLabel(selected)}</button></div>
+      <div class="v149-bulk-actions"><button data-v149-bulk="visibility">${anyHidden?'Show':'Hide'}</button><button data-v149-bulk="lock">${allLocked?'Unlock':'Lock'}</button><button data-v149-bulk="export">Export</button><details class="v149-bulk-more"><summary>More</summary><div class="v149-bulk-menu"><button data-v149-bulk="copy">Copy first style</button><button data-v149-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v149-bulk="solo">Solo selected</button><button class="danger" data-v149-bulk="delete">Delete selected</button></div></details></div>`;
+    bar.querySelectorAll('[data-v149-bulk]').forEach(button=>button.addEventListener('click',event=>{
+      event.preventDefault();event.stopPropagation();
+      const action=button.dataset.v149Bulk;
+      if(action==='clear')window.__editPolygonLayersV133?.clear?.();
+      else if(action==='merge')mergePicked();
+      else if(action==='copy'&&selected[0])copyStyleFromFeature(selected[0].feature.id);
+      else if(action==='paste')pasteStyleToPickedOrSelected();
+      else if(action==='visibility'){for(const r of selected)r.feature.visible=!!anyHidden;renderMap();renderSidebar();renderSelected();setDirty(true);setStatus(`${anyHidden?'Shown':'Hidden'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);}
+      else if(action==='lock'){const next=!allLocked;for(const r of selected)if(!r.file.locked)r.feature.locked=next;renderSidebar();renderSelected();setDirty(true);setStatus(`${next?'Locked':'Unlocked'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);}
+      else if(action==='export')v54ExportPicked();
+      else if(action==='solo')v54SoloPicked();
+      else if(action==='delete')v54DeletePicked();
+      button.closest('details')?.removeAttribute('open');
+    }));
+  }
+
+  function v149EnhanceLayers(){
+    if(V149.enhancing)return;V149.enhancing=true;
+    try{
+      v149EnsureWidthHandle();
+      v149EnhanceFilters();
+      v149UpdateLayerResults();
+      const section=document.getElementById('filesSection');
+      if(section)section.classList.add('v149-layers-clean');
+      document.querySelector('#filesSection > .section-title')?.setAttribute('aria-label','Layers controls');
+    }finally{V149.enhancing=false;}
+  }
+
+  const v149BaseApply=typeof v54ApplyLayerFilter==='function'?v54ApplyLayerFilter:null;
+  if(v149BaseApply){
+    v54ApplyLayerFilter=function(){const out=v149BaseApply.apply(this,arguments);v149EnhanceFilters();v149UpdateLayerResults();return out;};
+  }
+  v54RenderBulkBar=v149RenderBulkBar;
+
+  const v149BaseRenderSidebar=renderSidebar;
+  renderSidebar=function(){const out=v149BaseRenderSidebar.apply(this,arguments);v149EnhanceLayers();v149RenderBulkBar();return out;};
+  try{window.renderSidebar=renderSidebar;}catch(_){ }
+
+  document.addEventListener('click',event=>{
+    document.querySelectorAll('.v149-filter-more[open],.v149-bulk-more[open]').forEach(details=>{if(!details.contains(event.target))details.removeAttribute('open');});
+  });
+  window.addEventListener('resize',()=>v149SetWidth(v149Sidebar()?.getBoundingClientRect().width||v149StoredWidth()));
+  new MutationObserver(()=>v149EnsureWidthHandle()).observe(v149App(),{attributes:true,attributeFilter:['class']});
+
+  v149EnhanceLayers();v149RenderBulkBar();
+  window.__editPolygonLayersV149=Object.freeze({version:V149.version,setWidth:v149SetWidth,minWidth:V149.minWidth,maxWidth:v149MaxWidth});
+})();
 
 // Close the main EditPolygon application scope after all enhancements.
 })();
