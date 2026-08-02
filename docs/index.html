@@ -171,9 +171,9 @@ html.v121-app-ready body{
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
 <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 <link rel="stylesheet" href="assets/editpolygon.css?v=20260731-gis-foundation"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260802-remote-discovery-1450"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260802-points-multi-import-1460"/>
 <link rel="stylesheet" href="assets/gis-data-tools.css?v=20260731-gis-data-1420"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260731-gis-ui-1421"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260802-points-layer-list-1460"/>
 
 
 
@@ -235,6 +235,7 @@ html.v121-app-ready body{
 </nav>
 <div aria-label="Draw tools" class="rail-flyout" id="drawToolFlyout" role="menu">
 <div class="rail-flyout-title">Draw shapes</div>
+<button data-draw-tool="point"><span class="flyout-icon">•</span><span><strong>Point</strong><small>Click once to create an editable GIS point</small></span></button>
 <button data-draw-tool="polygon"><span class="flyout-icon">P</span><span><strong>Free polygon</strong><small>Click points. Hold Shift to snap the next edge to 45° angles</small></span></button>
 <button data-draw-tool="rectangle"><span class="flyout-icon">▭</span><span><strong>Rectangle / square</strong><small>Click first corner, click opposite corner. Hold Shift for square</small></span></button>
 <button data-draw-tool="circle"><span class="flyout-icon">○</span><span><strong>Circle</strong><small>Click centre, click radius. GML preserves the true circle</small></span></button>
@@ -270,7 +271,7 @@ html.v121-app-ready body{
 <div class="sidebar-section project-section" id="projectSection"><div class="section-title"><span>Project</span><span class="subtle" id="projectCounts">0 files · 0 features</span></div><div class="dropzone" id="dropzone"><strong>Import files</strong><br/>Drop files here or click to open files<br/><span class="subtle">Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT/TXT and Shapefile ZIP</span></div><div class="notice" id="modeNotice">Use the left rail for tools. Select any map object to edit it in the right inspector.</div></div>
 <div class="sidebar-resizer" data-resizer="project-files"></div><div class="sidebar-section files-section" id="filesSection"><div class="section-title"><span>Layers</span></div><div id="fileList"></div></div>
 </aside>
-<aside class="sidebar-section selected-section inspector-panel" id="selectedSection"><div class="section-title"><span>Inspector</span><span class="subtle" id="selectedState">None</span></div><div id="selectedPanel"><div class="empty-inspector">Select a polygon, image, or measurement to edit it.</div></div></aside>
+<aside class="sidebar-section selected-section inspector-panel" id="selectedSection"><div class="section-title"><span>Inspector</span><span class="subtle" id="selectedState">None</span></div><div id="selectedPanel"><div class="empty-inspector">Select a point, line, polygon, image, or measurement to edit it.</div></div></aside>
 <main id="map" aria-label="Interactive polygon editing map"></main>
 <div aria-label="Map display options" class="map-display-control" id="mapDisplayControl">
 <label>Map
@@ -703,9 +704,9 @@ html.v121-app-ready body{
 <script src="assets/gis-core.js?v=20260731-gis-foundation"></script>
 <script src="assets/gis-data-core.js?v=20260731-gis-data"></script>
 <script src="assets/gis-crs-core.js?v=20260731-crs-perf-1441"></script>
-<script src="assets/gis-remote-source.js?v=20260802-remote-import-1453"></script>
-<script src="assets/editpolygon-app.js?v=20260802-remote-import-1453"></script>
-<script src="assets/gis-workspace.js?v=20260802-remote-discovery-1452"></script>
+<script src="assets/gis-remote-source.js?v=20260802-arcgis-post-query-1461"></script>
+<script src="assets/editpolygon-app.js?v=20260802-points-1460-arcgis-post-query-1461"></script>
+<script src="assets/gis-workspace.js?v=20260802-points-multi-import-1460"></script>
 <script src="assets/gis-data-tools.js?v=20260731-crs-perf-1441"></script>
 <script src="assets/gis-ui-integration.js?v=20260731-crs-perf-1441"></script>
 
