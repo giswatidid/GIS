@@ -4364,53 +4364,193 @@ function createPolygonFromCoords(){
 function duplicateFeature(){const r=ref();if(!r)return;pushHistory();const copy=clone(r.feature);ensureFeatureModel(copy);copy.id=uid('feat');copy.name=r.feature.name+' copy';copy.properties.name=copy.name;r.file.features.push(copy);project.selectedFeatureId=copy.id;renderAll();setDirty(true)}
 function deletePolygon(){const r=ref();if(!r)return;if(isLocked(r.file,r.feature)){setStatus('Feature is locked. Unlock it before deleting.','error');return}if(!confirm(`Delete "${r.feature.name}"?`))return;pushHistory();r.file.features=r.file.features.filter(f=>f.id!==r.feature.id);project.mergeIds=project.mergeIds.filter(id=>id!==r.feature.id);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true);logOperation('polygon-deleted',{});setStatus('Polygon deleted.')}
 function togglePick(fid){project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);renderAll()}
-function mergePicked(){
-  const ids=[...new Set(project.mergeIds||[])];
-  if(ids.length<2){
-    setStatus('Pick at least two polygons to merge.','error');
-    return;
+function mergeGeometryFamily(type){
+  if(type==='Polygon'||type==='MultiPolygon')return 'polygon';
+  if(type==='LineString'||type==='MultiLineString')return 'line';
+  if(type==='Point'||type==='MultiPoint')return 'point';
+  return 'unsupported';
+}
+function mergeActionLabel(refs){
+  const families=new Set((refs||[]).map(r=>mergeGeometryFamily(getDisplayGeometry(r?.feature)?.type)).filter(f=>f!=='unsupported'));
+  if(families.size!==1)return 'Merge / dissolve';
+  const family=[...families][0];
+  if(family==='line')return 'Merge lines';
+  if(family==='point')return 'Combine points';
+  return 'Dissolve polygons';
+}
+function mergeValidCoordinate(coord){
+  return Array.isArray(coord)&&Number.isFinite(Number(coord[0]))&&Number.isFinite(Number(coord[1]));
+}
+function mergeCoordinateKey(coord,precision=10){
+  return `${Number(coord?.[0]).toFixed(precision)},${Number(coord?.[1]).toFixed(precision)}`;
+}
+function mergeCoordinatesNear(a,b,tolerance=1e-8){
+  return mergeValidCoordinate(a)&&mergeValidCoordinate(b)&&Math.abs(Number(a[0])-Number(b[0]))<=tolerance&&Math.abs(Number(a[1])-Number(b[1]))<=tolerance;
+}
+function mergeCleanOpenLine(coords){
+  const out=[];
+  for(const coord of coords||[]){
+    if(!mergeValidCoordinate(coord))continue;
+    const copy=clone(coord);
+    if(!out.length||!mergeCoordinatesNear(out[out.length-1],copy,1e-12))out.push(copy);
   }
-
-  const picked=ids.map(id=>ref(id)).filter(r=>r&&r.feature&&polygonSupported(getDisplayGeometry(r.feature).type));
-  if(picked.length<2){
-    setStatus('Pick at least two valid polygon features to merge.','error');
-    return;
+  return out.length>=2?out:[];
+}
+function mergeLinePartsFromGeometry(geometry){
+  if(!geometry)return [];
+  if(geometry.type==='LineString')return [mergeCleanOpenLine(geometry.coordinates)].filter(line=>line.length>=2);
+  if(geometry.type==='MultiLineString')return (geometry.coordinates||[]).map(mergeCleanOpenLine).filter(line=>line.length>=2);
+  return [];
+}
+function mergeDeduplicateLineParts(parts){
+  const seen=new Set(),out=[];
+  for(const raw of parts||[]){
+    const line=mergeCleanOpenLine(raw);
+    if(line.length<2)continue;
+    const forward=line.map(c=>mergeCoordinateKey(c,10)).join('|');
+    const reverse=[...line].reverse().map(c=>mergeCoordinateKey(c,10)).join('|');
+    const key=forward<reverse?forward:reverse;
+    if(seen.has(key))continue;
+    seen.add(key);out.push(line);
   }
-
+  return out;
+}
+function mergeJoinLinePair(a,b){
+  if(!a?.length||!b?.length)return null;
+  const aStart=a[0],aEnd=a[a.length-1],bStart=b[0],bEnd=b[b.length-1];
+  if(mergeCoordinatesNear(aEnd,bStart))return a.concat(b.slice(1));
+  if(mergeCoordinatesNear(aEnd,bEnd))return a.concat([...b].reverse().slice(1));
+  if(mergeCoordinatesNear(aStart,bEnd))return b.concat(a.slice(1));
+  if(mergeCoordinatesNear(aStart,bStart))return [...b].reverse().concat(a.slice(1));
+  return null;
+}
+function mergeConnectedLineParts(parts){
+  let lines=mergeDeduplicateLineParts(parts);
+  let changed=true;
+  while(changed){
+    changed=false;
+    outer:for(let i=0;i<lines.length;i++){
+      for(let j=i+1;j<lines.length;j++){
+        const joined=mergeJoinLinePair(lines[i],lines[j]);
+        if(!joined)continue;
+        lines[i]=mergeCleanOpenLine(joined);
+        lines.splice(j,1);
+        changed=true;
+        break outer;
+      }
+    }
+  }
+  return lines;
+}
+function mergeLinesWithTurf(parts){
+  const clean=mergeDeduplicateLineParts(parts);
+  if(clean.length<2)return clean;
   try{
-    const fc={type:'FeatureCollection',features:picked.map(r=>featJSON(r.feature))};
-    const merged=turf.union(fc);
-    if(!merged||!merged.geometry){
-      setStatus('Merge failed: no merged geometry returned.','error');
+    if(typeof turf?.lineMerge!=='function')return mergeConnectedLineParts(clean);
+    const input={type:'FeatureCollection',features:clean.map(coordinates=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates}}))};
+    const merged=turf.lineMerge(input);
+    const output=[];
+    for(const feature of merged?.features||[]){
+      if(feature?.geometry?.type==='LineString')output.push(feature.geometry.coordinates);
+      else if(feature?.geometry?.type==='MultiLineString')output.push(...feature.geometry.coordinates);
+    }
+    return output.length?mergeConnectedLineParts(output):mergeConnectedLineParts(clean);
+  }catch(err){
+    console.warn('Turf line merge failed; using endpoint merge fallback.',err);
+    return mergeConnectedLineParts(clean);
+  }
+}
+function mergePicked(){
+  const ids=[...new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean))];
+  if(ids.length<2){
+    setStatus('Select at least two features to merge or combine.','error');
+    return;
+  }
+
+  const picked=ids.map(id=>ref(id)).filter(r=>r&&r.feature&&getDisplayGeometry(r.feature));
+  if(picked.length<2){
+    setStatus('At least two selected features must contain valid geometry.','error');
+    return;
+  }
+  const locked=picked.filter(r=>isLocked(r.file,r.feature));
+  if(locked.length){
+    setStatus(`Unlock ${locked.length===1?'the selected feature':`${locked.length} selected features`} before merging.`, 'error');
+    return;
+  }
+
+  const families=new Set(picked.map(r=>mergeGeometryFamily(getDisplayGeometry(r.feature).type)));
+  if(families.has('unsupported')){
+    setStatus('One or more selected features use an unsupported geometry type.','error');
+    return;
+  }
+  if(families.size!==1){
+    setStatus('Merge one geometry family at a time: select only polygons, only lines, or only points.','error');
+    return;
+  }
+
+  const family=[...families][0];
+  try{
+    let mergedGeometry=null;
+    let resultParts=1;
+    if(family==='polygon'){
+      const fc={type:'FeatureCollection',features:picked.map(r=>featJSON(r.feature))};
+      const merged=turf.union(fc);
+      mergedGeometry=merged?.geometry||null;
+      resultParts=mergedGeometry?.type==='MultiPolygon'?(mergedGeometry.coordinates||[]).length:1;
+    }else if(family==='line'){
+      const parts=picked.flatMap(r=>mergeLinePartsFromGeometry(getDisplayGeometry(r.feature)));
+      const mergedParts=mergeLinesWithTurf(parts);
+      if(mergedParts.length===1)mergedGeometry={type:'LineString',coordinates:mergedParts[0]};
+      else if(mergedParts.length>1)mergedGeometry={type:'MultiLineString',coordinates:mergedParts};
+      resultParts=mergedParts.length;
+    }else if(family==='point'){
+      const coords=[];
+      for(const r of picked){
+        const geometry=getDisplayGeometry(r.feature);
+        if(geometry.type==='Point')coords.push(geometry.coordinates);
+        else if(geometry.type==='MultiPoint')coords.push(...(geometry.coordinates||[]));
+      }
+      const unique=[],seen=new Set();
+      for(const coord of coords){
+        if(!mergeValidCoordinate(coord))continue;
+        const key=mergeCoordinateKey(coord,12);
+        if(seen.has(key))continue;
+        seen.add(key);unique.push(clone(coord));
+      }
+      if(unique.length===1)mergedGeometry={type:'Point',coordinates:unique[0]};
+      else if(unique.length>1)mergedGeometry={type:'MultiPoint',coordinates:unique};
+      resultParts=unique.length;
+    }
+
+    if(!mergedGeometry){
+      setStatus(`Could not ${family==='point'?'combine':'merge'} the selected ${family} features: no valid output geometry was produced.`,'error');
       return;
     }
 
     pushHistory();
-
     const keeper=picked[0];
     const keeperFeature=keeper.feature;
     ensureFeatureModel(keeperFeature);
-    setSourceGeometry(keeperFeature, merged.geometry);
-    keeperFeature.name=keeperFeature.name||'Merged polygon';
+    setSourceGeometry(keeperFeature,mergedGeometry);
+    keeperFeature.name=keeperFeature.name||({polygon:'Merged polygon',line:'Merged lines',point:'Combined points'}[family]);
     keeperFeature.properties=keeperFeature.properties||{};
     keeperFeature.properties.name=keeperFeature.name;
 
     const removeIds=new Set(picked.slice(1).map(r=>r.feature.id));
-    for(const file of project.files){
-      file.features=file.features.filter(f=>!removeIds.has(f.id));
-    }
+    for(const file of project.files)file.features=file.features.filter(feature=>!removeIds.has(feature.id));
 
     project.selectedFeatureId=keeperFeature.id;
     project.selectedFileId=keeper.file.id;
     project.mergeIds=[];
     renderAll();
     setDirty(true);
-    logOperation('merge',{keptId:keeperFeature.id,removed:[...removeIds],count:picked.length});
-    setStatus(`Merged ${picked.length} polygons into ${keeperFeature.name}.`);
+    logOperation('merge',{family,keptId:keeperFeature.id,removed:[...removeIds],count:picked.length,outputType:mergedGeometry.type,parts:resultParts});
+    if(family==='polygon')setStatus(`Dissolved ${picked.length} polygon features into ${mergedGeometry.type==='MultiPolygon'?`${resultParts} polygon parts`:'one polygon'}.`);
+    else if(family==='line')setStatus(`Merged ${picked.length} line features into ${resultParts===1?'one continuous line':`${resultParts} connected line parts`}.`);
+    else setStatus(`Combined ${picked.length} point features into ${resultParts===1?'one point':`a MultiPoint with ${resultParts} points`}.`);
   }catch(err){
     console.error(err);
-    alert('Merge failed: '+(err.message||err));
-    setStatus('Merge failed.','error');
+    setStatus(`Merge failed: ${err?.message||err}`,'error');
   }
 }
 
@@ -9438,7 +9578,7 @@ function v54RenderBulkBar(){
   const picked=v54PickedRefs();
   if(!picked.length){bar.classList.remove('active');bar.innerHTML='';return;}
   bar.classList.add('active');
-  bar.innerHTML=`<strong>${picked.length} picked</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">Merge / dissolve</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo picked</button><button class="danger" data-v54-bulk="delete">Delete picked</button>`;
+  bar.innerHTML=`<strong>${picked.length} picked</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">${mergeActionLabel(picked)}</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo picked</button><button class="danger" data-v54-bulk="delete">Delete picked</button>`;
   bar.querySelectorAll('[data-v54-bulk]').forEach(btn=>btn.onclick=e=>{e.preventDefault();e.stopPropagation();
     const a=btn.dataset.v54Bulk;
     if(a==='clear'){project.mergeIds=[];if(STEP3_LAYERS.pickedSolo)clearSolo();else renderAll();setStatus('Picked feature selection cleared.');}
@@ -18108,7 +18248,7 @@ showAutosaveRecoveryIfAvailable();
       });
     });
   }
-  function v133SelectionMessage(count){return count?`${count} polygon${count===1?'':'s'} selected.`:'Selection cleared.';}
+  function v133SelectionMessage(count){return count?`${count} feature${count===1?'':'s'} selected.`:'Selection cleared.';}
 
   function v133ApplyMapStyles(featureIds){
     const ids=new Set((featureIds||[]).filter(Boolean));
@@ -18363,7 +18503,7 @@ showAutosaveRecoveryIfAvailable();
     const anyHidden=selected.some(r=>r.file.visible===false||r.feature.visible===false);
     const allLocked=selected.every(r=>isLocked(r.file,r.feature));
     bar.classList.add('active');
-    bar.innerHTML=`<strong>${selected.length} selected</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">Merge / dissolve</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="visibility">${anyHidden?'Show selected':'Hide selected'}</button><button data-v54-bulk="lock">${allLocked?'Unlock selected':'Lock selected'}</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo selected</button><button class="danger" data-v54-bulk="delete">Delete selected</button>`;
+    bar.innerHTML=`<strong>${selected.length} selected</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">${mergeActionLabel(selected)}</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="visibility">${anyHidden?'Show selected':'Hide selected'}</button><button data-v54-bulk="lock">${allLocked?'Unlock selected':'Lock selected'}</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo selected</button><button class="danger" data-v54-bulk="delete">Delete selected</button>`;
     bar.querySelectorAll('[data-v54-bulk]').forEach(btn=>btn.onclick=e=>{
       e.preventDefault();e.stopPropagation();const action=btn.dataset.v54Bulk;
       if(action==='clear')v133ClearSelection();
@@ -18381,13 +18521,13 @@ showAutosaveRecoveryIfAvailable();
     const selected=v133SelectedRefs();if(!selected.length)return;
     for(const r of selected)r.feature.visible=!!visible;
     renderMap();renderSidebar();renderSelected();setDirty(true);
-    setStatus(`${visible?'Shown':'Hidden'} ${selected.length} selected polygon${selected.length===1?'':'s'}.`);
+    setStatus(`${visible?'Shown':'Hidden'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);
   }
   function v133SetSelectedLock(locked){
     const selected=v133SelectedRefs();if(!selected.length)return;
     for(const r of selected)if(!r.file.locked)r.feature.locked=!!locked;
     renderSidebar();renderSelected();setDirty(true);
-    setStatus(`${locked?'Locked':'Unlocked'} ${selected.length} selected polygon${selected.length===1?'':'s'}.`);
+    setStatus(`${locked?'Locked':'Unlocked'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);
   }
 
   // Compact, ID-only undo entry for layer and polygon ordering.
