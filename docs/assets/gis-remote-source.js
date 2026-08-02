@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.45.3';
+  const VERSION='1.46.1';
   const ARCGIS_SERVICE=/\/(FeatureServer|MapServer)(?:\/(\d+))?(?:\/query)?\/?$/i;
   const ITEM_ID=/^[0-9a-f]{32}$/i;
 
@@ -107,11 +107,17 @@
     return [error.message,...details].filter(Boolean).join(' — ')||fallback;
   }
 
-  async function fetchJson(input,{fetchFn=global.fetch,allowHtml=false}={}){
+  async function fetchJson(input,{fetchFn=global.fetch,allowHtml=false,requestInit={}}={}){
     if(typeof fetchFn!=='function')throw new RemoteSourceError('network-unavailable','This browser cannot make the remote request.');
     const url=extractUrl(input);
     let response;
-    try{response=await fetchFn(url,{credentials:'omit',referrerPolicy:'no-referrer'});}catch(error){
+    try{
+      response=await fetchFn(url,{
+        credentials:'omit',
+        referrerPolicy:'no-referrer',
+        ...requestInit
+      });
+    }catch(error){
       throw new RemoteSourceError('network-failed','The address could not be reached. Check the link, your connection, and whether the provider permits browser access.',{url,cause:error?.message||String(error)});
     }
     let text='';
@@ -135,6 +141,21 @@
     }
     if(payload?.error)throw new RemoteSourceError('arcgis-error',arcgisErrorMessage(payload),{url,status:response.status,payload});
     return payload;
+  }
+
+  async function fetchArcGisQuery(layerUrl,params,{fetchFn=global.fetch,allowHtml=false}={}){
+    const base=arcgisLayerBase(layerUrl);
+    const body=params instanceof URLSearchParams
+      ?new URLSearchParams(params)
+      :new URLSearchParams(params||{});
+    // ArcGIS query endpoints accept form-encoded POST requests. Using POST keeps
+    // object ID lists and complex filters out of the URL, avoiding IIS/ArcGIS
+    // "Request Too Long" failures while remaining a CORS-simple request.
+    return fetchJson(`${base}/query`,{
+      fetchFn,
+      allowHtml,
+      requestInit:{method:'POST',body}
+    });
   }
 
 
@@ -264,7 +285,7 @@
     const base=arcgisLayerBase(layerUrl);
     const params=new URLSearchParams({where,returnCountOnly:'true',f:'json'});
     try{
-      const data=await fetchJson(`${base}/query?${params}`,{fetchFn});
+      const data=await fetchArcGisQuery(base,params,{fetchFn});
       return Number.isFinite(Number(data?.count))?Number(data.count):null;
     }catch(_){return null;}
   }
@@ -497,6 +518,7 @@
     queryOptions,
     buildQueryUrl,
     fetchJson,
+    fetchArcGisQuery,
     discover,
     discoverDirectory,
     discoverService,
