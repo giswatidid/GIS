@@ -347,7 +347,7 @@ function stringifyStyle(input){return JSON.stringify(normaliseStyle(input),null,
 const api={
   TYPES:[...TYPES],TARGETS:[...TARGETS],METHODS:[...METHODS],PALETTES,DEFAULT_SYMBOL,DEFAULT_NULL_SYMBOL,
   geometryFamily,validColor,interpolateColor,colorAtRamp,colorsForCount,fieldSummary,numericValues,
-  buildStyle,normaliseStyle,validateStyle,parseStyleCode,compileStyle,legendModel,simpleConfig,stringifyStyle,fmt,clone
+  buildStyle,normaliseStyle,normaliseSymbol,validateStyle,parseStyleCode,compileStyle,legendModel,simpleConfig,stringifyStyle,fmt,clone
 };
 global.EditPolygonGISStyleCore=Object.freeze(api);
 })(typeof window!=='undefined'?window:globalThis);
