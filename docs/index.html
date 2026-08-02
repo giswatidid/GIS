@@ -172,7 +172,7 @@ html.v121-app-ready body{
 <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 <link rel="stylesheet" href="assets/editpolygon.css?v=20260731-gis-foundation"/>
 <link rel="stylesheet" href="assets/gis-workspace.css?v=20260802-points-multi-import-1460"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260802-analysis-1480"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260802-selection-ux-1481"/>
 <link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260802-points-layer-list-1460"/>
 
 
@@ -233,6 +233,21 @@ html.v121-app-ready body{
 <button class="rail-btn" data-rail="command" title="Command palette (Ctrl+K)"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="M15 15l5 5"></path></svg></span><span class="lbl">Search</span></button>
 <div class="rail-tip">Map editor</div>
 </nav>
+<div aria-label="Selection tools" class="rail-flyout select-tool-flyout" id="selectToolFlyout" role="menu">
+<div class="rail-flyout-title">Select features</div>
+<button data-select-tool="click"><span class="flyout-icon">↖</span><span><strong>Click selection</strong><small>Click features normally. Ctrl/Cmd toggles and Shift adds.</small></span></button>
+<button data-select-tool="rectangle"><span class="flyout-icon">□</span><span><strong>Rectangle selection</strong><small>Drag a box. Its dimensions and area update while you drag.</small></span></button>
+<button data-select-tool="polygon"><span class="flyout-icon">⬠</span><span><strong>Polygon selection</strong><small>Click boundary points. The live area follows the pointer.</small></span></button>
+<button data-select-tool="lasso"><span class="flyout-icon">⌁</span><span><strong>Lasso selection</strong><small>Press and drag a freehand boundary around features.</small></span></button>
+<div class="select-flyout-settings">
+<label>Target layers<select id="selectTargetLayer"><option value="*">All visible editable layers</option></select></label>
+<label>Selection action<select id="selectApplyMode"><option value="replace">Replace selection</option><option value="add">Add to selection</option><option value="remove">Remove from selection</option><option value="intersect">Keep only matching selected</option></select></label>
+</div>
+<div class="draw-tool-separator"></div>
+<button data-select-command="attribute"><span class="flyout-icon">ƒ</span><span><strong>Select by attribute…</strong><small>Find records using a field value or comparison.</small></span></button>
+<button data-select-command="location"><span class="flyout-icon">◎</span><span><strong>Select by location…</strong><small>Select using another layer and a spatial relationship.</small></span></button>
+<div class="select-flyout-quick-actions"><button type="button" data-select-command="clear">Clear selection</button><button type="button" data-select-command="save">Save selected layer…</button></div>
+</div>
 <div aria-label="Draw tools" class="rail-flyout" id="drawToolFlyout" role="menu">
 <div class="rail-flyout-title">Draw shapes</div>
 <button data-draw-tool="point"><span class="flyout-icon">•</span><span><strong>Point</strong><small>Click once to create an editable GIS point</small></span></button>
@@ -707,9 +722,9 @@ html.v121-app-ready body{
 <script src="assets/gis-style-core.js?v=20260802-data-driven-style-1470"></script>
 <script src="assets/gis-crs-core.js?v=20260731-crs-perf-1441"></script>
 <script src="assets/gis-remote-source.js?v=20260802-arcgis-post-query-1461"></script>
-<script src="assets/editpolygon-app.js?v=20260802-analysis-1480"></script>
+<script src="assets/editpolygon-app.js?v=20260802-selection-ux-1481"></script>
 <script src="assets/gis-workspace.js?v=20260802-points-multi-import-1460"></script>
-<script src="assets/gis-data-tools.js?v=20260802-analysis-1480"></script>
+<script src="assets/gis-data-tools.js?v=20260802-selection-ux-1481"></script>
 <script src="assets/gis-ui-integration.js?v=20260802-analysis-1480"></script>
 
 
