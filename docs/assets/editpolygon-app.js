@@ -20177,7 +20177,7 @@ window.__editPolygonGisFoundation={version:GIS_FOUNDATION_VERSION,state:gisState
 
 
 /* v141: advanced browser-local GIS data, styling, CRS and processing bridge. */
-const GIS_DATA_VERSION='1.47.0';
+const GIS_DATA_VERSION='1.48.0';
 const gisStylePreviewByFile=new Map();
 const gisStyleCompileCache=new WeakMap();
 function gisStyleCore(){return window.EditPolygonGISStyleCore||null;}
@@ -20191,7 +20191,7 @@ function gisCompiledStyle(style){
 function gisEditableFile(fileId){return project.files.find(file=>file.id===fileId)||null;}
 function gisEditableSnapshot(fileId){
   const file=gisEditableFile(fileId);if(!file)return null;
-  return {id:file.id,name:file.name,visible:file.visible!==false,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false,field:''}),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked}))};
+  return {id:file.id,name:file.name,visible:file.visible!==false,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered&&f.visible!==false).length,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false,field:''}),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked}))};
 }
 function gisApplyFileFilter(file){
   const core=window.EditPolygonGISDataCore;const rule=file?.gisFilter;
@@ -20385,7 +20385,7 @@ function gisCrsLayerInfo(fileId){
 }
 // Preserve CRS metadata in the standard editable snapshot.
 const v144BaseEditableSnapshot=gisEditableSnapshot;
-gisEditableSnapshot=function(fileId){const out=v144BaseEditableSnapshot(fileId),file=gisEditableFile(fileId);if(!out||!file)return out;const c=gisFileCrsState(file);return {...out,crs:c.native,sourceCrs:c.source,storageCrs:c.storage,exportCrs:c.exportCrs,needsCrs:!!file.gisNeedsCrs,recommendedMetricCrs:gisRecommendedMetricCrs(file)};};
+gisEditableSnapshot=function(fileId){const out=v144BaseEditableSnapshot(fileId),file=gisEditableFile(fileId);if(!out||!file)return out;const c=gisFileCrsState(file);return {...out,crs:c.native,sourceCrs:c.source,storageCrs:c.storage,exportCrs:c.exportCrs,needsCrs:!!file.gisNeedsCrs,recommendedMetricCrs:file.gisRecommendedMetricCrs||null};};
 // Detect CRS metadata during local file import. Explicit projected GeoJSON CRS values are transformed to the internal WGS84 map store.
 const v144BaseImportFile=importFile;
 importFile=async function(file,onProgress=()=>{}){
@@ -20921,6 +20921,286 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     rebuild:rebuildPointEditMarkers
   });
 })();
+
+
+/* v148 — spatial selection, selection navigation, field statistics, worker processing,
+   spatial indexing and cached editable dataset rendering. */
+(function(){
+  'use strict';
+  const GIS_ANALYSIS_VERSION='1.48.0';
+  const ANALYSIS_RUNTIME={
+    indexes:new Map(),
+    vectorCache:new Map(),
+    renderInitialised:false,
+    worker:null,
+    workerJob:null,
+    jobSeq:0
+  };
+  const analysisCore=()=>window.EditPolygonGISAnalysisCore||null;
+  const selectedIds=()=>window.__editPolygonLayersV133?.selectedIds?.()||[...new Set([...(project.mergeIds||[]),project.selectedFeatureId].filter(Boolean))];
+  const selectedHook=()=>window.__editPolygonLayersV133||null;
+  function featureFile(featureId){return fileOfFeature(featureId);}
+  function allLayerIds(file){return (file?.features||[]).map(feature=>feature.id);}
+  function currentLayerSelection(fileId){const set=new Set(selectedIds());return (gisEditableFile(fileId)?.features||[]).filter(feature=>set.has(feature.id)).map(feature=>feature.id);}
+  function setSelection(ids,activeId=null,message=''){
+    const hook=selectedHook();
+    if(hook?.select){const result=hook.select(ids,activeId||ids.at(-1)||null,{message:message||`${ids.length} feature${ids.length===1?'':'s'} selected.`,forceInspector:true});window.dispatchEvent(new CustomEvent('editpolygon:gis-selection-changed',{detail:{count:ids.length,activeId:activeId||ids.at(-1)||null}}));gisNotify();return result;}
+    project.mergeIds=[...ids];project.selectedFeatureId=activeId||ids.at(-1)||null;project.selectedFileId=project.selectedFeatureId?featureFile(project.selectedFeatureId)?.file?.id||null:null;renderAll();window.dispatchEvent(new CustomEvent('editpolygon:gis-selection-changed',{detail:{count:ids.length,activeId:project.selectedFeatureId}}));gisNotify();return ids;
+  }
+  function applySelectionMode(matches,mode='replace',message=''){
+    const core=analysisCore();const next=core?core.applySelectionMode(selectedIds(),matches,mode):matches;
+    return setSelection(next,matches.at(-1)||next.at(-1)||null,message||`${matches.length} matching feature${matches.length===1?'':'s'}; ${next.length} selected.`);
+  }
+  function navigateSelection(delta=1){
+    const ids=selectedIds();if(!ids.length)return null;
+    let index=ids.indexOf(project.selectedFeatureId);if(index<0)index=0;
+    index=(index+(Number(delta)||1)+ids.length)%ids.length;
+    const id=ids[index];setSelection(ids,id,`Viewing selected feature ${index+1} of ${ids.length}.`);return {id,index,count:ids.length,fileId:featureFile(id)?.file?.id||null};
+  }
+  function selectionInfo(){const ids=selectedIds(),index=Math.max(0,ids.indexOf(project.selectedFeatureId));return {ids,activeId:project.selectedFeatureId||null,count:ids.length,index:ids.length?index:-1};}
+
+  const v148BaseClearFeatureCaches=clearFeatureCaches;
+  clearFeatureCaches=function(feature){
+    if(feature){
+      feature._gisGeometryRevision=(feature._gisGeometryRevision||0)+1;
+      const owner=fileOfFeature(feature.id)?.file;if(owner)owner._gisSpatialRevision=(owner._gisSpatialRevision||0)+1;
+    }
+    return v148BaseClearFeatureCaches(feature);
+  };
+  window.clearFeatureCaches=clearFeatureCaches;
+  // The spatial index contains geometry bounds only. Visibility, filters and
+  // styles are applied after querying, so routine UI changes do not require a
+  // full index rebuild. Feature count catches additions/removals; the file-level
+  // revision is incremented whenever editable geometry changes.
+  function fileIndexSignature(file){return `${(file.features||[]).length}|${file._gisSpatialRevision||0}`;}
+  function buildSpatialIndex(file,force=false){
+    const core=analysisCore();if(!core||!file)return null;
+    const signature=fileIndexSignature(file),cached=ANALYSIS_RUNTIME.indexes.get(file.id);
+    if(!force&&cached?.signature===signature)return cached;
+    const features=(file.features||[]).map(feature=>({id:feature.id,geometry:clone(getDisplayGeometry(feature)),bbox:featureBBox(feature)}));
+    const entry={signature,index:core.buildSpatialIndex(features),builtAt:Date.now(),count:features.length};
+    ANALYSIS_RUNTIME.indexes.set(file.id,entry);return entry;
+  }
+  function querySpatialIndex(file,bbox){const cache=buildSpatialIndex(file);return cache?analysisCore().querySpatialIndex(cache.index,bbox):[];}
+  function rebuildSpatialIndex(fileId){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const result=buildSpatialIndex(file,true);return {count:result?.count||0,builtAt:result?.builtAt||Date.now()};}
+  function invalidateSpatialIndex(fileId){if(fileId)ANALYSIS_RUNTIME.indexes.delete(fileId);else ANALYSIS_RUNTIME.indexes.clear();}
+
+  function exactIntersectsSelection(feature,selectionFeature){
+    const geometry=getDisplayGeometry(feature);if(!geometry)return false;
+    try{
+      if(geometry.type==='Point')return turf.booleanPointInPolygon(turf.point(geometry.coordinates),selectionFeature);
+      if(geometry.type==='MultiPoint')return (geometry.coordinates||[]).some(coord=>turf.booleanPointInPolygon(turf.point(coord),selectionFeature));
+      return turf.booleanIntersects(featJSON(feature),selectionFeature);
+    }catch(_){return false;}
+  }
+  function selectByGeometry(fileId,geometry,mode='replace'){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
+    const selectionFeature={type:'Feature',properties:{},geometry:clone(geometry)},bbox=turf.bbox(selectionFeature),ids=querySpatialIndex(file,bbox),lookup=new Set(ids);
+    const matches=(file.features||[]).filter(feature=>lookup.has(feature.id)&&feature.visible!==false&&!feature._gisFiltered&&exactIntersectsSelection(feature,selectionFeature)).map(feature=>feature.id);
+    applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched the map selection.`);return matches;
+  }
+  function selectByAttribute(fileId,rule,mode='replace'){
+    const file=gisEditableFile(fileId),core=analysisCore();if(!file||!core)throw Error('Layer or analysis engine unavailable.');
+    const candidates=(file.features||[]).filter(feature=>feature.visible!==false&&!feature._gisFiltered).map(feature=>({id:feature.id,properties:feature.properties||{}}));
+    const matches=core.selectByAttribute(candidates,rule);applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched the attribute query.`);return matches;
+  }
+  function relationMatches(targetFeature,comparisonFeature,predicate,distance,units){
+    const a=featJSON(targetFeature),b=featJSON(comparisonFeature);
+    try{
+      if(predicate==='within')return turf.booleanWithin(a,b);
+      if(predicate==='contains')return turf.booleanContains(a,b);
+      if(predicate==='touches')return turf.booleanTouches(a,b);
+      if(predicate==='disjoint')return turf.booleanDisjoint(a,b);
+      if(predicate==='within-distance'){
+        const amount=Number(distance||0);if(!(amount>=0))return false;if(turf.booleanIntersects(a,b))return true;
+        const buffered=turf.buffer(b,amount,{units:units||'kilometers',steps:12});return !!buffered&&turf.booleanIntersects(a,buffered);
+      }
+      return turf.booleanIntersects(a,b);
+    }catch(_){return false;}
+  }
+  function expandBboxForDistance(bbox,distance,units){
+    if(!bbox||!(Number(distance)>0))return bbox;let km=Number(distance);if(units==='meters')km/=1000;else if(units==='miles')km*=1.609344;
+    const lat=(bbox[1]+bbox[3])/2,dy=km/110.574,dx=km/(111.320*Math.max(.05,Math.cos(lat*Math.PI/180)));return [bbox[0]-dx,bbox[1]-dy,bbox[2]+dx,bbox[3]+dy];
+  }
+  function selectByLocation(fileId,{comparisonFileId,predicate='intersects',mode='replace',comparisonSelectedOnly=false,distance=0,units='kilometers'}={}){
+    const file=gisEditableFile(fileId),comparison=gisEditableFile(comparisonFileId);if(!file||!comparison)throw Error('Choose both a target and comparison layer.');if(file.id===comparison.id&&predicate!=='within-distance')throw Error('Choose a different comparison layer for this spatial query.');
+    const selectedSet=new Set(selectedIds());const compareFeatures=(comparison.features||[]).filter(feature=>feature.visible!==false&&!feature._gisFiltered&&(!comparisonSelectedOnly||selectedSet.has(feature.id)));
+    if(!compareFeatures.length)throw Error(comparisonSelectedOnly?'No features are selected in the comparison layer.':'The comparison layer has no visible features.');
+    const comparisonById=new Map(compareFeatures.map(feature=>[feature.id,feature]));buildSpatialIndex(comparison);
+    const matches=[];
+    for(const target of file.features||[]){
+      if(target.visible===false||target._gisFiltered)continue;
+      let bbox=featureBBox(target);if(predicate==='within-distance')bbox=expandBboxForDistance(bbox,distance,units);
+      if(predicate==='disjoint'){
+        if(compareFeatures.every(other=>relationMatches(target,other,'disjoint',distance,units)))matches.push(target.id);
+        continue;
+      }
+      const candidateIds=querySpatialIndex(comparison,bbox).filter(id=>comparisonById.has(id));
+      if(candidateIds.some(id=>relationMatches(target,comparisonById.get(id),predicate,distance,units)))matches.push(target.id);
+    }
+    applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched the location query.`);return matches;
+  }
+  function saveSelectionAsLayer(fileId,{name,color,selectedOnly=true}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const chosen=new Set(selectedIds());
+    const source=(file.features||[]).filter(feature=>!selectedOnly||chosen.has(feature.id));if(!source.length)throw Error('Select at least one feature in this layer.');
+    pushHistory();const models=source.map(feature=>{const model=normalize(featJSON(feature),feature.name);if(!model)return null;model.name=feature.name;model.properties=clone(feature.properties||{});model.visible=true;model.locked=false;model.style=clone(feature.style||{});model.opacity=feature.opacity;return model;}).filter(Boolean);
+    const output={id:uid('file'),name:String(name||`${file.name} — selection`),visible:true,color:color||file.color||'#7c3aed',opacity:file.opacity,features:models,gisCrs:file.gisCrs||'EPSG:4326',gisSourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',gisExportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',gisStyle:clone(file.gisStyle||null),gisLabels:clone(file.gisLabels||null),gisDisplayField:file.gisDisplayField||''};
+    project.files.push(output);project.selectedFileId=output.id;setSelection(models.map(feature=>feature.id),models[0]?.id||null,`Created ${output.name} with ${models.length} selected feature${models.length===1?'':'s'}.`);renderAll();setDirty(true);logOperation('selection-saved-as-layer',{sourceFileId:fileId,outputFileId:output.id,count:models.length});return gisEditableSnapshot(output.id);
+  }
+  function layerStatistics(fileId,field,{scope='all'}={}){
+    const file=gisEditableFile(fileId),core=analysisCore();if(!file||!core)throw Error('Layer or statistics engine unavailable.');const chosen=new Set(selectedIds());
+    const features=(file.features||[]).filter(feature=>scope==='selected'?chosen.has(feature.id):scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true).map(feature=>({properties:feature.properties||{}}));
+    return core.statistics(features,field);
+  }
+  function calculateFieldAdvanced(fileId,field,expression,{scope='all'}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const chosen=new Set(selectedIds());
+    const ids=(file.features||[]).filter(feature=>scope==='selected'?chosen.has(feature.id):scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true).map(feature=>feature.id);
+    if(!ids.length)throw Error('No records match the requested calculation scope.');const result=gisCalculateField(fileId,field,expression,scope==='all'?[]:ids);invalidateSpatialIndex(fileId);return result;
+  }
+  function previewFieldCalculation(fileId,expression,{scope='all',limit=5}={}){
+    const file=gisEditableFile(fileId),core=analysisCore(),dataCore=window.EditPolygonGISDataCore;if(!file||!core||!dataCore)throw Error('Calculator unavailable.');const chosen=new Set(selectedIds());
+    const features=(file.features||[]).filter(feature=>scope==='selected'?chosen.has(feature.id):scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true).map(feature=>({id:feature.id,properties:feature.properties||{}}));
+    return core.expressionPreview(expression,features,dataCore.calculate,limit);
+  }
+
+  function polygonBoundary(mask){
+    const geometry=mask?.geometry,lines=[];if(!geometry)return null;
+    if(geometry.type==='Polygon')lines.push(...(geometry.coordinates||[]));
+    else if(geometry.type==='MultiPolygon')for(const polygon of geometry.coordinates||[])lines.push(...polygon);
+    if(!lines.length)return null;return lines.length===1?turf.lineString(lines[0]):turf.multiLineString(lines);
+  }
+  function clipFeatureToMask(feature,mask,boundary){
+    const type=feature?.geometry?.type,properties=clone(feature?.properties||{});if(!type)return [];
+    if(type==='Polygon'||type==='MultiPolygon'){const result=turf.intersect({type:'FeatureCollection',features:[feature,mask]});if(result){result.properties=properties;return [result];}return [];}
+    if(type==='Point')return turf.booleanPointInPolygon(feature,mask)?[{...clone(feature),properties}]:[];
+    if(type==='MultiPoint'){const coordinates=(feature.geometry.coordinates||[]).filter(coord=>turf.booleanPointInPolygon(turf.point(coord),mask));return coordinates.length?[{type:'Feature',properties,geometry:{type:'MultiPoint',coordinates}}]:[];}
+    if(type==='LineString'||type==='MultiLineString'){
+      const inputs=type==='LineString'?[feature]:(feature.geometry.coordinates||[]).map(coordinates=>turf.lineString(coordinates,properties)),inside=[];
+      for(const line of inputs){let parts=[];try{parts=boundary?(turf.lineSplit(line,boundary).features||[]):[];}catch(_){ }if(!parts.length)parts=[line];
+        for(const part of parts){try{const length=turf.length(part,{units:'kilometers'}),probe=length>0?turf.along(part,length/2,{units:'kilometers'}):turf.pointOnFeature(part);if(turf.booleanPointInPolygon(probe,mask))inside.push(part.geometry.coordinates);}catch(_){ }}
+      }
+      if(!inside.length)return [];return [{type:'Feature',properties,geometry:inside.length===1?{type:'LineString',coordinates:inside[0]}:{type:'MultiLineString',coordinates:inside}}];
+    }
+    return [];
+  }
+  function unionPolygonFeatures(features){
+    const polygons=(features||[]).filter(feature=>['Polygon','MultiPolygon'].includes(feature?.geometry?.type));if(!polygons.length)return [];
+    let current=polygons[0];for(let i=1;i<polygons.length;i++)try{current=turf.union({type:'FeatureCollection',features:[current,polygons[i]]})||current;}catch(_){ }
+    return current?[current]:[];
+  }
+  function syncProcess(source,operation,params,overlayFeatures=[]){
+    if(operation==='buffer'){
+      const distance=Number(params.distance);if(!Number.isFinite(distance)||distance===0)throw Error('Enter a non-zero buffer distance.');
+      return (source||[]).map(feature=>{const result=turf.buffer(feature,distance,{units:params.units||'kilometers',steps:Math.max(8,Number(params.steps)||16)});if(result)result.properties=clone(feature.properties||{});return result;}).filter(Boolean);
+    }
+    if(operation==='dissolve'||operation==='union')return unionPolygonFeatures(source);
+    if(operation==='clip'||operation==='intersection'){
+      const masks=(overlayFeatures||[]).filter(feature=>['Polygon','MultiPolygon'].includes(feature?.geometry?.type));if(!masks.length)throw Error('Choose a polygon overlay layer.');
+      const mask=unionPolygonFeatures(masks)[0];if(!mask)throw Error('The overlay layer did not contain usable polygons.');
+      const boundary=polygonBoundary(mask),out=[];for(const feature of source||[])try{out.push(...clipFeatureToMask(feature,mask,boundary));}catch(_){ }
+      return out;
+    }
+    throw Error(`Unsupported worker operation: ${operation}`);
+  }
+  function cancelProcessing(){if(ANALYSIS_RUNTIME.worker){ANALYSIS_RUNTIME.worker.terminate();ANALYSIS_RUNTIME.worker=null;}if(ANALYSIS_RUNTIME.workerJob){ANALYSIS_RUNTIME.workerJob.reject(Error('Processing cancelled.'));ANALYSIS_RUNTIME.workerJob=null;}return true;}
+  async function processAsync(fileId,operation,params={},onProgress=()=>{}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const selectedSet=new Set(selectedIds());
+    const source=(file.features||[]).filter(feature=>!feature._gisFiltered&&feature.visible!==false&&(!params.selectedOnly||selectedSet.has(feature.id))).map(featJSON);if(!source.length)throw Error('No visible source features are available for processing.');
+    const overlay=params.overlayFileId?gisEditableFile(params.overlayFileId):null,overlayFeatures=overlay?(overlay.features||[]).filter(feature=>!feature._gisFiltered&&feature.visible!==false).map(featJSON):[];
+    if(typeof Worker==='undefined'){
+      const direct=syncProcess(source,operation,params,overlayFeatures);pushHistory();return gisCreateOutputFile(params.name||`${file.name} — ${operation}`,direct,params.color||'#7c3aed',{operation,sourceFileId:fileId,overlayFileId:params.overlayFileId||null,parameters:clone(params),worker:false});
+    }
+    cancelProcessing();const worker=new Worker('assets/gis-analysis-worker.js?v=20260802-analysis-1480');ANALYSIS_RUNTIME.worker=worker;const id=++ANALYSIS_RUNTIME.jobSeq;
+    return new Promise((resolve,reject)=>{
+      ANALYSIS_RUNTIME.workerJob={id,reject};
+      worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){onProgress({done:message.done,total:message.total,percent:message.total?Math.round(message.done*100/message.total):0});return;}worker.terminate();ANALYSIS_RUNTIME.worker=null;ANALYSIS_RUNTIME.workerJob=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}try{pushHistory();const output=gisCreateOutputFile(params.name||`${file.name} — ${operation}`,message.features||[],params.color||'#7c3aed',{operation,sourceFileId:fileId,overlayFileId:params.overlayFileId||null,parameters:clone(params),worker:true});resolve(output);}catch(error){reject(error);}};
+      worker.onerror=event=>{worker.terminate();ANALYSIS_RUNTIME.worker=null;ANALYSIS_RUNTIME.workerJob=null;reject(Error(event.message||'The processing worker failed.'));};
+      worker.postMessage({id,task:{operation,features:source,overlayFeatures,params:clone(params)}});
+    });
+  }
+
+  const MAP_SELECT={active:false,kind:null,fileId:null,mode:'replace',points:[],dragStart:null,overlay:null,svg:null,path:null,rect:null,banner:null};
+  function ensureMapSelectionOverlay(){
+    if(MAP_SELECT.overlay)return MAP_SELECT.overlay;const host=map.getContainer(),overlay=document.createElement('div');overlay.className='gis-spatial-select-overlay';overlay.hidden=true;overlay.innerHTML='<svg aria-hidden="true"><path class="gis-spatial-select-path"></path><rect class="gis-spatial-select-rect"></rect></svg><div class="gis-spatial-select-banner"><strong></strong><span></span><button type="button" data-finish>Finish</button><button type="button" data-cancel>Cancel</button></div>';host.appendChild(overlay);MAP_SELECT.overlay=overlay;MAP_SELECT.svg=overlay.querySelector('svg');MAP_SELECT.path=overlay.querySelector('path');MAP_SELECT.rect=overlay.querySelector('rect');MAP_SELECT.banner=overlay.querySelector('.gis-spatial-select-banner');
+    const point=event=>{const r=host.getBoundingClientRect();return L.point(event.clientX-r.left,event.clientY-r.top);};
+    overlay.addEventListener('pointerdown',event=>{if(!MAP_SELECT.active||event.target.closest('button'))return;event.preventDefault();event.stopPropagation();const p=point(event);if(MAP_SELECT.kind==='rectangle'){MAP_SELECT.dragStart=p;overlay.setPointerCapture(event.pointerId);MAP_SELECT.rect.setAttribute('x',p.x);MAP_SELECT.rect.setAttribute('y',p.y);MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);}else{MAP_SELECT.points.push(p);drawMapSelection();}});
+    overlay.addEventListener('pointermove',event=>{if(!MAP_SELECT.active||MAP_SELECT.kind!=='rectangle'||!MAP_SELECT.dragStart)return;const p=point(event),x=Math.min(p.x,MAP_SELECT.dragStart.x),y=Math.min(p.y,MAP_SELECT.dragStart.y);MAP_SELECT.rect.setAttribute('x',x);MAP_SELECT.rect.setAttribute('y',y);MAP_SELECT.rect.setAttribute('width',Math.abs(p.x-MAP_SELECT.dragStart.x));MAP_SELECT.rect.setAttribute('height',Math.abs(p.y-MAP_SELECT.dragStart.y));});
+    overlay.addEventListener('pointerup',event=>{if(!MAP_SELECT.active||MAP_SELECT.kind!=='rectangle'||!MAP_SELECT.dragStart)return;const p=point(event),start=MAP_SELECT.dragStart;MAP_SELECT.dragStart=null;if(Math.abs(p.x-start.x)<4||Math.abs(p.y-start.y)<4){setStatus('Drag a larger rectangle to select features.','error');return;}const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(p),west=Math.min(a.lng,b.lng),east=Math.max(a.lng,b.lng),south=Math.min(a.lat,b.lat),north=Math.max(a.lat,b.lat);finishMapSelection({type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]});});
+    overlay.querySelector('[data-finish]').onclick=()=>{if(MAP_SELECT.points.length<3){setStatus('Add at least three polygon points.','error');return;}const coordinates=MAP_SELECT.points.map(p=>{const ll=map.containerPointToLatLng(p);return [ll.lng,ll.lat];});coordinates.push(coordinates[0]);finishMapSelection({type:'Polygon',coordinates:[coordinates]});};
+    overlay.querySelector('[data-cancel]').onclick=()=>stopMapSelection(true);
+    return overlay;
+  }
+  function drawMapSelection(){if(!MAP_SELECT.path)return;const points=MAP_SELECT.points;MAP_SELECT.path.setAttribute('d',points.length?`M ${points.map(p=>`${p.x} ${p.y}`).join(' L ')}${points.length>2?' Z':''}`:'');}
+  function startMapSelection({kind='rectangle',fileId,mode='replace'}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Choose a target layer.');stopMapSelection(true);ensureMapSelectionOverlay();MAP_SELECT.active=true;MAP_SELECT.kind=kind;MAP_SELECT.fileId=fileId;MAP_SELECT.mode=mode;MAP_SELECT.points=[];MAP_SELECT.dragStart=null;MAP_SELECT.overlay.hidden=false;MAP_SELECT.overlay.classList.toggle('polygon-mode',kind==='polygon');MAP_SELECT.banner.querySelector('strong').textContent=kind==='polygon'?'Polygon selection':'Rectangle selection';MAP_SELECT.banner.querySelector('span').textContent=kind==='polygon'?'Click map points, then Finish. Esc cancels.':'Drag a rectangle over the features. Esc cancels.';MAP_SELECT.banner.querySelector('[data-finish]').hidden=kind!=='polygon';drawMapSelection();MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);setStatus(`${kind==='polygon'?'Polygon':'Rectangle'} selection active for ${file.name}.`);return true;
+  }
+  function stopMapSelection(silent=false){if(!MAP_SELECT.overlay)return;MAP_SELECT.active=false;MAP_SELECT.overlay.hidden=true;MAP_SELECT.points=[];MAP_SELECT.dragStart=null;drawMapSelection();MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);if(!silent)setStatus('Map selection cancelled.');}
+  function finishMapSelection(geometry){try{const matches=selectByGeometry(MAP_SELECT.fileId,geometry,MAP_SELECT.mode);stopMapSelection(true);window.dispatchEvent(new CustomEvent('editpolygon:gis-selection-changed',{detail:{count:selectedIds().length}}));return matches;}catch(error){setStatus(error.message,'error');return [];}}
+  document.addEventListener('keydown',event=>{if(MAP_SELECT.active&&event.key==='Escape'){event.preventDefault();stopMapSelection();}else if(MAP_SELECT.active&&MAP_SELECT.kind==='polygon'&&event.key==='Enter'){event.preventDefault();MAP_SELECT.overlay?.querySelector('[data-finish]')?.click();}});
+
+  const CANVAS_RENDERER=L.canvas({padding:.5,tolerance:8});
+  function renderViewKey(){const b=map.getBounds().pad(.35);return [map.getZoom(),b.getWest().toFixed(4),b.getSouth().toFixed(4),b.getEast().toFixed(4),b.getNorth().toFixed(4)].join('|');}
+  function renderCandidateFeatures(file){const b=map.getBounds().pad(.35),bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
+  function renderSignature(file,features,viewKey){
+    const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
+    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,feature.opacity??'',feature.style?.color||'',feature.style?.weight??'',styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
+    return `${viewKey}|${file.visible===false?0:1}|${file.opacity??1}|${file.color||''}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+  }
+  function buildCachedLayer(file,features){
+    const group=L.layerGroup(),models=new Map(features.map(feature=>[feature.id,feature])),collection={type:'FeatureCollection',features:features.map(feature=>{const raw=featJSON(feature);raw.properties={...(raw.properties||{}),__editpolygonId:feature.id};return raw;})};
+    const vector=L.geoJSON(collection,{renderer:CANVAS_RENDERER,interactive:false,smoothFactor:V.active?2.5:1.2,style:raw=>{const model=models.get(raw.properties?.__editpolygonId);return model?styleWithOpacity(model,file):{};},pointToLayer:(raw,latlng)=>{const model=models.get(raw.properties?.__editpolygonId),st=model?styleWithOpacity(model,file):{};return L.circleMarker(latlng,{renderer:CANVAS_RENDERER,radius:Math.max(1,Number(st.radius??model?.style?.radius??(model?.annotationStyle?.size?Number(model.annotationStyle.size)/2:5))),color:st.color||'#1664d6',fillColor:st.fillColor||st.color||'#1664d6',fillOpacity:st.fillOpacity??st.opacity??1,opacity:st.opacity??1,weight:st.weight??2,dashArray:st.dashArray||null});}});
+    vector.eachLayer(layer=>{const id=layer.feature?.properties?.__editpolygonId;if(id)layer.featureId=id;});group.addLayer(vector);
+    const labels=file.gisLabels;if(labels?.enabled&&labels.field){for(const feature of features){const value=feature.properties?.[labels.field];if(value==null||value==='')continue;try{const p=turf.pointOnFeature(featJSON(feature)).geometry.coordinates;group.addLayer(L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({className:'gis-feature-label',html:`<span>${esc(value)}</span>`,iconSize:null})}));}catch(_){ }}}
+    for(const feature of features){if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){const c=getDisplayGeometry(feature).coordinates;group.addLayer(L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(feature.name,{...(feature.annotationStyle||{}),annotation:true}),interactive:false}));}}
+    return group;
+  }
+  function cachedRenderMap(){
+    const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){featureGroup.clearLayers();ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
+    for(const file of project.files||[]){
+      if(isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
+      if(cached?.signature===signature){if(!featureGroup.hasLayer(cached.group))cached.group.addTo(featureGroup);continue;}
+      if(cached)try{featureGroup.removeLayer(cached.group);}catch(_){ }
+      const group=buildCachedLayer(file,features);group.addTo(featureGroup);ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
+    }
+    for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
+    if(typeof gisRenderMapLegends==='function')gisRenderMapLegends();
+  }
+  renderMap=cachedRenderMap;window.renderMap=renderMap;
+  function invalidateRenderCache(fileId){
+    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.clear();}
+  }
+  const v148BaseUndo=undo,v148BaseRedo=redo;
+  undo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseUndo();};redo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseRedo();};
+
+  const v148BaseSelectedDetails=gisSelectedFeatureDetails;
+  gisSelectedFeatureDetails=function(){const details=v148BaseSelectedDetails();if(!details)return null;const info=selectionInfo();details.selectedIds=info.ids;details.selectionCount=info.count;details.selectionIndex=info.ids.indexOf(details.featureId);return details;};
+
+  Object.assign(window.EditPolygonGIS,{
+    analysisVersion:GIS_ANALYSIS_VERSION,
+    getSelection:selectionInfo,
+    setSelection:(ids,activeId)=>setSelection(ids,activeId),
+    clearSelection:()=>setSelection([],null,'Selection cleared.'),
+    navigateSelection,
+    startMapSelection,
+    cancelMapSelection:()=>stopMapSelection(),
+    selectByGeometry,
+    selectByAttribute,
+    selectByLocation,
+    saveSelectionAsLayer,
+    getLayerStatistics:layerStatistics,
+    previewFieldCalculation,
+    calculateFieldAdvanced,
+    rebuildSpatialIndex,
+    invalidateSpatialIndex,
+    processAsync,
+    cancelProcessing,
+    invalidateRenderCache,
+    getSelectedFeature:gisSelectedFeatureDetails
+  });
+  window.__editPolygonGISAnalysis={version:GIS_ANALYSIS_VERSION,rebuildSpatialIndex,selectionInfo,invalidateRenderCache};
+  try{invalidateRenderCache();renderMap();gisNotify();}catch(error){console.warn('GIS analysis initialisation failed',error);}
+})();
+
 
 // Close the main EditPolygon application scope after all enhancements.
 })();
