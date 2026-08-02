@@ -91,3 +91,12 @@ body.night-mode .gis-spatial-select-vertices circle{fill:#171c23;stroke:#72a7ff}
 body.night-mode .gis-spatial-select-vertices circle.first{fill:#72a7ff;stroke:#171c23}
 body.night-mode .gis-spatial-select-banner em{color:#8bb8ff}
 @media(max-width:760px){#selectToolFlyout{width:min(306px,calc(100vw - 78px))}.gis-spatial-select-banner{min-width:0;flex-wrap:wrap}.gis-spatial-select-banner>div:first-child{width:100%;flex-wrap:wrap}.gis-spatial-select-banner em{margin-left:0;border-left:0;padding-left:0;width:100%}.gis-spatial-select-actions{margin-left:auto}.gis-spatial-select-cursor-metric{display:none}}
+
+
+/* v150 unified styling states */
+.gis-style-mode-banner{display:grid;gap:4px;padding:12px 14px;border:1px solid #cbd5e1;background:#f8fafc;margin-bottom:14px}
+.gis-style-mode-banner strong{font-size:13px}.gis-style-mode-banner span,.gis-style-mode-banner small{color:#526071}
+.gis-style-mode-banner.advanced{border-color:#f0b44c;background:#fff8e8}.gis-style-mode-banner.advanced strong{color:#8a4b00}
+.gis-layer-style-state{display:grid;gap:2px;padding:10px 11px;border-top:1px solid var(--border,#d7dde5);border-bottom:1px solid var(--border,#d7dde5);margin:5px 0}
+.gis-layer-style-state span,.gis-layer-style-state small{color:#64748b}.gis-layer-style-state.advanced{background:#fff8e8}.gis-layer-style-state.advanced strong{color:#8a4b00}
+body.night-mode .gis-style-mode-banner,body.night-mode .gis-layer-style-state{background:#151b24;border-color:#374151}body.night-mode .gis-style-mode-banner.advanced,body.night-mode .gis-layer-style-state.advanced{background:#2b2111}
