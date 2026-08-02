@@ -114,3 +114,20 @@ body.night-mode .gis-basemap-preview{background:linear-gradient(135deg,#263241,#
 body.night-mode .gis-remote-result{background:#172230;border-color:#3c5874}
 body.night-mode .gis-remote-result.is-ready{background:#17281d;border-color:#3d6f4a}
 body.night-mode .gis-remote-facts span,body.night-mode .gis-remote-choice select{background:#111827;border-color:#475569;color:#e5e7eb}
+
+/* v1.46: multi-layer ArcGIS import chooser */
+.gis-remote-layer-select-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px}
+.gis-remote-layer-select-actions button{font-size:10px;padding:4px 7px}
+.gis-remote-layer-select-actions span{margin-left:auto;font-size:10px;color:var(--muted)}
+.gis-remote-layer-list{display:grid;gap:4px;max-height:240px;overflow:auto;margin-top:7px;padding:5px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+.gis-remote-layer-option{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:start;padding:6px;border-radius:3px;cursor:pointer}
+.gis-remote-layer-option:hover{background:#edf4fb}
+.gis-remote-layer-option input{margin-top:2px}
+.gis-remote-layer-option span{display:grid;gap:2px;min-width:0}
+.gis-remote-layer-option strong{font-size:11px;white-space:normal;overflow-wrap:anywhere}
+.gis-remote-layer-option small{font-size:9px;color:var(--muted)}
+body.night-mode .gis-remote-layer-list{background:#111827;border-color:#475569}
+body.night-mode .gis-remote-layer-option:hover{background:#243244}
+.gis-remote-choice-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:9px}
+.gis-remote-choice-title strong{font-size:11px}
+.gis-remote-choice-title span{font-size:9px;color:var(--muted)}
