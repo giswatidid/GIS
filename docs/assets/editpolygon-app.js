@@ -7093,7 +7093,7 @@ renderSelected=function(){
   if(selectedMeasure){renderMeasureInspector(panel,selectedMeasure);return;}
   const r=ref();
   if(!r){
-    panel.innerHTML=`<div class="empty-inspector"><div><strong>Nothing selected</strong><div>Select a polygon, image overlay, or measurement layer to edit it. Use Ctrl+K to search every command.</div></div></div>`;
+    panel.innerHTML=`<div class="empty-inspector"><div><strong>Nothing selected</strong><div>Select a point, line, polygon, image overlay, or measurement layer to edit it. Use Ctrl+K to search every command.</div></div></div>`;
     return;
   }
   const f=r.feature,m=metrics(f.geometry),parts=f.geometry.type==='MultiPolygon'?f.geometry.coordinates.length:1;
@@ -7145,7 +7145,7 @@ renderSidebar=function(){
   const root=$('fileList');
   if(!root)return;
   if(!project.files.length&&!IMAGE.overlays.length&&!MEASURE.items.length){
-    root.innerHTML='<div class="file-card layers-empty"><strong>No layers yet</strong><br>Import a file, draw a polygon or LineString, add an image overlay, measure, or annotate.</div>';
+    root.innerHTML='<div class="file-card layers-empty"><strong>No layers yet</strong><br>Import a file, draw a point, line or polygon, add an image overlay, measure, or annotate.</div>';
     return;
   }
   function layerRowsForMeasureItems(items){
@@ -19842,8 +19842,12 @@ function gisLayerSnapshot(){
 }
 async function gisFetchArcGisGeoJson(baseUrl){
   const clean=String(baseUrl||'').replace(/\/$/,'');
-  const idsUrl=`${clean}/query?where=1%3D1&returnIdsOnly=true&f=json`;
-  const idsResponse=await fetch(idsUrl,{credentials:'omit',referrerPolicy:'no-referrer'});
+  const idsResponse=await fetch(`${clean}/query`,{
+    method:'POST',
+    body:new URLSearchParams({where:'1=1',returnIdsOnly:'true',f:'json'}),
+    credentials:'omit',
+    referrerPolicy:'no-referrer'
+  });
   if(!idsResponse.ok)throw Error(`ArcGIS ID query failed (${idsResponse.status}).`);
   const idsJson=await idsResponse.json();
   const ids=Array.isArray(idsJson.objectIds)?idsJson.objectIds:[];
@@ -19852,7 +19856,12 @@ async function gisFetchArcGisGeoJson(baseUrl){
   for(let start=0;start<ids.length;start+=500){
     const objectIds=ids.slice(start,start+500).join(',');
     const query=new URLSearchParams({objectIds,outFields:'*',returnGeometry:'true',outSR:'4326',f:'geojson'});
-    const response=await fetch(`${clean}/query?${query}`,{credentials:'omit',referrerPolicy:'no-referrer'});
+    const response=await fetch(`${clean}/query`,{
+      method:'POST',
+      body:query,
+      credentials:'omit',
+      referrerPolicy:'no-referrer'
+    });
     if(!response.ok)throw Error(`ArcGIS feature query failed (${response.status}).`);
     const json=await response.json();
     if(!Array.isArray(json.features))throw Error(json.error?.message||'ArcGIS service did not return GeoJSON.');
@@ -20256,7 +20265,7 @@ window.__editPolygonCrs={version:GIS_CRS_VERSION};
 
 // ArcGIS and remote web-data discovery. This accepts directory, service, layer,
 // query and ArcGIS item-page links, while keeping the final import browser-local.
-const GIS_REMOTE_SOURCE_VERSION='1.45.3';
+const GIS_REMOTE_SOURCE_VERSION='1.46.1';
 function gisRemoteResolver(){
   const resolver=window.EditPolygonRemoteSource;
   if(!resolver)throw Error('The remote-source resolver did not load. Refresh the page and try again.');
@@ -20285,7 +20294,7 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
     if(Number.isFinite(advertised)&&advertised>0)maxRecordCount=Math.max(50,Math.min(1000,Math.floor(advertised)));
   }catch(_){ }
 
-  const queryUrl=(params)=>`${options.layerUrl}/query?${params}`;
+  const fetchQuery=(params)=>resolver.fetchArcGisQuery(options.layerUrl,params);
   const fetchFeatureBatch=async(rawParams)=>{
     const params=new URLSearchParams(rawParams);
     params.set('outFields',params.get('outFields')||options.outFields||'*');
@@ -20297,7 +20306,7 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
     let geoJsonError=null;
     try{
       params.set('f','geojson');
-      const geojson=await resolver.fetchJson(queryUrl(params));
+      const geojson=await fetchQuery(params);
       if(geojson?.type==='FeatureCollection'&&Array.isArray(geojson.features))return geojson;
       if(Array.isArray(geojson?.features)&&geojson.features.every(feature=>feature?.geometry?.type))return {type:'FeatureCollection',features:geojson.features};
       geoJsonError=new Error('The GeoJSON response did not contain a feature collection.');
@@ -20305,7 +20314,7 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
 
     try{
       params.set('f','json');
-      const esriJson=await resolver.fetchJson(queryUrl(params));
+      const esriJson=await fetchQuery(params);
       const converted=resolver.esriJsonToGeoJSON(esriJson,metadata);
       if(Array.isArray(converted?.features))return converted;
       throw Error('The ArcGIS JSON response did not contain spatial features.');
@@ -20332,7 +20341,7 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
   idParams.set('returnIdsOnly','true');
   idParams.set('f','json');
   let idsJson;
-  try{idsJson=await resolver.fetchJson(queryUrl(idParams));}
+  try{idsJson=await fetchQuery(idParams);}
   catch(error){
     // Some older or restricted services do not support returnIdsOnly. Fetch the
     // query directly and use the JSON fallback when GeoJSON is unavailable.
@@ -20365,7 +20374,7 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
   let pendingChars=0;
   for(const id of ids){
     const chars=String(id).length+1;
-    if(pending.length&&(pending.length>=maxRecordCount||pendingChars+chars>5500)){batches.push(pending);pending=[];pendingChars=0;}
+    if(pending.length&&(pending.length>=maxRecordCount||pendingChars+chars>24000)){batches.push(pending);pending=[];pendingChars=0;}
     pending.push(id);pendingChars+=chars;
   }
   if(pending.length)batches.push(pending);
@@ -20388,7 +20397,7 @@ gisFetchArcGisGeoJson=async function(source){
 };
 
 window.EditPolygonGIS.discoverRemoteData=gisDiscoverRemoteData;
-window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editable',color='#1664d6',discovery=null,onProgress=()=>{}}={}){
+window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editable',color='#1664d6',discovery=null,onProgress=()=>{},deferRender=false}={}){
   const resolver=gisRemoteResolver();
   const originalUrl=String(url||'').trim();
   if(!originalUrl)throw Error('Paste a web data link first.');
@@ -20439,9 +20448,8 @@ window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editabl
     if(mode==='reference'){
       const store=gisReferenceStore();
       const item={id:uid('ref'),type:'geojson',name:safeName,data:fc,color,fillColor:color,opacity:.8,weight:2,fillOpacity:.15,visible:true,locked:false,remoteUrl:sourceUrl,sourceCrs,storageCrs:'EPSG:4326',remoteSource:sourceDetails,createdAt:new Date().toISOString()};
-      store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-web-data-reference');gisNotify();
-      try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }
-      setStatus(`Added remote reference: ${safeName}.`);
+      store.items.push(item);store.selectedId=item.id;setDirty(true);
+      if(!deferRender){renderAll();writeAutosaveNow?.('remote-web-data-reference');gisNotify();try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }setStatus(`Added remote reference: ${safeName}.`);}
       return {mode,item,resolved};
     }
 
@@ -20453,14 +20461,266 @@ window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editabl
     if(!models.length)throw Error('The selected source contains no supported Point, LineString or Polygon features.');
     const nativeCrs=gisCrsCore().supported(sourceCrs)?sourceCrs:'EPSG:4326';
     const file={id:uid('file'),name:safeName,sourceFormat:resolved.sourceType==='arcgis-layer'?'arcgis-feature-layer':'remote-geojson',sourceUrl,sourceOriginalUrl:originalUrl,remoteSource:sourceDetails,visible:true,color,features:models,gisStorageCrs:'EPSG:4326',gisSourceCrs:sourceCrs,gisCrs:nativeCrs,gisExportCrs:nativeCrs};
-    project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);
+    project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;setDirty(true);
     logOperation('remote-web-data-imported',{originalUrl,sourceUrl,features:models.length,sourceCrs,sourceType:resolved.sourceType});
-    gisNotify();fitAllProjectElements();setStatus(`Imported ${models.length} remote feature${models.length===1?'':'s'} into an editable browser-local layer.`);
+    if(!deferRender){renderAll();gisNotify();fitAllProjectElements();setStatus(`Imported ${models.length} remote feature${models.length===1?'':'s'} into an editable browser-local layer.`);}
     return {mode,file,resolved};
   }catch(error){throw resolver.friendlyError(error);}
 };
+
+window.EditPolygonGIS.importRemoteLayers=async function({layers=[],mode='editable',color='#1664d6',onProgress=()=>{}}={}){
+  const entries=(Array.isArray(layers)?layers:[]).filter(layer=>layer&&layer.url);
+  if(!entries.length)throw Error('Choose at least one ArcGIS layer to import.');
+  const results=[],failures=[];
+  for(let index=0;index<entries.length;index++){
+    const entry=entries[index];
+    try{
+      const discovery=entry.discovery?.kind==='ready'?entry.discovery:await gisDiscoverRemoteData({url:entry.url});
+      if(discovery?.kind!=='ready')throw Error('This selection did not resolve to a spatial layer.');
+      const layerColor=entry.color||COLORS[(project.files.length+index)%COLORS.length]||color;
+      const result=await window.EditPolygonGIS.importRemoteGeoJson({
+        url:entry.url,
+        name:entry.name||discovery.name||`Layer ${index+1}`,
+        mode,
+        color:layerColor,
+        discovery,
+        deferRender:true,
+        onProgress:progress=>onProgress({...progress,layerIndex:index,layerCount:entries.length,layerName:entry.name||discovery.name||`Layer ${index+1}`})
+      });
+      results.push(result);
+      onProgress({layerIndex:index,layerCount:entries.length,layerName:entry.name||discovery.name||`Layer ${index+1}`,layerComplete:true});
+    }catch(error){
+      failures.push({layer:entry,error:error?.message||String(error)});
+      onProgress({layerIndex:index,layerCount:entries.length,layerName:entry.name||`Layer ${index+1}`,layerComplete:true,error:error?.message||String(error)});
+    }
+  }
+  if(!results.length){
+    const message=failures.map(item=>`${item.layer?.name||'Layer'}: ${item.error}`).join(' — ');
+    throw Error(message||'None of the selected layers could be imported.');
+  }
+  renderAll();setDirty(true);writeAutosaveNow?.('remote-web-data-batch');gisNotify();fitAllProjectElements();
+  const featureCount=results.reduce((sum,result)=>sum+(result.file?.features?.length||result.item?.data?.features?.length||0),0);
+  logOperation('remote-web-data-batch-imported',{layers:results.length,features:featureCount,failures:failures.length});
+  setStatus(`Imported ${results.length} layer${results.length===1?'':'s'} with ${featureCount.toLocaleString()} feature${featureCount===1?'':'s'}${failures.length?`; ${failures.length} layer${failures.length===1?'':'s'} failed`:''}.`);
+  return {results,failures,layerCount:results.length,featureCount};
+};
 Object.assign(window.EditPolygonGIS,{remoteSourceVersion:GIS_REMOTE_SOURCE_VERSION,discoverRemoteData:gisDiscoverRemoteData});
 window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
+
+
+
+// v1.46: first-class editable Point/MultiPoint drawing and movement.
+(function installV146PointEditing(){
+  if(window.__v146PointEditing)return;
+  window.__v146PointEditing=true;
+
+  const pointSupported=type=>type==='Point'||type==='MultiPoint';
+  const POINT_EDIT={active:false,featureId:null,group:null,markers:[],changed:false};
+
+  function pointEditRef(){
+    const r=ref(POINT_EDIT.featureId||project.selectedFeatureId);
+    return r&&pointSupported(getDisplayGeometry(r.feature)?.type)?r:null;
+  }
+  function pointCoordinates(geometry){
+    if(!geometry)return [];
+    if(geometry.type==='Point')return [geometry.coordinates];
+    if(geometry.type==='MultiPoint')return geometry.coordinates||[];
+    return [];
+  }
+  function setPointCoordinate(feature,index,latlng){
+    const geometry=clone(getDisplayGeometry(feature));
+    const old=geometry.type==='Point'?geometry.coordinates:geometry.coordinates?.[index];
+    const coordinate=[Number(latlng.lng),Number(latlng.lat),...(Array.isArray(old)&&old.length>2?old.slice(2):[])];
+    if(geometry.type==='Point')geometry.coordinates=coordinate;
+    else if(geometry.type==='MultiPoint'&&Array.isArray(geometry.coordinates))geometry.coordinates[index]=coordinate;
+    feature.geometry=geometry;
+    feature.sourceGeometry=clone(geometry);
+    feature.renderedGeometry=clone(geometry);
+    feature.editStack=[];
+    clearFeatureCaches(feature);
+  }
+  function pointEditIcon(){
+    return L.divIcon({
+      className:'editpolygon-point-edit-icon',
+      html:'<div class="editpolygon-point-edit-handle" aria-hidden="true"></div>',
+      iconSize:[18,18],
+      iconAnchor:[9,9]
+    });
+  }
+  function clearPointEditMarkers(){
+    if(POINT_EDIT.group){try{POINT_EDIT.group.clearLayers();map.removeLayer(POINT_EDIT.group);}catch(_){ }}
+    POINT_EDIT.group=null;POINT_EDIT.markers=[];
+  }
+  function rebuildPointEditMarkers(){
+    clearPointEditMarkers();
+    const r=pointEditRef();
+    if(!POINT_EDIT.active||!r)return;
+    POINT_EDIT.group=L.layerGroup().addTo(map);
+    pointCoordinates(getDisplayGeometry(r.feature)).forEach((coordinate,index)=>{
+      if(!Array.isArray(coordinate)||coordinate.length<2)return;
+      const marker=L.marker([coordinate[1],coordinate[0]],{
+        icon:pointEditIcon(),draggable:true,autoPan:true,zIndexOffset:3200,
+        title:`Move ${r.feature.name}${pointCoordinates(getDisplayGeometry(r.feature)).length>1?` point ${index+1}`:''}`
+      }).addTo(POINT_EDIT.group);
+      marker.on('dragstart',()=>{
+        pushHistory([r.feature.id]);POINT_EDIT.changed=false;
+        try{map.dragging.disable();}catch(_){ }
+        setStatus('Moving point. Release to save the new location.');
+      });
+      marker.on('drag',event=>{
+        setPointCoordinate(r.feature,index,event.target.getLatLng());
+        POINT_EDIT.changed=true;
+      });
+      marker.on('dragend',event=>{
+        try{map.dragging.enable();}catch(_){ }
+        let ll=event.target.getLatLng();
+        try{
+          const snap=snappedLatLng(ll,{event:event.originalEvent||null,excludeFeatureId:r.feature.id});
+          if(snap?.latlng){ll=snap.latlng;event.target.setLatLng(ll);}
+        }catch(_){ }
+        setPointCoordinate(r.feature,index,ll);
+        commitManualGeometry(r.feature);
+        renderAllLight();setDirty(true);gisNotify?.();
+        logOperation('point-moved',{featureId:r.feature.id,pointIndex:index,longitude:ll.lng,latitude:ll.lat});
+        setStatus(`${r.feature.name} moved.`);
+      });
+      POINT_EDIT.markers.push(marker);
+    });
+  }
+  function startPointEditMode(){
+    const r=ref();
+    if(!r||!pointSupported(getDisplayGeometry(r.feature)?.type)){setStatus('Select a point first.','error');return;}
+    if(isLocked(r.file,r.feature)){setStatus('The selected point is locked. Unlock it before editing.','error');return;}
+    if(D.active)DCancel(true);if(V.active)VStop(true);if(MOVE.active)stopPolygonMoveMode(true);if(MEASURE.active&&typeof finishMeasure==='function')finishMeasure(true);
+    if(typeof stopCircleEditMode==='function'&&typeof CIRCLE_EDIT!=='undefined'&&CIRCLE_EDIT.active)stopCircleEditMode(true);
+    wakeFeature(r.file,r.feature);if((r.feature.editStack||[]).length)flattenEdits(r.feature);commitManualGeometry(r.feature);
+    POINT_EDIT.active=true;POINT_EDIT.featureId=r.feature.id;POINT_EDIT.changed=false;project.mode='editPoint';
+    rebuildPointEditMarkers();
+    setNotice(pointCoordinates(getDisplayGeometry(r.feature)).length>1?'Edit points: drag any red point handle to move that member of the MultiPoint feature.':'Edit point: drag the red point handle to move it. Snapping is applied when you release it.');
+    renderSelected();updateStatus();updateButtons();setStatus('Point editor active. Drag the red handle to move the point.');
+  }
+  function stopPointEditMode(silent=false){
+    if(!POINT_EDIT.active)return;
+    clearPointEditMarkers();POINT_EDIT.active=false;POINT_EDIT.featureId=null;POINT_EDIT.changed=false;
+    if(project.mode==='editPoint')project.mode='select';
+    setNotice('Select a point, line or polygon, then choose its editing control.');
+    renderMap();renderSelected();updateStatus();updateButtons();
+    if(!silent)setStatus('Point editing finished.');
+  }
+
+  const v146BaseVStart=VStart;
+  VStart=function(){
+    const r=ref();
+    if(r&&pointSupported(getDisplayGeometry(r.feature)?.type))return POINT_EDIT.active?stopPointEditMode(false):startPointEditMode();
+    if(POINT_EDIT.active)stopPointEditMode(true);
+    return v146BaseVStart();
+  };
+
+  const v146BaseSelectFeature=selectFeature;
+  selectFeature=function(fid){if(POINT_EDIT.active&&fid!==POINT_EDIT.featureId)stopPointEditMode(true);return v146BaseSelectFeature(fid);};
+  const v146BaseSelectFeatureMulti=selectFeatureMulti;
+  selectFeatureMulti=function(fid,additive){if(POINT_EDIT.active&&fid!==POINT_EDIT.featureId)stopPointEditMode(true);return v146BaseSelectFeatureMulti(fid,additive);};
+  const v146BaseClearSelection=clearSelection;
+  clearSelection=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseClearSelection();};
+  const v146BaseDeletePolygon=deletePolygon;
+  deletePolygon=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseDeletePolygon();};
+  const v146BaseSetFeatureVisibility=setFeatureVisibility;
+  setFeatureVisibility=function(featureId,visible){if(POINT_EDIT.active&&featureId===POINT_EDIT.featureId&&!visible)stopPointEditMode(true);return v146BaseSetFeatureVisibility(featureId,visible);};
+  const v146BaseSetFileVisibility=setFileVisibility;
+  setFileVisibility=function(fileId,visible){const active=pointEditRef();if(POINT_EDIT.active&&active?.file?.id===fileId&&!visible)stopPointEditMode(true);return v146BaseSetFileVisibility(fileId,visible);};
+  const v146BaseUndo=undo,v146BaseRedo=redo;
+  undo=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseUndo();};
+  redo=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseRedo();};
+
+  const v146BaseDStart=DStart;
+  DStart=function(kind=null){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseDStart(kind);};
+  const v146BaseDrawKindLabel=drawKindLabel;
+  drawKindLabel=function(kind){if(kind==='point')return 'Draw point';return v146BaseDrawKindLabel(kind);};
+  const v146BaseDrawKindHint=drawKindHint;
+  drawKindHint=function(kind){if(kind==='point')return 'Click once to place an editable GIS point';return v146BaseDrawKindHint(kind);};
+  const v146BaseDrawKindNotice=drawKindNotice;
+  drawKindNotice=function(kind){if(kind==='point')return 'Draw point: click once on the map to create an editable GIS Point feature. Snapping is applied when enabled. Esc cancels.';return v146BaseDrawKindNotice(kind);};
+  const v146BaseDrawKindStartStatus=drawKindStartStatus;
+  drawKindStartStatus=function(kind){if(kind==='point')return 'Drawing point. Click the map to place it.';return v146BaseDrawKindStartStatus(kind);};
+  const v146BaseDrawCanFinish=drawCanFinish;
+  drawCanFinish=function(){if(D.active&&D.kind==='point')return false;return v146BaseDrawCanFinish();};
+  const v146BaseDrawLiveHint=drawLiveHint;
+  drawLiveHint=function(){if(D.kind==='point')return 'Click to place point';return v146BaseDrawLiveHint();};
+
+  const v146BaseAddDrawnGeometry=addDrawnGeometry;
+  addDrawnGeometry=function(geometry,name='Geometry',properties={}){
+    if(!pointSupported(geometry?.type))return v146BaseAddDrawnGeometry(geometry,name,properties);
+    pushHistory();
+    const file=ensureScratch();const color=file.color||COLORS[project.files.length%COLORS.length];
+    const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:{color,fillColor:color,weight:2,fillOpacity:.9,radius:6}};
+    feature.properties.name=feature.name;file.features.push(feature);
+    D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
+    if(map.doubleClickZoom)map.doubleClickZoom.enable();project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=feature.id;
+    clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:feature.id,type:geometry.type});setStatus(`${feature.name} created.`);return feature;
+  };
+  const v146BaseDAddPoint=DAddPoint;
+  DAddPoint=function(latlng,event=null){
+    if(D.active&&D.kind==='point'){
+      const snapped=constrainedDrawCoord(latlng,event);
+      return addDrawnGeometry({type:'Point',coordinates:clone(snapped.coord)},'Point',{drawKind:'point'});
+    }
+    return v146BaseDAddPoint(latlng,event);
+  };
+
+  const v146BaseUpdateButtons=updateButtons;
+  updateButtons=function(){
+    v146BaseUpdateButtons();
+    const r=ref(),isPoint=!!(r&&pointSupported(getDisplayGeometry(r.feature)?.type)),locked=!!(r&&isLocked(r.file,r.feature));
+    const edit=$('editVerticesBtn');
+    if(edit&&isPoint){
+      const multi=getDisplayGeometry(r.feature).type==='MultiPoint';
+      edit.textContent=POINT_EDIT.active?'Done':(multi?'Edit points':'Edit point');
+      edit.disabled=locked||D.active||V.active||MEASURE.active||MOVE.active;
+      edit.classList.toggle('active',POINT_EDIT.active);
+    }
+    if(D.active&&D.kind==='point'){
+      if($('finishDrawBtn'))$('finishDrawBtn').style.display='none';
+      if($('undoDrawBtn'))$('undoDrawBtn').style.display='none';
+    }
+    document.body.classList.toggle('point-editing',POINT_EDIT.active);
+  };
+  const v146BaseUpdateStatus=updateStatus;
+  updateStatus=function(){v146BaseUpdateStatus();if(POINT_EDIT.active){$('modeState').textContent='Mode: Edit point';$('vertexState').textContent='Point editor · drag to move';}};
+
+  const v146BaseRenderSelected=renderSelected;
+  renderSelected=function(){
+    const out=v146BaseRenderSelected.apply(this,arguments);const r=ref();
+    if(!r||!pointSupported(getDisplayGeometry(r.feature)?.type))return out;
+    const panel=$('selectedPanel');if(!panel)return out;
+    const multi=getDisplayGeometry(r.feature).type==='MultiPoint';
+    const icon=panel.querySelector('.inspector-icon');if(icon)icon.textContent='•';
+    panel.querySelectorAll('.inspector-card h3').forEach(h=>{if(/Polygon actions|Line actions|Vertex editing/.test(h.textContent.trim()))h.textContent=multi?'Point actions':'Point actions';});
+    const edit=panel.querySelector('#panelEditVertices');if(edit){edit.textContent=POINT_EDIT.active?'Done':(multi?'Edit points':'Edit point');edit.classList.add('primary');edit.onclick=()=>VStart();}
+    panel.querySelectorAll('#panelDeletePolygon,#deletePolygonBtn').forEach(button=>button.textContent=multi?'Delete points':'Delete point');
+    const subtitle=panel.querySelector('.inspector-subtitle');if(subtitle)subtitle.textContent=`${getDisplayGeometry(r.feature).type} · ${pointCoordinates(getDisplayGeometry(r.feature)).length} point${pointCoordinates(getDisplayGeometry(r.feature)).length===1?'':'s'}`;
+    return out;
+  };
+
+  // Ensure the persistent toolbar always calls the latest point-aware editor.
+  if($('editVerticesBtn'))$('editVerticesBtn').onclick=()=>VStart();
+  if(window.renderCommandList&&!window.renderCommandList.__v146PointWrapped){
+    const baseRenderCommandList=window.renderCommandList;
+    window.renderCommandList=function(){
+      baseRenderCommandList();const list=$('commandList'),query=($('commandInput')?.value||'').trim().toLowerCase();
+      if(!list||query&&!['point','draw point','gis point','marker'].some(term=>term.includes(query)||query.includes(term)))return;
+      if(list.querySelector('[data-cmd="v146-draw-point"]'))return;
+      const button=document.createElement('button');button.className='command-item';button.dataset.cmd='v146-draw-point';button.innerHTML='<span class="command-icon">•</span><span><span class="command-title">Draw editable point</span><br><span class="command-hint">Draw · Click once to create a GIS Point feature</span></span><span class="kbd"></span>';button.onclick=()=>{window.closeCommandPalette?.();startDrawTool('point');};list.appendChild(button);
+    };window.renderCommandList.__v146PointWrapped=true;
+  }
+
+  window.EditPolygonPointEditing=Object.freeze({
+    version:'1.46.0',
+    start:startPointEditMode,
+    stop:stopPointEditMode,
+    active:()=>POINT_EDIT.active,
+    rebuild:rebuildPointEditMarkers
+  });
+})();
 
 // Close the main EditPolygon application scope after all enhancements.
 })();
