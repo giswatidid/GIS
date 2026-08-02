@@ -12,6 +12,7 @@
   let remoteDiscoveryTrail=[];
   let remoteDiscoveryBusy=false;
   let remoteDiscoveryRequestId=0;
+  let remoteSelectedLayerUrls=new Set();
   let remoteForm={name:'Remote data',mode:'editable',url:'',color:'#1664d6'};
   let remoteNameEdited=false;
   let remoteStatus={message:'',kind:'',scope:''};
@@ -160,10 +161,12 @@
       </div>`;
     }
     if(result.kind==='choose-layer'){
+      const selectedCount=result.layers.filter(layer=>remoteSelectedLayerUrls.has(layer.url)).length;
       return `<div class="gis-remote-result">
-        <div class="gis-remote-result-head"><div><strong>${html(result.title||result.name||'ArcGIS service')}</strong><span>${result.layers.length.toLocaleString()} available layer${result.layers.length===1?'':'s'}</span></div><span class="gis-found-badge">Service</span></div>
-        <label class="gis-remote-choice">Choose a layer<select id="gisRemoteChoice">${result.layers.map(layer=>`<option value="${html(layer.url)}">${html(layer.name)}${layer.geometryLabel?` — ${html(layer.geometryLabel)}`:''}</option>`).join('')}</select></label>
-        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-continue">Use selected layer</button>${remoteDiscoveryTrail.length?'<button type="button" data-gis-action="remote-back">Back to services</button>':''}<button type="button" data-gis-action="remote-reset">Use another link</button></div>
+        <div class="gis-remote-result-head"><div><strong>${html(result.title||result.name||'ArcGIS service')}</strong><span>${result.layers.length.toLocaleString()} available layer${result.layers.length===1?'':'s'} · choose one, several or all</span></div><span class="gis-found-badge">Service</span></div>
+        <div class="gis-remote-choice-title"><strong>Choose a layer</strong><span>Select one, several or all</span></div><div class="gis-remote-layer-select-actions"><button type="button" data-gis-action="remote-select-all">Select all</button><button type="button" data-gis-action="remote-select-none">Clear</button><span>${selectedCount.toLocaleString()} selected</span></div>
+        <div class="gis-remote-layer-list" role="group" aria-label="Available ArcGIS layers">${result.layers.map((layer,index)=>`<label class="gis-remote-layer-option"><input type="checkbox" data-gis-remote-layer value="${html(layer.url)}" ${remoteSelectedLayerUrls.has(layer.url)?'checked':''}><span><strong>${html(layer.name||`Layer ${index+1}`)}</strong><small>${html(layer.geometryLabel||layer.geometryType||'Spatial layer')}${layer.layerId!=null?` · Layer ${html(layer.layerId)}`:''}</small></span></label>`).join('')}</div>
+        <div class="gis-remote-actions"><button type="button" class="primary" data-gis-action="remote-import-selected" ${selectedCount?'':'disabled'}>Import selected${selectedCount?` (${selectedCount})`:''}</button>${selectedCount===1?'<button type="button" data-gis-action="remote-preview-selected">Preview selected layer</button>':''}${remoteDiscoveryTrail.length?'<button type="button" data-gis-action="remote-back">Back to services</button>':''}<button type="button" data-gis-action="remote-reset">Use another link</button></div>
       </div>`;
     }
     if(result.kind==='choose-service'){
@@ -310,6 +313,11 @@
       const result=await api.discoverRemoteData({url:target});
       if(requestId!==remoteDiscoveryRequestId)return;
       remoteDiscovery=result;
+      if(result.kind==='choose-layer'){
+        const available=new Set((result.layers||[]).map(layer=>layer.url));
+        remoteSelectedLayerUrls=new Set([...remoteSelectedLayerUrls].filter(url=>available.has(url)));
+        if(!remoteSelectedLayerUrls.size&&result.layers?.[0]?.url)remoteSelectedLayerUrls.add(result.layers[0].url);
+      }else if(result.kind!=='ready')remoteSelectedLayerUrls=new Set();
       if(!preserveInput)remoteForm.url=target;
       if(result.kind==='ready'&&!remoteNameEdited&&result?.name)remoteForm.name=result.name;
       // The card/chooser is now the authoritative successful state.
@@ -361,6 +369,39 @@
     }
   }
 
+
+  async function importSelectedRemoteLayers(){
+    if(!remoteDiscovery||remoteDiscovery.kind!=='choose-layer')return;
+    syncRemoteForm();
+    const selected=(remoteDiscovery.layers||[]).filter(layer=>remoteSelectedLayerUrls.has(layer.url));
+    if(!selected.length){setRemoteStatus('Choose at least one layer to import.','error','import');render();return;}
+    remoteDiscoveryBusy=true;
+    setRemoteStatus(`Preparing ${selected.length} selected layer${selected.length===1?'':'s'}…`,'','import');
+    render();
+    try{
+      const result=await api.importRemoteLayers({
+        layers:selected,
+        mode:remoteForm.mode,
+        color:remoteForm.color,
+        onProgress:progress=>{
+          const layerNumber=Number(progress?.layerIndex||0)+1,layerCount=Number(progress?.layerCount||selected.length);
+          const label=progress?.layerName||`Layer ${layerNumber}`;
+          if(progress?.error)setRemoteStatus(`${label} failed: ${progress.error}`,'warn','import');
+          else if(progress?.layerComplete)setRemoteStatus(`Completed ${layerNumber} of ${layerCount}: ${label}`,'','import');
+          else{
+            const loaded=Number(progress?.loaded||0),total=Number(progress?.total||0);
+            setRemoteStatus(total?`Layer ${layerNumber} of ${layerCount}: ${label} — ${loaded.toLocaleString()} of ${total.toLocaleString()} features`:`Layer ${layerNumber} of ${layerCount}: ${label} — downloading…`,'','import');
+          }
+        }
+      });
+      const failed=result.failures?.length||0;
+      setRemoteStatus(`Imported ${result.layerCount.toLocaleString()} layer${result.layerCount===1?'':'s'} and ${result.featureCount.toLocaleString()} feature${result.featureCount===1?'':'s'}${failed?`; ${failed} layer${failed===1?'':'s'} failed`:''}.`,failed?'warn':'ok','import');
+      remoteDiscovery=null;remoteDiscoveryTrail=[];remoteSelectedLayerUrls=new Set();
+      remoteForm={name:'Remote data',mode:remoteForm.mode,url:'',color:remoteForm.color};remoteNameEdited=false;activeTab='layers';setTimeout(render,250);
+    }catch(error){setRemoteStatus(error?.message||String(error),'error','import');}
+    finally{remoteDiscoveryBusy=false;if(activeTab==='add')render();}
+  }
+
   async function handlePanelClick(event){
     if(!api)return;
     const groupAction=event.target.closest('[data-gis-group-action]');
@@ -393,18 +434,30 @@
       const choice=byId('gisRemoteChoice')?.value;
       if(choice)await discoverRemoteUrl(choice,{preserveInput:true,pushCurrent:true});
     }
+    else if(action==='remote-select-all'){
+      remoteSelectedLayerUrls=new Set((remoteDiscovery?.layers||[]).map(layer=>layer.url));render();
+    }
+    else if(action==='remote-select-none'){
+      remoteSelectedLayerUrls=new Set();render();
+    }
+    else if(action==='remote-preview-selected'){
+      const choice=[...remoteSelectedLayerUrls][0];
+      if(choice)await discoverRemoteUrl(choice,{preserveInput:true,pushCurrent:true});
+    }
+    else if(action==='remote-import-selected')await importSelectedRemoteLayers();
     else if(action==='remote-back'){
       syncRemoteForm();
       if(remoteDiscoveryTrail.length){
         remoteDiscoveryRequestId++;
         remoteDiscovery=remoteDiscoveryTrail.pop();
+        if(remoteDiscovery?.kind==='choose-layer'){const available=new Set((remoteDiscovery.layers||[]).map(layer=>layer.url));remoteSelectedLayerUrls=new Set([...remoteSelectedLayerUrls].filter(url=>available.has(url)));if(!remoteSelectedLayerUrls.size&&remoteDiscovery.layers?.[0]?.url)remoteSelectedLayerUrls.add(remoteDiscovery.layers[0].url);}else remoteSelectedLayerUrls=new Set();
         remoteStatus={message:'',kind:'',scope:''};
         render();
       }
     }
     else if(action==='remote-import')await importRemoteResult();
     else if(action==='remote-reset'){
-      syncRemoteForm();remoteDiscoveryRequestId++;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'',kind:'',scope:''};remoteForm.url='';if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
+      syncRemoteForm();remoteDiscoveryRequestId++;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteSelectedLayerUrls=new Set();remoteStatus={message:'',kind:'',scope:''};remoteForm.url='';if(!remoteNameEdited)remoteForm.name='Remote data';render();setTimeout(()=>byId('gisRemoteUrl')?.focus(),0);
     }
   }
 
@@ -418,6 +471,10 @@
       if(input)input.placeholder=event.target.value==='tilejson'?'https://server/style/tilejson.json':'https://server/{z}/{x}/{y}.png';
     }
     if(event.target.id==='gisRemoteMode')remoteForm.mode=event.target.value;
+    if(event.target.matches('[data-gis-remote-layer]')){
+      if(event.target.checked)remoteSelectedLayerUrls.add(event.target.value);else remoteSelectedLayerUrls.delete(event.target.value);
+      render();
+    }
   }
 
   function handlePanelInput(event){
@@ -435,7 +492,7 @@
       const changed=nextUrl.trim()!==String(remoteForm.url||'').trim();
       remoteForm.url=nextUrl;
       if(remoteDiscovery&&changed){
-        remoteDiscoveryRequestId++;remoteDiscoveryBusy=false;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteStatus={message:'Link changed. Click Find data to check it.',kind:'',scope:'discovery'};
+        remoteDiscoveryRequestId++;remoteDiscoveryBusy=false;remoteDiscovery=null;remoteDiscoveryTrail=[];remoteSelectedLayerUrls=new Set();remoteStatus={message:'Link changed. Click Find data to check it.',kind:'',scope:'discovery'};
         panel?.querySelector('.gis-remote-result')?.remove();
         inlineStatus('gisRemoteStatus',remoteStatus.message,'');
       }
