@@ -7384,7 +7384,7 @@ function initUxRehaul(){
   if(ci){ci.addEventListener('input',()=>{selectedCommand=0;renderCommandList();});ci.addEventListener('keydown',e=>{const items=filteredCommands();if(e.key==='ArrowDown'){e.preventDefault();selectedCommand=Math.min(items.length-1,selectedCommand+1);renderCommandList();}else if(e.key==='ArrowUp'){e.preventDefault();selectedCommand=Math.max(0,selectedCommand-1);renderCommandList();}else if(e.key==='Enter'){e.preventDefault();const c=items[selectedCommand];closeCommandPalette();if(c)c.run();}else if(e.key==='Escape'){e.preventDefault();closeCommandPalette();}});}
   const cb=$('commandBackdrop'); if(cb)cb.addEventListener('click',e=>{if(e.target===cb)closeCommandPalette();});
   function closeRailFlyouts(except=null){
-    ['drawToolFlyout','imageToolFlyout','measureToolFlyout','annotateToolFlyout'].forEach(id=>{if(id!==except)$(id)?.classList.remove('active');});
+    ['selectToolFlyout','drawToolFlyout','imageToolFlyout','measureToolFlyout','annotateToolFlyout'].forEach(id=>{if(id!==except)$(id)?.classList.remove('active');});
   }
   function showRailFlyout(id,btn){
     const f=$(id); if(!f)return;
@@ -7456,7 +7456,7 @@ function initUxRehaul(){
   window.VStartAllVisiblePolygons=VStartAllVisiblePolygons;
   document.querySelectorAll('[data-rail]').forEach(btn=>btn.addEventListener('click',()=>{
     const a=btn.dataset.rail;
-    if(a==='select'){closeRailFlyouts();setMode('select');}
+    if(a==='select'){setMode('select');showRailFlyout('selectToolFlyout',btn);window.EditPolygonSelectionTools?.refresh?.();}
     else if(a==='draw')showRailFlyout('drawToolFlyout',btn);
     else if(a==='vertex'){closeRailFlyouts();VStartAllVisiblePolygons();}
     else if(a==='image')showRailFlyout('imageToolFlyout',btn);
@@ -20177,7 +20177,7 @@ window.__editPolygonGisFoundation={version:GIS_FOUNDATION_VERSION,state:gisState
 
 
 /* v141: advanced browser-local GIS data, styling, CRS and processing bridge. */
-const GIS_DATA_VERSION='1.48.0';
+const GIS_DATA_VERSION='1.48.1';
 const gisStylePreviewByFile=new Map();
 const gisStyleCompileCache=new WeakMap();
 function gisStyleCore(){return window.EditPolygonGISStyleCore||null;}
@@ -20315,7 +20315,7 @@ function gisSetFeatureAttributes(fileId,featureId,values){
   gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('attributes-updated',{fileId,featureId,fields:Object.keys(values||{})});return gisSelectedFeatureDetails();
 }
 function gisSetDisplayField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisDisplayField=String(field||'name');renderSidebar();renderSelected();setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
-function gisLayerUiSnapshot(){return (project.files||[]).map(file=>({id:file.id,name:file.name,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)}));}
+function gisLayerUiSnapshot(){return (project.files||[]).map(file=>({id:file.id,name:file.name,visible:file.visible!==false,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)}));}
 Object.assign(window.EditPolygonGIS,{uiVersion:GIS_UI_VERSION,getSelectedFeature:gisSelectedFeatureDetails,setFeatureAttributes:gisSetFeatureAttributes,setDisplayField:gisSetDisplayField,getLayerUiSnapshot:gisLayerUiSnapshot});
 window.addEventListener('editpolygon:request-selection',()=>gisNotify());
 
@@ -20927,7 +20927,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
    spatial indexing and cached editable dataset rendering. */
 (function(){
   'use strict';
-  const GIS_ANALYSIS_VERSION='1.48.0';
+  const GIS_ANALYSIS_VERSION='1.48.1';
   const ANALYSIS_RUNTIME={
     indexes:new Map(),
     vectorCache:new Map(),
@@ -20993,11 +20993,20 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       return turf.booleanIntersects(featJSON(feature),selectionFeature);
     }catch(_){return false;}
   }
+  function geometryMatchesForFile(file,selectionFeature){
+    const bbox=turf.bbox(selectionFeature),ids=querySpatialIndex(file,bbox),lookup=new Set(ids);
+    return (file.features||[]).filter(feature=>lookup.has(feature.id)&&feature.visible!==false&&!feature._gisFiltered&&exactIntersectsSelection(feature,selectionFeature)).map(feature=>feature.id);
+  }
+  function selectByGeometryTargets(fileIds,geometry,mode='replace'){
+    const ids=[...new Set((fileIds||[]).filter(Boolean))],files=ids.map(gisEditableFile).filter(file=>file&&file.visible!==false);
+    if(!files.length)throw Error('No visible editable target layer is available.');
+    const selectionFeature={type:'Feature',properties:{},geometry:clone(geometry)},matches=[];
+    for(const file of files)matches.push(...geometryMatchesForFile(file,selectionFeature));
+    applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched across ${files.length} layer${files.length===1?'':'s'}.`);return matches;
+  }
   function selectByGeometry(fileId,geometry,mode='replace'){
     const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
-    const selectionFeature={type:'Feature',properties:{},geometry:clone(geometry)},bbox=turf.bbox(selectionFeature),ids=querySpatialIndex(file,bbox),lookup=new Set(ids);
-    const matches=(file.features||[]).filter(feature=>lookup.has(feature.id)&&feature.visible!==false&&!feature._gisFiltered&&exactIntersectsSelection(feature,selectionFeature)).map(feature=>feature.id);
-    applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched the map selection.`);return matches;
+    return selectByGeometryTargets([fileId],geometry,mode);
   }
   function selectByAttribute(fileId,rule,mode='replace'){
     const file=gisEditableFile(fileId),core=analysisCore();if(!file||!core)throw Error('Layer or analysis engine unavailable.');
@@ -21119,24 +21128,91 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     });
   }
 
-  const MAP_SELECT={active:false,kind:null,fileId:null,mode:'replace',points:[],dragStart:null,overlay:null,svg:null,path:null,rect:null,banner:null};
+  const MAP_SELECT={active:false,kind:null,fileId:null,fileIds:[],mode:'replace',points:[],cursor:null,dragStart:null,drawing:false,pointerId:null,overlay:null,svg:null,path:null,previewPath:null,rect:null,vertices:null,banner:null,metric:null,cursorMetric:null,targetLabel:''};
+  function mapSelectionTargetFiles({fileId=null,fileIds=null}={}){
+    let ids=Array.isArray(fileIds)?fileIds.filter(Boolean):fileId&&fileId!=='*'?[fileId]:[];
+    if(!ids.length)ids=(project.files||[]).filter(file=>file.visible!==false).map(file=>file.id);
+    return [...new Set(ids)].map(gisEditableFile).filter(file=>file&&file.visible!==false);
+  }
+  function screenPoint(event){const host=map.getContainer(),r=host.getBoundingClientRect();return L.point(event.clientX-r.left,event.clientY-r.top);}
+  function svgPath(points,{close=false}={}){return points.length?`M ${points.map(point=>`${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' L ')}${close&&points.length>2?' Z':''}`:'';}
+  function geoCoordinates(points,close=false){const coordinates=points.map(point=>{const ll=map.containerPointToLatLng(point);return [ll.lng,ll.lat];});if(close&&coordinates.length&&((coordinates[0][0]!==coordinates.at(-1)[0])||(coordinates[0][1]!==coordinates.at(-1)[1])))coordinates.push([...coordinates[0]]);return coordinates;}
+  function selectionPolygonGeometry(points){if(points.length<3)return null;return {type:'Polygon',coordinates:[geoCoordinates(points,true)]};}
+  function formatMetricDistance(metres){if(!Number.isFinite(metres))return '—';if(metres>=1000000)return `${(metres/1000).toLocaleString(undefined,{maximumFractionDigits:0})} km`;if(metres>=1000)return `${(metres/1000).toLocaleString(undefined,{maximumFractionDigits:2})} km`;return `${metres.toLocaleString(undefined,{maximumFractionDigits:1})} m`;}
+  function formatMetricArea(squareMetres){if(!Number.isFinite(squareMetres))return '—';if(squareMetres>=1000000)return `${(squareMetres/1000000).toLocaleString(undefined,{maximumFractionDigits:2})} km²`;if(squareMetres>=10000)return `${(squareMetres/10000).toLocaleString(undefined,{maximumFractionDigits:2})} ha`;return `${squareMetres.toLocaleString(undefined,{maximumFractionDigits:1})} m²`;}
+  function polygonMetrics(geometry){
+    if(!geometry)return {area:0,perimeter:0};
+    try{const feature={type:'Feature',properties:{},geometry},line=turf.polygonToLine(feature);return {area:turf.area(feature),perimeter:turf.length(line,{units:'kilometers'})*1000};}catch(_){return {area:0,perimeter:0};}
+  }
+  function rectangleGeometry(start,end){const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(end),west=Math.min(a.lng,b.lng),east=Math.max(a.lng,b.lng),south=Math.min(a.lat,b.lat),north=Math.max(a.lat,b.lat);return {type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]};}
+  function rectangleMetrics(start,end){
+    const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(end),horizontal=turf.distance([a.lng,a.lat],[b.lng,a.lat],{units:'kilometers'})*1000,vertical=turf.distance([a.lng,a.lat],[a.lng,b.lat],{units:'kilometers'})*1000,geometry=rectangleGeometry(start,end);return {geometry,width:horizontal,height:vertical,...polygonMetrics(geometry)};
+  }
+  function updateSelectionMetric(text='',point=null){
+    if(MAP_SELECT.metric)MAP_SELECT.metric.textContent=text||'Move over the map to begin.';
+    if(MAP_SELECT.cursorMetric){MAP_SELECT.cursorMetric.textContent=text;MAP_SELECT.cursorMetric.hidden=!text||!point;if(point){MAP_SELECT.cursorMetric.style.left=`${Math.min(point.x+16,map.getContainer().clientWidth-210)}px`;MAP_SELECT.cursorMetric.style.top=`${Math.max(10,point.y-42)}px`;}}
+  }
+  function drawSelectionVertices(points){if(!MAP_SELECT.vertices)return;MAP_SELECT.vertices.replaceChildren(...points.map((point,index)=>{const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');circle.setAttribute('cx',point.x);circle.setAttribute('cy',point.y);circle.setAttribute('r',index===0&&points.length>2?'6':'4');circle.classList.toggle('first',index===0);return circle;}));}
+  function currentPolygonPreview(){return MAP_SELECT.cursor?[...MAP_SELECT.points,MAP_SELECT.cursor]:[...MAP_SELECT.points];}
+  function drawMapSelection(){
+    if(!MAP_SELECT.path)return;
+    if(MAP_SELECT.kind==='rectangle')return;
+    const fixed=MAP_SELECT.points,preview=MAP_SELECT.kind==='polygon'?currentPolygonPreview():fixed;
+    if(MAP_SELECT.kind==='lasso'){MAP_SELECT.path.setAttribute('d',svgPath(fixed,{close:fixed.length>2}));MAP_SELECT.previewPath.setAttribute('d','');}
+    else{MAP_SELECT.path.setAttribute('d',svgPath(fixed));MAP_SELECT.previewPath.setAttribute('d',svgPath(preview,{close:preview.length>2}));}
+    drawSelectionVertices(MAP_SELECT.kind==='polygon'?fixed:[]);
+    const geometry=selectionPolygonGeometry(preview);
+    if(geometry){const metrics=polygonMetrics(geometry);updateSelectionMetric(`${formatMetricArea(metrics.area)} · perimeter ${formatMetricDistance(metrics.perimeter)} · ${Math.max(0,preview.length-(MAP_SELECT.cursor?1:0))} fixed point${preview.length-(MAP_SELECT.cursor?1:0)===1?'':'s'}`,MAP_SELECT.cursor||preview.at(-1));}
+    else if(preview.length>=2){const coords=geoCoordinates(preview),distance=turf.length(turf.lineString(coords),{units:'kilometers'})*1000;updateSelectionMetric(`${formatMetricDistance(distance)} edge · add ${3-preview.length} more point${3-preview.length===1?'':'s'} for an area`,MAP_SELECT.cursor||preview.at(-1));}
+    else updateSelectionMetric(fixed.length?'Move the pointer and click the next boundary point.':'Click the first boundary point.',MAP_SELECT.cursor);
+  }
+  function finishPolygonSelection(){
+    if(MAP_SELECT.points.length<3){setStatus('Add at least three polygon points.','error');return;}
+    const geometry=selectionPolygonGeometry(MAP_SELECT.points);if(geometry)finishMapSelection(geometry);
+  }
+  function undoMapSelectionPoint(){if(!MAP_SELECT.active||MAP_SELECT.kind!=='polygon')return;MAP_SELECT.points.pop();drawMapSelection();}
   function ensureMapSelectionOverlay(){
-    if(MAP_SELECT.overlay)return MAP_SELECT.overlay;const host=map.getContainer(),overlay=document.createElement('div');overlay.className='gis-spatial-select-overlay';overlay.hidden=true;overlay.innerHTML='<svg aria-hidden="true"><path class="gis-spatial-select-path"></path><rect class="gis-spatial-select-rect"></rect></svg><div class="gis-spatial-select-banner"><strong></strong><span></span><button type="button" data-finish>Finish</button><button type="button" data-cancel>Cancel</button></div>';host.appendChild(overlay);MAP_SELECT.overlay=overlay;MAP_SELECT.svg=overlay.querySelector('svg');MAP_SELECT.path=overlay.querySelector('path');MAP_SELECT.rect=overlay.querySelector('rect');MAP_SELECT.banner=overlay.querySelector('.gis-spatial-select-banner');
-    const point=event=>{const r=host.getBoundingClientRect();return L.point(event.clientX-r.left,event.clientY-r.top);};
-    overlay.addEventListener('pointerdown',event=>{if(!MAP_SELECT.active||event.target.closest('button'))return;event.preventDefault();event.stopPropagation();const p=point(event);if(MAP_SELECT.kind==='rectangle'){MAP_SELECT.dragStart=p;overlay.setPointerCapture(event.pointerId);MAP_SELECT.rect.setAttribute('x',p.x);MAP_SELECT.rect.setAttribute('y',p.y);MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);}else{MAP_SELECT.points.push(p);drawMapSelection();}});
-    overlay.addEventListener('pointermove',event=>{if(!MAP_SELECT.active||MAP_SELECT.kind!=='rectangle'||!MAP_SELECT.dragStart)return;const p=point(event),x=Math.min(p.x,MAP_SELECT.dragStart.x),y=Math.min(p.y,MAP_SELECT.dragStart.y);MAP_SELECT.rect.setAttribute('x',x);MAP_SELECT.rect.setAttribute('y',y);MAP_SELECT.rect.setAttribute('width',Math.abs(p.x-MAP_SELECT.dragStart.x));MAP_SELECT.rect.setAttribute('height',Math.abs(p.y-MAP_SELECT.dragStart.y));});
-    overlay.addEventListener('pointerup',event=>{if(!MAP_SELECT.active||MAP_SELECT.kind!=='rectangle'||!MAP_SELECT.dragStart)return;const p=point(event),start=MAP_SELECT.dragStart;MAP_SELECT.dragStart=null;if(Math.abs(p.x-start.x)<4||Math.abs(p.y-start.y)<4){setStatus('Drag a larger rectangle to select features.','error');return;}const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(p),west=Math.min(a.lng,b.lng),east=Math.max(a.lng,b.lng),south=Math.min(a.lat,b.lat),north=Math.max(a.lat,b.lat);finishMapSelection({type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]});});
-    overlay.querySelector('[data-finish]').onclick=()=>{if(MAP_SELECT.points.length<3){setStatus('Add at least three polygon points.','error');return;}const coordinates=MAP_SELECT.points.map(p=>{const ll=map.containerPointToLatLng(p);return [ll.lng,ll.lat];});coordinates.push(coordinates[0]);finishMapSelection({type:'Polygon',coordinates:[coordinates]});};
-    overlay.querySelector('[data-cancel]').onclick=()=>stopMapSelection(true);
+    if(MAP_SELECT.overlay)return MAP_SELECT.overlay;const host=map.getContainer(),overlay=document.createElement('div');overlay.className='gis-spatial-select-overlay';overlay.hidden=true;overlay.innerHTML='<svg aria-hidden="true"><path class="gis-spatial-select-path"></path><path class="gis-spatial-select-preview"></path><rect class="gis-spatial-select-rect"></rect><g class="gis-spatial-select-vertices"></g></svg><div class="gis-spatial-select-banner"><div><strong></strong><span></span><em data-metric></em></div><div class="gis-spatial-select-actions"><button type="button" data-undo>Undo point</button><button type="button" data-finish>Finish</button><button type="button" data-cancel>Cancel</button></div></div><div class="gis-spatial-select-cursor-metric" hidden></div>';host.appendChild(overlay);MAP_SELECT.overlay=overlay;MAP_SELECT.svg=overlay.querySelector('svg');MAP_SELECT.path=overlay.querySelector('.gis-spatial-select-path');MAP_SELECT.previewPath=overlay.querySelector('.gis-spatial-select-preview');MAP_SELECT.rect=overlay.querySelector('rect');MAP_SELECT.vertices=overlay.querySelector('.gis-spatial-select-vertices');MAP_SELECT.banner=overlay.querySelector('.gis-spatial-select-banner');MAP_SELECT.metric=overlay.querySelector('[data-metric]');MAP_SELECT.cursorMetric=overlay.querySelector('.gis-spatial-select-cursor-metric');
+    overlay.addEventListener('pointerdown',event=>{
+      if(!MAP_SELECT.active||event.target.closest('button'))return;event.preventDefault();event.stopPropagation();const point=screenPoint(event);MAP_SELECT.cursor=point;
+      if(MAP_SELECT.kind==='rectangle'){MAP_SELECT.dragStart=point;MAP_SELECT.pointerId=event.pointerId;overlay.setPointerCapture(event.pointerId);MAP_SELECT.rect.setAttribute('x',point.x);MAP_SELECT.rect.setAttribute('y',point.y);MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);}
+      else if(MAP_SELECT.kind==='lasso'){MAP_SELECT.points=[point];MAP_SELECT.drawing=true;MAP_SELECT.pointerId=event.pointerId;overlay.setPointerCapture(event.pointerId);drawMapSelection();}
+      else if(MAP_SELECT.kind==='polygon'){
+        if(MAP_SELECT.points.length>=3&&MAP_SELECT.points[0].distanceTo(point)<=10){finishPolygonSelection();return;}
+        MAP_SELECT.points.push(point);drawMapSelection();
+      }
+    });
+    overlay.addEventListener('pointermove',event=>{
+      if(!MAP_SELECT.active)return;const point=screenPoint(event);MAP_SELECT.cursor=point;
+      if(MAP_SELECT.kind==='rectangle'&&MAP_SELECT.dragStart){const x=Math.min(point.x,MAP_SELECT.dragStart.x),y=Math.min(point.y,MAP_SELECT.dragStart.y),width=Math.abs(point.x-MAP_SELECT.dragStart.x),height=Math.abs(point.y-MAP_SELECT.dragStart.y);MAP_SELECT.rect.setAttribute('x',x);MAP_SELECT.rect.setAttribute('y',y);MAP_SELECT.rect.setAttribute('width',width);MAP_SELECT.rect.setAttribute('height',height);const metrics=rectangleMetrics(MAP_SELECT.dragStart,point);updateSelectionMetric(`${formatMetricArea(metrics.area)} · ${formatMetricDistance(metrics.width)} × ${formatMetricDistance(metrics.height)}`,point);}
+      else if(MAP_SELECT.kind==='lasso'&&MAP_SELECT.drawing){const last=MAP_SELECT.points.at(-1);if(!last||last.distanceTo(point)>=4)MAP_SELECT.points.push(point);drawMapSelection();}
+      else if(MAP_SELECT.kind==='polygon')drawMapSelection();
+      else updateSelectionMetric('Press and drag to draw the selection boundary.',point);
+    });
+    overlay.addEventListener('pointerup',event=>{
+      if(!MAP_SELECT.active)return;const point=screenPoint(event);
+      if(MAP_SELECT.kind==='rectangle'&&MAP_SELECT.dragStart){const start=MAP_SELECT.dragStart;MAP_SELECT.dragStart=null;if(Math.abs(point.x-start.x)<4||Math.abs(point.y-start.y)<4){setStatus('Drag a larger rectangle to select features.','error');updateSelectionMetric('Drag over the map to draw a selection rectangle.');return;}finishMapSelection(rectangleGeometry(start,point));}
+      else if(MAP_SELECT.kind==='lasso'&&MAP_SELECT.drawing){MAP_SELECT.drawing=false;if(MAP_SELECT.points.length<3){setStatus('Draw a larger lasso boundary.','error');MAP_SELECT.points=[];drawMapSelection();return;}const geometry=selectionPolygonGeometry(MAP_SELECT.points);if(geometry)finishMapSelection(geometry);}
+    });
+    overlay.addEventListener('dblclick',event=>{if(MAP_SELECT.active&&MAP_SELECT.kind==='polygon'){event.preventDefault();event.stopPropagation();finishPolygonSelection();}});
+    overlay.addEventListener('contextmenu',event=>{if(MAP_SELECT.active&&MAP_SELECT.kind==='polygon'){event.preventDefault();undoMapSelectionPoint();}});
+    overlay.querySelector('[data-finish]').onclick=finishPolygonSelection;
+    overlay.querySelector('[data-undo]').onclick=undoMapSelectionPoint;
+    overlay.querySelector('[data-cancel]').onclick=()=>stopMapSelection();
     return overlay;
   }
-  function drawMapSelection(){if(!MAP_SELECT.path)return;const points=MAP_SELECT.points;MAP_SELECT.path.setAttribute('d',points.length?`M ${points.map(p=>`${p.x} ${p.y}`).join(' L ')}${points.length>2?' Z':''}`:'');}
-  function startMapSelection({kind='rectangle',fileId,mode='replace'}={}){
-    const file=gisEditableFile(fileId);if(!file)throw Error('Choose a target layer.');stopMapSelection(true);ensureMapSelectionOverlay();MAP_SELECT.active=true;MAP_SELECT.kind=kind;MAP_SELECT.fileId=fileId;MAP_SELECT.mode=mode;MAP_SELECT.points=[];MAP_SELECT.dragStart=null;MAP_SELECT.overlay.hidden=false;MAP_SELECT.overlay.classList.toggle('polygon-mode',kind==='polygon');MAP_SELECT.banner.querySelector('strong').textContent=kind==='polygon'?'Polygon selection':'Rectangle selection';MAP_SELECT.banner.querySelector('span').textContent=kind==='polygon'?'Click map points, then Finish. Esc cancels.':'Drag a rectangle over the features. Esc cancels.';MAP_SELECT.banner.querySelector('[data-finish]').hidden=kind!=='polygon';drawMapSelection();MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);setStatus(`${kind==='polygon'?'Polygon':'Rectangle'} selection active for ${file.name}.`);return true;
+  function startMapSelection({kind='rectangle',fileId=null,fileIds=null,mode='replace'}={}){
+    const files=mapSelectionTargetFiles({fileId,fileIds});if(!files.length)throw Error('Add or show an editable layer before using a map selection tool.');stopMapSelection(true);ensureMapSelectionOverlay();MAP_SELECT.active=true;MAP_SELECT.kind=['rectangle','polygon','lasso'].includes(kind)?kind:'rectangle';MAP_SELECT.fileIds=files.map(file=>file.id);MAP_SELECT.fileId=files[0].id;MAP_SELECT.mode=mode;MAP_SELECT.points=[];MAP_SELECT.cursor=null;MAP_SELECT.dragStart=null;MAP_SELECT.drawing=false;MAP_SELECT.targetLabel=files.length===1?files[0].name:`${files.length} visible layers`;MAP_SELECT.overlay.hidden=false;MAP_SELECT.overlay.dataset.kind=MAP_SELECT.kind;document.body.classList.add('gis-map-selection-active');document.body.dataset.gisSelectionKind=MAP_SELECT.kind;
+    const labels={rectangle:['Rectangle selection','Drag a box over features. Release to select.'],polygon:['Polygon selection','Click boundary points. Click the first point, double-click, or press Enter to finish.'],lasso:['Lasso selection','Press and drag a freehand boundary. Release to select.']},label=labels[MAP_SELECT.kind];MAP_SELECT.banner.querySelector('strong').textContent=`${label[0]} · ${MAP_SELECT.targetLabel}`;MAP_SELECT.banner.querySelector('span').textContent=`${label[1]} Esc cancels.`;MAP_SELECT.banner.querySelector('[data-finish]').hidden=MAP_SELECT.kind!=='polygon';MAP_SELECT.banner.querySelector('[data-undo]').hidden=MAP_SELECT.kind!=='polygon';MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);MAP_SELECT.path.setAttribute('d','');MAP_SELECT.previewPath.setAttribute('d','');MAP_SELECT.vertices.replaceChildren();updateSelectionMetric(MAP_SELECT.kind==='rectangle'?'Drag over the map to draw a selection rectangle.':MAP_SELECT.kind==='polygon'?'Click the first boundary point.':'Press and drag to draw the lasso.');setMode('select');$('modeState').textContent=`Mode: ${label[0]}`;document.querySelector('[data-rail="select"]')?.classList.add('active');setStatus(`${label[0]} active for ${MAP_SELECT.targetLabel}.`);return true;
   }
-  function stopMapSelection(silent=false){if(!MAP_SELECT.overlay)return;MAP_SELECT.active=false;MAP_SELECT.overlay.hidden=true;MAP_SELECT.points=[];MAP_SELECT.dragStart=null;drawMapSelection();MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);if(!silent)setStatus('Map selection cancelled.');}
-  function finishMapSelection(geometry){try{const matches=selectByGeometry(MAP_SELECT.fileId,geometry,MAP_SELECT.mode);stopMapSelection(true);window.dispatchEvent(new CustomEvent('editpolygon:gis-selection-changed',{detail:{count:selectedIds().length}}));return matches;}catch(error){setStatus(error.message,'error');return [];}}
-  document.addEventListener('keydown',event=>{if(MAP_SELECT.active&&event.key==='Escape'){event.preventDefault();stopMapSelection();}else if(MAP_SELECT.active&&MAP_SELECT.kind==='polygon'&&event.key==='Enter'){event.preventDefault();MAP_SELECT.overlay?.querySelector('[data-finish]')?.click();}});
+  function stopMapSelection(silent=false){if(!MAP_SELECT.overlay)return;MAP_SELECT.active=false;MAP_SELECT.overlay.hidden=true;MAP_SELECT.points=[];MAP_SELECT.cursor=null;MAP_SELECT.dragStart=null;MAP_SELECT.drawing=false;MAP_SELECT.fileIds=[];MAP_SELECT.path?.setAttribute('d','');MAP_SELECT.previewPath?.setAttribute('d','');MAP_SELECT.rect?.setAttribute('width',0);MAP_SELECT.rect?.setAttribute('height',0);MAP_SELECT.vertices?.replaceChildren();document.body.classList.remove('gis-map-selection-active');delete document.body.dataset.gisSelectionKind;updateSelectionMetric('');updateStatus();updateButtons();if(!silent)setStatus('Map selection cancelled.');}
+  function finishMapSelection(geometry){try{const matches=selectByGeometryTargets(MAP_SELECT.fileIds,geometry,MAP_SELECT.mode);stopMapSelection(true);window.dispatchEvent(new CustomEvent('editpolygon:gis-selection-changed',{detail:{count:selectedIds().length}}));return matches;}catch(error){setStatus(error.message,'error');return [];}}
+  document.addEventListener('keydown',event=>{
+    if(!MAP_SELECT.active)return;
+    if(event.key==='Escape'){event.preventDefault();stopMapSelection();}
+    else if(MAP_SELECT.kind==='polygon'&&event.key==='Enter'){event.preventDefault();finishPolygonSelection();}
+    else if(MAP_SELECT.kind==='polygon'&&(event.key==='Backspace'||event.key==='Delete')){event.preventDefault();undoMapSelectionPoint();}
+  });
 
   const CANVAS_RENDERER=L.canvas({padding:.5,tolerance:8});
   function renderViewKey(){const b=map.getBounds().pad(.35);return [map.getZoom(),b.getWest().toFixed(4),b.getSouth().toFixed(4),b.getEast().toFixed(4),b.getNorth().toFixed(4)].join('|');}
@@ -21183,7 +21259,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     navigateSelection,
     startMapSelection,
     cancelMapSelection:()=>stopMapSelection(),
+    getMapSelectionState:()=>({active:MAP_SELECT.active,kind:MAP_SELECT.kind,fileIds:[...MAP_SELECT.fileIds],mode:MAP_SELECT.mode}),
     selectByGeometry,
+    selectByGeometryTargets,
     selectByAttribute,
     selectByLocation,
     saveSelectionAsLayer,
@@ -21199,6 +21277,36 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   });
   window.__editPolygonGISAnalysis={version:GIS_ANALYSIS_VERSION,rebuildSpatialIndex,selectionInfo,invalidateRenderCache};
   try{invalidateRenderCache();renderMap();gisNotify();}catch(error){console.warn('GIS analysis initialisation failed',error);}
+})();
+
+
+/* v148.1 — selection tools promoted to the main Select rail with live geometry feedback. */
+(function(){
+  'use strict';
+  const flyout=$('selectToolFlyout'),target=$('selectTargetLayer'),mode=$('selectApplyMode');
+  if(!flyout||!target||!mode)return;
+  function editableLayers(){return window.EditPolygonGIS?.getLayerUiSnapshot?.()||window.EditPolygonGIS?.getEditableLayers?.()||[];}
+  function activeLayerId(){const selected=window.EditPolygonGIS?.getSelectedFeature?.();return selected?.layerId||project.selectedFileId||editableLayers().find(layer=>layer.visible)?.id||editableLayers()[0]?.id||'';}
+  function refresh(){
+    const previous=target.value,layers=editableLayers();target.innerHTML='<option value="*">All visible editable layers</option>'+layers.map(layer=>`<option value="${esc(layer.id)}">${esc(layer.name)} · ${Number(layer.visibleCount??layer.featureCount??layer.count??0).toLocaleString()}</option>`).join('');
+    if(previous&&[...target.options].some(option=>option.value===previous))target.value=previous;else if(activeLayerId())target.value='*';
+    const count=window.EditPolygonGIS?.getSelection?.().count||0;flyout.querySelector('[data-select-command="clear"]')?.toggleAttribute('disabled',!count);flyout.querySelector('[data-select-command="save"]')?.toggleAttribute('disabled',!count);
+  }
+  function chosenFileIds(){const layers=editableLayers();if(target.value==='*')return layers.filter(layer=>layer.visible!==false).map(layer=>layer.id);return target.value?[target.value]:[];}
+  function chosenLayerId(){if(target.value!=='*')return target.value;const active=activeLayerId(),visible=editableLayers().filter(layer=>layer.visible!==false);return visible.some(layer=>layer.id===active)?active:visible[0]?.id||editableLayers()[0]?.id||'';}
+  function hide(){flyout.classList.remove('active');}
+  function open({layerId=null}={}){refresh();if(layerId&&[...target.options].some(option=>option.value===layerId))target.value=layerId;const button=document.querySelector('[data-rail="select"]');if(button&&!flyout.classList.contains('active')){flyout.classList.add('active');const rect=button.getBoundingClientRect(),height=flyout.offsetHeight||420;flyout.style.left=`${rect.right+8}px`;flyout.style.top=`${Math.max(10,Math.min(rect.top,window.innerHeight-height-10))}px`;}button?.classList.add('active');}
+  flyout.querySelectorAll('[data-select-tool]').forEach(button=>button.addEventListener('click',event=>{
+    event.preventDefault();event.stopPropagation();const kind=button.dataset.selectTool;
+    if(kind==='click'){window.EditPolygonGIS?.cancelMapSelection?.();setMode('select');hide();setStatus('Click selection active. Ctrl/Cmd toggles features and Shift adds to the selection.');return;}
+    try{window.EditPolygonGIS?.startMapSelection?.({kind,fileIds:chosenFileIds(),mode:mode.value});hide();}catch(error){setStatus(error.message,'error');}
+  }));
+  flyout.querySelector('[data-select-command="attribute"]')?.addEventListener('click',()=>{const id=chosenLayerId();if(!id){setStatus('Add an editable layer before selecting by attribute.','error');return;}hide();window.EditPolygonGISDataTools?.open?.(id,'select');});
+  flyout.querySelector('[data-select-command="location"]')?.addEventListener('click',()=>{const id=chosenLayerId();if(!id){setStatus('Add an editable layer before selecting by location.','error');return;}hide();window.EditPolygonGISDataTools?.open?.(id,'select');requestAnimationFrame(()=>document.getElementById('gisLocationLayer')?.focus());});
+  flyout.querySelector('[data-select-command="clear"]')?.addEventListener('click',()=>{window.EditPolygonGIS?.clearSelection?.();refresh();hide();});
+  flyout.querySelector('[data-select-command="save"]')?.addEventListener('click',()=>{const selection=window.EditPolygonGIS?.getSelection?.();if(!selection?.count){setStatus('Select at least one feature first.','error');return;}const selected=window.EditPolygonGIS?.getSelectedFeature?.(),id=selected?.layerId||chosenLayerId();hide();window.EditPolygonGISDataTools?.open?.(id,'select');requestAnimationFrame(()=>document.getElementById('gisSelectionLayerName')?.focus());});
+  window.addEventListener('editpolygon:gis-changed',refresh);window.addEventListener('editpolygon:gis-selection-changed',refresh);
+  window.EditPolygonSelectionTools=Object.freeze({open,refresh,close:hide});refresh();
 })();
 
 
