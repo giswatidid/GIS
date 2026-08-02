@@ -20177,11 +20177,143 @@ window.__editPolygonGisFoundation={version:GIS_FOUNDATION_VERSION,state:gisState
 
 
 /* v141: advanced browser-local GIS data, styling, CRS and processing bridge. */
-const GIS_DATA_VERSION='1.48.1';
+const GIS_DATA_VERSION='1.50.0';
 const gisStylePreviewByFile=new Map();
 const gisStyleCompileCache=new WeakMap();
 function gisStyleCore(){return window.EditPolygonGISStyleCore||null;}
-function gisEffectiveStyle(file){return file?(gisStylePreviewByFile.get(file.id)||file.gisStyle||{version:1,type:'single',mode:'single'}):null;}
+const GIS_STYLE_MODEL_VERSION='1.50.0';
+const GIS_STYLE_SYMBOL_KEYS=['color','fillColor','weight','fillOpacity','opacity','radius','dashArray'];
+function gisStyleClamp(value,min,max,fallback){const number=Number(value);return Math.max(min,Math.min(max,Number.isFinite(number)?number:fallback));}
+function gisStyleType(style){const type=String(style?.type||style?.mode||'single');return ['categorized','graduated','continuous'].includes(type)?type:'single';}
+function gisIsAdvancedStyle(style){return !!style&&['categorized','graduated','continuous'].includes(gisStyleType(style));}
+function gisLayerGeometryFamily(file){
+  const types=(file?.features||[]).slice(0,100).map(feature=>getDisplayGeometry(feature)?.type).filter(Boolean);
+  if(types.length&&types.every(type=>type==='Point'||type==='MultiPoint'))return 'point';
+  if(types.length&&types.every(type=>type==='LineString'||type==='MultiLineString'))return 'line';
+  if(types.length&&types.every(type=>type==='Polygon'||type==='MultiPolygon'))return 'polygon';
+  return 'mixed';
+}
+function gisDefaultSimpleStyle(file){
+  const family=gisLayerGeometryFamily(file),color=String(file?.color||'#1664d6');
+  return {color,fillColor:color,weight:family==='line'?3:2,fillOpacity:family==='line'?0:family==='point'?0.9:0.18,opacity:1,radius:family==='point'?6:5};
+}
+function gisNormaliseSymbol(symbol,fallback){
+  const core=gisStyleCore(),base=fallback||gisDefaultSimpleStyle(null);
+  if(core?.normaliseSymbol){const value=core.normaliseSymbol(symbol,base);if(symbol?.dashArray)value.dashArray=String(symbol.dashArray);return value;}
+  const source=symbol&&typeof symbol==='object'?symbol:{};
+  return {color:String(source.color||base.color),fillColor:String(source.fillColor||source.color||base.fillColor),weight:gisStyleClamp(source.weight,0,30,base.weight),fillOpacity:gisStyleClamp(source.fillOpacity,0,1,base.fillOpacity),opacity:gisStyleClamp(source.opacity,0,1,base.opacity),radius:gisStyleClamp(source.radius,1,80,base.radius),...(source.dashArray?{dashArray:String(source.dashArray)}:{})};
+}
+function gisSymbolDifference(symbol,base){
+  const out={};
+  for(const key of GIS_STYLE_SYMBOL_KEYS){
+    if(symbol?.[key]===undefined||symbol?.[key]===null||symbol?.[key]==='')continue;
+    const left=typeof symbol[key]==='number'?Number(symbol[key]):String(symbol[key]);
+    const right=typeof base?.[key]==='number'?Number(base[key]):String(base?.[key]??'');
+    if(left!==right)out[key]=symbol[key];
+  }
+  return out;
+}
+function gisSyncLegacyFeatureStyle(file,feature){
+  const simple=gisNormaliseSymbol(file?.simpleStyle,gisDefaultSimpleStyle(file)),override=feature?.styleOverride&&typeof feature.styleOverride==='object'?feature.styleOverride:null;
+  feature.style={...simple,...(override||{})};
+  if(override&&override.opacity!==undefined)feature.opacity=override.opacity;
+  else if(feature.opacity!==undefined)delete feature.opacity;
+}
+function gisEnsureStyleModel(file){
+  if(!file)return null;
+  const defaults=gisDefaultSimpleStyle(file),legacySingle=gisStyleType(file.gisStyle)==='single'?file.gisStyle?.symbol:null;
+  if(!file.simpleStyle){
+    const representative=(file.features||[]).find(feature=>feature?.style&&typeof feature.style==='object')?.style;
+    file.simpleStyle=gisNormaliseSymbol(legacySingle||representative||defaults,defaults);
+  }else file.simpleStyle=gisNormaliseSymbol(file.simpleStyle,defaults);
+  if(!file.styleMode)file.styleMode=gisIsAdvancedStyle(file.gisStyle)?'advanced':'simple';
+  if(file.styleMode==='advanced'&&!gisIsAdvancedStyle(file.gisStyle))file.styleMode='simple';
+  if(file.gisStyle&&gisStyleType(file.gisStyle)==='single'){
+    file.simpleStyle=gisNormaliseSymbol(file.gisStyle.symbol||file.gisStyle,file.simpleStyle);
+    file.gisStyle=null;
+    file.styleMode='simple';
+  }
+  file.color=file.simpleStyle.fillColor||file.simpleStyle.color||file.color||'#1664d6';
+  for(const feature of file.features||[]){
+    if(feature.styleOverride===undefined){
+      const legacy=feature.style&&typeof feature.style==='object'?gisNormaliseSymbol(feature.style,file.simpleStyle):file.simpleStyle;
+      const diff=gisSymbolDifference(legacy,file.simpleStyle);
+      const layerOpacity=Number.isFinite(Number(file.opacity))?Number(file.opacity):1;
+      if(Number.isFinite(Number(feature.opacity))&&Number(feature.opacity)!==layerOpacity){diff.opacity=Number(feature.opacity);feature._gisLegacyOpacityMigrated=true;}
+      feature.styleOverride=Object.keys(diff).length?diff:null;
+    }
+    gisSyncLegacyFeatureStyle(file,feature);
+  }
+  file._gisStyleModelVersion=GIS_STYLE_MODEL_VERSION;
+  return file;
+}
+function gisLayerSimpleStyle(file){gisEnsureStyleModel(file);return gisNormaliseSymbol(file.simpleStyle,gisDefaultSimpleStyle(file));}
+function gisStyleModeLabel(file){
+  gisEnsureStyleModel(file);
+  if(file.styleMode!=='advanced'||!gisIsAdvancedStyle(file.gisStyle))return 'Single symbol';
+  const type=gisStyleType(file.gisStyle),names={categorized:'Unique categories',graduated:'Numeric classes',continuous:'Continuous scale'};
+  return `${names[type]||'Advanced style'}${file.gisStyle?.field?` · ${file.gisStyle.field}`:''}`;
+}
+function gisFeatureStyleSource(file,feature){
+  gisEnsureStyleModel(file);
+  if(feature?.styleOverride&&Object.keys(feature.styleOverride).length)return {kind:'override',label:'Feature override'};
+  if(file.styleMode==='advanced'&&gisIsAdvancedStyle(file.gisStyle))return {kind:'advanced',label:gisStyleModeLabel(file)};
+  return {kind:'simple',label:'Layer single symbol'};
+}
+function gisPreviewState(file){const value=gisStylePreviewByFile.get(file?.id);if(!value)return null;return value.style?value:{mode:gisStyleType(value)==='single'?'simple':'advanced',style:value};}
+function gisResolvedFeatureStyle(file,feature,{highlight=true}={}){
+  gisEnsureStyleModel(file);
+  let symbol={...gisLayerSimpleStyle(file)};
+  const preview=gisPreviewState(file);
+  const mode=preview?.mode||file.styleMode;
+  const advanced=preview?.mode==='advanced'?preview.style:(mode==='advanced'&&gisIsAdvancedStyle(file.gisStyle)?file.gisStyle:null);
+  if(preview?.mode==='simple')symbol={...symbol,...gisNormaliseSymbol(preview.style?.symbol||preview.style,symbol)};
+  else if(advanced){try{const compiled=gisCompiledStyle(advanced);if(compiled)symbol=compiled(feature?.properties||{},getDisplayGeometry(feature)?.type||'',symbol);}catch(error){console.warn('Unable to evaluate GIS style',error);}}
+  if(feature?.styleOverride&&typeof feature.styleOverride==='object')symbol={...symbol,...feature.styleOverride};
+  const explicitOpacity=feature?.styleOverride?.opacity;
+  const opacity=gisStyleClamp(explicitOpacity!==undefined?explicitOpacity:(Number.isFinite(Number(feature?.opacity))?feature.opacity:(Number.isFinite(Number(file?.opacity))?file.opacity:symbol.opacity)),0.05,1,1);
+  symbol.opacity=opacity;symbol.fillOpacity=Math.min(opacity,gisStyleClamp(symbol.fillOpacity,0,1,0.18));
+  if(highlight&&feature?.id===project.selectedFeatureId)return {...symbol,color:'#d22f27',fillColor:'#d22f27',weight:Math.max(3,Number(symbol.weight)||2),opacity:1,fillOpacity:Math.max(.16,Number(symbol.fillOpacity)||0)};
+  if(highlight&&project.mergeIds?.includes(feature?.id))return {...symbol,color:'#d97706',fillColor:'#d97706',weight:Math.max(3,Number(symbol.weight)||2),opacity:1,dashArray:'6,4'};
+  return symbol;
+}
+function gisTouchStyle(file,feature=null){if(file)file._gisStyleRevision=(file._gisStyleRevision||0)+1;if(feature)feature._gisStyleRevision=(feature._gisStyleRevision||0)+1;try{window.EditPolygonGIS?.invalidateRenderCache?.(file?.id);}catch(_){}}
+function gisSetLayerSimpleStyle(fileId,patch={},options={}){
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');gisEnsureStyleModel(file);
+  if(file.styleMode==='advanced'&&!options.switchToSimple)throw Error(`${gisStyleModeLabel(file)} is active. Open Style & labels or explicitly switch to single-symbol styling.`);
+  pushHistory();file.simpleStyle=gisNormaliseSymbol({...file.simpleStyle,...gisClone(patch||{})},file.simpleStyle);file.color=file.simpleStyle.fillColor||file.simpleStyle.color;file.styleMode='simple';
+  for(const feature of file.features||[])if(!feature.styleOverride)gisSyncLegacyFeatureStyle(file,feature);
+  gisStylePreviewByFile.delete(fileId);gisTouchStyle(file);renderAll();setDirty(true);gisNotify();logOperation('layer-simple-style-updated',{fileId});return gisEditableSnapshot(fileId);
+}
+function gisSwitchLayerStyleMode(fileId,mode){
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');gisEnsureStyleModel(file);mode=mode==='advanced'?'advanced':'simple';
+  if(mode==='advanced'&&!gisIsAdvancedStyle(file.gisStyle))throw Error('No saved advanced style is available for this layer.');
+  pushHistory();file.styleMode=mode;gisStylePreviewByFile.delete(fileId);gisTouchStyle(file);renderAll();setDirty(true);gisNotify();logOperation('layer-style-mode-changed',{fileId,mode});return gisEditableSnapshot(fileId);
+}
+function gisSetFeatureStyleOverride(fileId,featureId,patch={},options={}){
+  const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);if(!feature)throw Error('Feature not found.');gisEnsureStyleModel(file);if(isLocked(file,feature))throw Error('Feature is locked. Unlock it before changing style.');
+  pushHistory([feature.id]);const base=options.replace?{}:(feature.styleOverride||{});feature.styleOverride={...base,...gisClone(patch||{})};gisSyncLegacyFeatureStyle(file,feature);gisTouchStyle(file,feature);clearFeatureCaches(feature);renderAll();setDirty(true);gisNotify();logOperation('feature-style-override-updated',{fileId,featureId});return gisSelectedFeatureDetails();
+}
+function gisClearFeatureStyleOverride(fileId,featureId){
+  const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);if(!feature)throw Error('Feature not found.');if(isLocked(file,feature))throw Error('Feature is locked. Unlock it before changing style.');gisEnsureStyleModel(file);
+  pushHistory([feature.id]);feature.styleOverride=null;delete feature.opacity;gisSyncLegacyFeatureStyle(file,feature);gisTouchStyle(file,feature);clearFeatureCaches(feature);renderAll();setDirty(true);gisNotify();logOperation('feature-style-override-cleared',{fileId,featureId});return gisSelectedFeatureDetails();
+}
+function gisLayerStyleState(file){
+  if(typeof file==='string')file=gisEditableFile(file);if(!file)return null;gisEnsureStyleModel(file);
+  const activeStyle=file.styleMode==='advanced'&&gisIsAdvancedStyle(file.gisStyle)?gisClone(file.gisStyle):{version:1,type:'single',symbol:gisClone(file.simpleStyle)};
+  return {mode:file.styleMode,label:gisStyleModeLabel(file),simpleStyle:gisClone(file.simpleStyle),advancedStyle:gisClone(file.gisStyle||null),advancedAvailable:gisIsAdvancedStyle(file.gisStyle),activeStyle};
+}
+function gisFeatureStyleState(file,feature){
+  if(typeof file==='string')file=gisEditableFile(file);if(!file||!feature)return null;gisEnsureStyleModel(file);const source=gisFeatureStyleSource(file,feature);
+  return {...source,effectiveStyle:gisClone(gisResolvedFeatureStyle(file,feature,{highlight:false})),override:gisClone(feature.styleOverride||null),layer:gisLayerStyleState(file)};
+}
+function gisEffectiveStyle(file){
+  if(!file)return null;
+  gisEnsureStyleModel(file);
+  const preview=gisStylePreviewByFile.get(file.id);
+  if(preview)return preview.mode==='advanced'?preview.style:null;
+  return file.styleMode==='advanced'&&gisIsAdvancedStyle(file.gisStyle)?file.gisStyle:null;
+}
 function gisCompiledStyle(style){
   const core=gisStyleCore();if(!core||!style||typeof style!=='object')return null;
   let compiled=gisStyleCompileCache.get(style);
@@ -20190,8 +20322,8 @@ function gisCompiledStyle(style){
 }
 function gisEditableFile(fileId){return project.files.find(file=>file.id===fileId)||null;}
 function gisEditableSnapshot(fileId){
-  const file=gisEditableFile(fileId);if(!file)return null;
-  return {id:file.id,name:file.name,visible:file.visible!==false,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered&&f.visible!==false).length,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false,field:''}),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked}))};
+  const file=gisEditableFile(fileId);if(!file)return null;gisEnsureStyleModel(file);const styleState=gisLayerStyleState(file);
+  return {id:file.id,name:file.name,visible:file.visible!==false,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered&&f.visible!==false).length,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(styleState.activeStyle),styleMode:styleState.mode,styleLabel:styleState.label,simpleStyle:gisClone(styleState.simpleStyle),advancedStyle:gisClone(styleState.advancedStyle),advancedStyleAvailable:styleState.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false,field:''}),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked,styleOverride:gisClone(f.styleOverride||null)}))};
 }
 function gisApplyFileFilter(file){
   const core=window.EditPolygonGISDataCore;const rule=file?.gisFilter;
@@ -20201,26 +20333,27 @@ function gisApplyFileFilter(file){
 }
 function gisSetAttribute(fileId,featureId,field,value){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)throw Error('Feature not found.');pushHistory();f.properties=f.properties||{};f.properties[field]=value;if(field==='name')f.name=String(value||f.name);gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('attribute-updated',{fileId,featureId,field});return gisEditableSnapshot(fileId);}
 function gisAddField(fileId,field,defaultValue=null){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');field=String(field||'').trim();if(!field)throw Error('Enter a field name.');pushHistory();for(const f of file.features||[]){f.properties=f.properties||{};if(!(field in f.properties))f.properties[field]=defaultValue;}renderAll();setDirty(true);logOperation('field-added',{fileId,field});return gisEditableSnapshot(fileId);}
-function gisDeleteField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');pushHistory();for(const f of file.features||[])delete f.properties?.[field];if(file.gisFilter?.field===field)file.gisFilter=null;if(file.gisLabels?.field===field)file.gisLabels={enabled:false,field:''};if(file.gisStyle?.field===field)file.gisStyle={version:1,type:'single',mode:'single',symbol:gisStyleCore()?.DEFAULT_SYMBOL||{color:file.color||'#1664d6',fillColor:file.color||'#1664d6',weight:2,fillOpacity:.35,opacity:1,radius:5}};gisStylePreviewByFile.delete(fileId);renderAll();setDirty(true);logOperation('field-deleted',{fileId,field});return gisEditableSnapshot(fileId);}
+function gisDeleteField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');pushHistory();for(const f of file.features||[])delete f.properties?.[field];if(file.gisFilter?.field===field)file.gisFilter=null;if(file.gisLabels?.field===field)file.gisLabels={enabled:false,field:''};if(file.gisStyle?.field===field){file.gisStyle=null;file.styleMode='simple';}gisStylePreviewByFile.delete(fileId);renderAll();setDirty(true);logOperation('field-deleted',{fileId,field});return gisEditableSnapshot(fileId);}
 function gisCalculateField(fileId,field,expression,selectedIds=[]){const file=gisEditableFile(fileId),core=window.EditPolygonGISDataCore;if(!file||!core)throw Error('Layer or calculator unavailable.');const selected=new Set(selectedIds||[]);pushHistory();let count=0;(file.features||[]).forEach((f,i)=>{if(selected.size&&!selected.has(f.id))return;f.properties=f.properties||{};f.properties[field]=core.calculate(expression,f.properties,i);count++;});gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('field-calculated',{fileId,field,count});return {count,layer:gisEditableSnapshot(fileId)};}
 function gisSetFilter(fileId,rule){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisFilter=rule?.field?gisClone(rule):null;const count=gisApplyFileFilter(file);renderAll();setDirty(true);return {count,total:file.features.length,layer:gisEditableSnapshot(fileId)};}
 function gisSetStyle(fileId,style){
-  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');gisEnsureStyleModel(file);
   const core=gisStyleCore();const result=core?core.validateStyle(style):{valid:true,style:{mode:'single',...gisClone(style||{})},errors:[]};
-  if(!result.valid)throw Error(result.errors.join(' '));
-  pushHistory();file.gisStyle=gisClone(result.style);gisStylePreviewByFile.delete(fileId);
-  renderAll();setDirty(true);logOperation('layer-style-updated',{fileId,type:file.gisStyle.type||file.gisStyle.mode||'single',field:file.gisStyle.field||''});
+  if(!result.valid)throw Error(result.errors.join(' '));pushHistory();
+  if(gisStyleType(result.style)==='single'){
+    file.simpleStyle=gisNormaliseSymbol(result.style.symbol||result.style,file.simpleStyle);file.color=file.simpleStyle.fillColor||file.simpleStyle.color;file.styleMode='simple';
+    for(const feature of file.features||[])if(!feature.styleOverride)gisSyncLegacyFeatureStyle(file,feature);
+  }else{file.gisStyle=gisClone(result.style);file.styleMode='advanced';}
+  gisStylePreviewByFile.delete(fileId);gisTouchStyle(file);renderAll();setDirty(true);gisNotify();logOperation('layer-style-updated',{fileId,type:gisStyleType(result.style),field:result.style.field||'',mode:file.styleMode});
   return gisEditableSnapshot(fileId);
 }
 function gisPreviewStyle(fileId,style){
-  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
-  const core=gisStyleCore();const result=core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};
-  if(!result.valid)throw Error(result.errors.join(' '));
-  gisStylePreviewByFile.set(fileId,gisClone(result.style));renderMap();gisNotify();return result.style;
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');gisEnsureStyleModel(file);
+  const core=gisStyleCore();const result=core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};if(!result.valid)throw Error(result.errors.join(' '));
+  gisStylePreviewByFile.set(fileId,{mode:gisStyleType(result.style)==='single'?'simple':'advanced',style:gisClone(result.style)});gisTouchStyle(file);renderMap();gisNotify();return result.style;
 }
-function gisClearStylePreview(fileId){
-  const changed=gisStylePreviewByFile.delete(fileId);if(changed){renderMap();gisNotify();}return changed;
-}
+function gisClearStylePreview(fileId){const file=gisEditableFile(fileId),changed=gisStylePreviewByFile.delete(fileId);if(changed){gisTouchStyle(file);renderMap();gisNotify();}return changed;}
+
 function gisValidateStyle(style){const core=gisStyleCore();return core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};}
 function gisSetLabels(fileId,labels){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisLabels={enabled:false,field:'',...gisClone(labels||{})};renderAll();setDirty(true);return gisEditableSnapshot(fileId);}
 function gisSetCrs(fileId,crs){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisCrs=String(crs||'EPSG:4326');setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
@@ -20268,12 +20401,9 @@ function gisRenderMapLegends(){
 }
 const v141BaseStyleWithOpacity=styleWithOpacity;
 styleWithOpacity=function(f,file){
-  const base=v141BaseStyleWithOpacity(f,file),style=gisEffectiveStyle(file),core=gisStyleCore();
-  if(!core||!style)return base;
-  try{
-    const compiled=gisCompiledStyle(style);
-    return compiled?compiled(f.properties||{},getDisplayGeometry(f)?.type||'',base):base;
-  }catch(error){console.warn('Unable to evaluate GIS style',error);return base;}
+  if(!file){const located=fileOfFeature(f?.id);file=located?.file||null;}
+  if(!file)return v141BaseStyleWithOpacity(f,file);
+  return gisResolvedFeatureStyle(file,f,{highlight:true});
 };
 window.styleWithOpacity=styleWithOpacity;
 const v141BaseRenderMap=renderMap;
@@ -20282,7 +20412,7 @@ window.renderMap=renderMap;
 // Exclude filtered records from map drawing without changing their user visibility state.
 const v141BaseIsFeatureSleeping=isFeatureSleeping;
 isFeatureSleeping=function(file,f){return !!(f?._gisFiltered||v141BaseIsFeatureSleeping(file,f));};window.isFeatureSleeping=isFeatureSleeping;
-Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,previewStyle:gisPreviewStyle,clearStylePreview:gisClearStylePreview,validateStyle:gisValidateStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,process:gisProcess,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides});
+Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,previewStyle:gisPreviewStyle,clearStylePreview:gisClearStylePreview,validateStyle:gisValidateStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,process:gisProcess,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides,getLayerStyleState:gisLayerStyleState,setLayerSimpleStyle:gisSetLayerSimpleStyle,switchLayerStyleMode:gisSwitchLayerStyleMode,getFeatureStyleState:(fileId,featureId)=>{const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);return gisFeatureStyleState(file,feature);},setFeatureStyleOverride:gisSetFeatureStyleOverride,clearFeatureStyleOverride:gisClearFeatureStyleOverride});
 window.__editPolygonGisData={version:GIS_DATA_VERSION};
 
 /* v142: consolidated layers, inspector attributes and shared GIS selection bridge. */
@@ -20306,7 +20436,7 @@ function gisFeatureTitle(file,f){
 function gisSelectedFeatureDetails(){
   const r=ref();if(!r)return null;
   const file=r.file,f=r.feature,geom=getDisplayGeometry(f),m=metrics(geom);
-  return {fileId:file.id,featureId:f.id,layerName:file.name,title:gisFeatureTitle(file,f),displayField:gisDisplayFieldForFile(file),sourceFormat:file.sourceFormat||'',crs:file.gisCrs||'EPSG:4326',geometryType:geom?.type||'',area:m.area,perimeter:m.perim,properties:gisClone(f.properties||{}),selectedIds:[...(typeof v133AllSelected==='function'?v133AllSelected():new Set([f.id]))]};
+  return {fileId:file.id,featureId:f.id,layerName:file.name,title:gisFeatureTitle(file,f),displayField:gisDisplayFieldForFile(file),sourceFormat:file.sourceFormat||'',crs:file.gisCrs||'EPSG:4326',geometryType:geom?.type||'',area:m.area,perimeter:m.perim,properties:gisClone(f.properties||{}),styleState:gisFeatureStyleState(file,f),selectedIds:[...(typeof v133AllSelected==='function'?v133AllSelected():new Set([f.id]))]};
 }
 function gisSetFeatureAttributes(fileId,featureId,values){
   const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)throw Error('Feature not found.');
@@ -20315,7 +20445,7 @@ function gisSetFeatureAttributes(fileId,featureId,values){
   gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('attributes-updated',{fileId,featureId,fields:Object.keys(values||{})});return gisSelectedFeatureDetails();
 }
 function gisSetDisplayField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisDisplayField=String(field||'name');renderSidebar();renderSelected();setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
-function gisLayerUiSnapshot(){return (project.files||[]).map(file=>({id:file.id,name:file.name,visible:file.visible!==false,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(file.gisStyle||{mode:'single'}),labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)}));}
+function gisLayerUiSnapshot(){return (project.files||[]).map(file=>{gisEnsureStyleModel(file);const state=gisLayerStyleState(file);return {id:file.id,name:file.name,visible:file.visible!==false,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(state.activeStyle),styleMode:state.mode,styleLabel:state.label,simpleStyle:gisClone(state.simpleStyle),advancedStyle:gisClone(state.advancedStyle),advancedStyleAvailable:state.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)};});}
 Object.assign(window.EditPolygonGIS,{uiVersion:GIS_UI_VERSION,getSelectedFeature:gisSelectedFeatureDetails,setFeatureAttributes:gisSetFeatureAttributes,setDisplayField:gisSetDisplayField,getLayerUiSnapshot:gisLayerUiSnapshot});
 window.addEventListener('editpolygon:request-selection',()=>gisNotify());
 
@@ -21052,8 +21182,8 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function saveSelectionAsLayer(fileId,{name,color,selectedOnly=true}={}){
     const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const chosen=new Set(selectedIds());
     const source=(file.features||[]).filter(feature=>!selectedOnly||chosen.has(feature.id));if(!source.length)throw Error('Select at least one feature in this layer.');
-    pushHistory();const models=source.map(feature=>{const model=normalize(featJSON(feature),feature.name);if(!model)return null;model.name=feature.name;model.properties=clone(feature.properties||{});model.visible=true;model.locked=false;model.style=clone(feature.style||{});model.opacity=feature.opacity;return model;}).filter(Boolean);
-    const output={id:uid('file'),name:String(name||`${file.name} — selection`),visible:true,color:color||file.color||'#7c3aed',opacity:file.opacity,features:models,gisCrs:file.gisCrs||'EPSG:4326',gisSourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',gisExportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',gisStyle:clone(file.gisStyle||null),gisLabels:clone(file.gisLabels||null),gisDisplayField:file.gisDisplayField||''};
+    pushHistory();const models=source.map(feature=>{const model=normalize(featJSON(feature),feature.name);if(!model)return null;model.name=feature.name;model.properties=clone(feature.properties||{});model.visible=true;model.locked=false;model.style=clone(feature.style||{});model.styleOverride=clone(feature.styleOverride||null);model.opacity=feature.opacity;return model;}).filter(Boolean);
+    const output={id:uid('file'),name:String(name||`${file.name} — selection`),visible:true,color:color||file.color||'#7c3aed',opacity:file.opacity,features:models,gisCrs:file.gisCrs||'EPSG:4326',gisSourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',gisExportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',simpleStyle:clone(file.simpleStyle||null),styleMode:file.styleMode||'simple',gisStyle:clone(file.gisStyle||null),gisLabels:clone(file.gisLabels||null),gisDisplayField:file.gisDisplayField||''};
     project.files.push(output);project.selectedFileId=output.id;setSelection(models.map(feature=>feature.id),models[0]?.id||null,`Created ${output.name} with ${models.length} selected feature${models.length===1?'':'s'}.`);renderAll();setDirty(true);logOperation('selection-saved-as-layer',{sourceFileId:fileId,outputFileId:output.id,count:models.length});return gisEditableSnapshot(output.id);
   }
   function layerStatistics(fileId,field,{scope='all'}={}){
@@ -21218,9 +21348,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function renderViewKey(){const b=map.getBounds().pad(.35);return [map.getZoom(),b.getWest().toFixed(4),b.getSouth().toFixed(4),b.getEast().toFixed(4),b.getNorth().toFixed(4)].join('|');}
   function renderCandidateFeatures(file){const b=map.getBounds().pad(.35),bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
   function renderSignature(file,features,viewKey){
-    const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
-    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,feature.opacity??'',feature.style?.color||'',feature.style?.weight??'',styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `${viewKey}|${file.visible===false?0:1}|${file.opacity??1}|${file.color||''}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
+    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
+    return `${viewKey}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
   function buildCachedLayer(file,features){
     const group=L.layerGroup(),models=new Map(features.map(feature=>[feature.id,feature])),collection={type:'FeatureCollection',features:features.map(feature=>{const raw=featJSON(feature);raw.properties={...(raw.properties||{}),__editpolygonId:feature.id};return raw;})};
@@ -21516,6 +21646,91 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 
   v149EnhanceLayers();v149RenderBulkBar();
   window.__editPolygonLayersV149=Object.freeze({version:V149.version,setWidth:v149SetWidth,minWidth:V149.minWidth,maxWidth:v149MaxWidth});
+})();
+
+
+
+/* v150 — unified simple, advanced and per-feature styling model. */
+(function(){
+  'use strict';
+  function fileById(id){return project.files.find(file=>file.id===id)||null;}
+  function activeRef(){return ref();}
+  function styleDetails(file){return gisLayerStyleState(file);}
+  function advancedMessage(file){const state=styleDetails(file);return `${state.label} is controlling this layer.`;}
+  function switchToSimple(file){
+    if(!file)return false;const state=styleDetails(file);
+    if(state.mode!=='advanced')return true;
+    if(!confirm(`Switch ${file.name} to single-symbol styling?\n\nThe saved ${state.label} configuration will be retained so you can restore it later.`))return false;
+    gisSwitchLayerStyleMode(file.id,'simple');return true;
+  }
+  function openAdvanced(file){if(file)window.EditPolygonGISDataTools?.open?.(file.id,'style');}
+  function enhanceLayerRows(){
+    for(const file of project.files||[]){
+      gisEnsureStyleModel(file);const card=document.querySelector(`.file-card[data-v133-file="${CSS.escape(file.id)}"]`)||document.querySelector(`.file-card input[data-a="filecolor"][data-file="${CSS.escape(file.id)}"]`)?.closest('.file-card');if(!card)continue;
+      const input=card.querySelector('input[data-a="filecolor"]');
+      if(input&&!input.dataset.v150Bound){
+        const replacement=input.cloneNode(true);input.replaceWith(replacement);replacement.dataset.v150Bound='1';
+        replacement.value=file.simpleStyle.fillColor||file.simpleStyle.color||'#1664d6';replacement.disabled=file.styleMode==='advanced';replacement.classList.toggle('v150-advanced-disabled',file.styleMode==='advanced');
+        replacement.title=file.styleMode==='advanced'?`${advancedMessage(file)} Open Style & labels or switch to single symbol.`:'Layer single-symbol colour';
+        replacement.addEventListener('change',event=>{try{gisSetLayerSimpleStyle(file.id,{color:event.target.value,fillColor:event.target.value});}catch(error){setStatus(error.message,'error');renderSidebar();}});
+      }else if(input){input.value=file.simpleStyle.fillColor||file.simpleStyle.color||'#1664d6';input.disabled=file.styleMode==='advanced';input.classList.toggle('v150-advanced-disabled',file.styleMode==='advanced');}
+      const main=card.querySelector('.file-main');if(main){let status=main.querySelector('.v150-layer-style-status');if(!status){status=document.createElement('button');status.type='button';status.className='v150-layer-style-status';main.appendChild(status);}status.textContent=gisStyleModeLabel(file);status.dataset.mode=file.styleMode;status.title=file.styleMode==='advanced'?'Advanced styling is active. Open Style & labels to edit it.':'This layer uses one simple symbol.';status.onclick=event=>{event.preventDefault();event.stopPropagation();file.styleMode==='advanced'?openAdvanced(file):showFileLayerMenu(event,file.id);};}
+    }
+  }
+  const baseRenderSidebarV150=renderSidebar;
+  renderSidebar=function(){const out=baseRenderSidebarV150.apply(this,arguments);requestAnimationFrame(enhanceLayerRows);return out;};window.renderSidebar=renderSidebar;
+
+  const baseShowFileMenuV150=showFileLayerMenu;
+  showFileLayerMenu=function(event,fileId){
+    baseShowFileMenuV150(event,fileId);const file=fileById(fileId),menu=document.getElementById('layerMenu');if(!file||!menu)return;gisEnsureStyleModel(file);const state=styleDetails(file);
+    const section=document.createElement('div');section.className='v150-layer-style-menu';
+    section.innerHTML=state.mode==='advanced'?`<div class="v150-style-lock"><strong>Advanced styling active</strong><span>${esc(state.label)}</span><small>The simple colour control cannot edit a data-driven style.</small></div><button data-v150-open-style>Open Style & labels</button><button data-v150-switch-simple>Switch to single symbol</button>`:`<div class="v150-style-lock simple"><strong>Single-symbol styling</strong><span>Simple controls apply to the whole layer.</span></div><div class="layer-menu-row"><span class="subtle">Colour</span><input type="color" value="${esc(state.simpleStyle.fillColor||state.simpleStyle.color)}" data-v150-layer-color></div><div class="layer-menu-row"><span class="subtle">Line / outline width</span><input type="number" min="0" max="30" step="0.5" value="${state.simpleStyle.weight}" data-v150-layer-weight></div><div class="layer-menu-row"><span class="subtle">Point size</span><input type="number" min="1" max="80" step="0.5" value="${state.simpleStyle.radius}" data-v150-layer-radius></div><button data-v150-open-style>Style & labels…</button>${state.advancedAvailable?'<button data-v150-restore-advanced>Restore saved advanced style</button>':''}`;
+    menu.appendChild(section);positionLayerMenu(event);section.querySelector('[data-v150-open-style]')?.addEventListener('click',()=>{closeLayerMenu();openAdvanced(file);});section.querySelector('[data-v150-switch-simple]')?.addEventListener('click',()=>{if(switchToSimple(file))closeLayerMenu();});section.querySelector('[data-v150-restore-advanced]')?.addEventListener('click',()=>{closeLayerMenu();gisSwitchLayerStyleMode(file.id,'advanced');});
+    const apply=()=>{try{const color=section.querySelector('[data-v150-layer-color]')?.value||state.simpleStyle.fillColor,weight=Number(section.querySelector('[data-v150-layer-weight]')?.value??state.simpleStyle.weight),radius=Number(section.querySelector('[data-v150-layer-radius]')?.value??state.simpleStyle.radius);gisSetLayerSimpleStyle(file.id,{color,fillColor:color,weight,radius});}catch(error){setStatus(error.message,'error');}};
+    section.querySelectorAll('[data-v150-layer-color],[data-v150-layer-weight],[data-v150-layer-radius]').forEach(control=>control.addEventListener('change',apply));
+  };window.showFileLayerMenu=showFileLayerMenu;
+
+  function currentInspectorInputs(family){
+    if(family==='polygon')return {fill:document.getElementById('v53StyleFill'),stroke:document.getElementById('v53StyleStroke'),weight:document.getElementById('v53StyleWeight'),fillOpacity:document.getElementById('v53StyleFillOpacity'),opacity:document.getElementById('v53StyleOpacity'),apply:document.getElementById('v53ApplyStyle'),reset:document.getElementById('v53ResetStyle')};
+    if(family==='line')return {stroke:document.getElementById('v116LineColor'),weight:document.getElementById('v116LineWeight'),opacity:document.getElementById('v116LineOpacity'),apply:document.getElementById('v116ApplyLineStyle')};
+    return {};
+  }
+  function familyForFeature(feature){const type=getDisplayGeometry(feature)?.type||'';return type.includes('Point')?'point':type.includes('LineString')?'line':'polygon';}
+  function addPointStyleCard(panel,file,feature,state){
+    if(panel.querySelector('.v150-point-style-card'))return;const effective=state.effectiveStyle,card=document.createElement('div');card.className='inspector-card v150-point-style-card';card.innerHTML=`<h3>Point style</h3><div class="inspector-grid"><div class="k">Colour</div><div><input id="v150PointColor" type="color" value="${esc(effective.fillColor||effective.color||'#1664d6')}"></div><div class="k">Size</div><div><input id="v150PointRadius" type="number" min="1" max="80" step="0.5" value="${Number(effective.radius)||6}"></div><div class="k">Opacity</div><div><input id="v150PointOpacity" type="range" min="5" max="100" value="${Math.round((Number(effective.opacity)||1)*100)}"></div></div><div class="inspector-actions"><button id="v150ApplyPointStyle" class="primary">Apply point style</button></div>`;panel.appendChild(card);
+  }
+  function enhanceInspectorStyle(){
+    const r=activeRef(),panel=document.getElementById('selectedPanel');if(!r||!panel)return;gisEnsureStyleModel(r.file);const state=gisFeatureStyleState(r.file,r.feature),family=familyForFeature(r.feature);if(family==='point')addPointStyleCard(panel,r.file,r.feature,state);
+    const controls=currentInspectorInputs(family);if(family==='point'){controls.fill=document.getElementById('v150PointColor');controls.radius=document.getElementById('v150PointRadius');controls.opacity=document.getElementById('v150PointOpacity');controls.apply=document.getElementById('v150ApplyPointStyle');}
+    const host=controls.apply?.closest('.inspector-card,.v53-section-body')||panel;let notice=host.querySelector('.v150-inspector-style-state');if(!notice){notice=document.createElement('div');notice.className='v150-inspector-style-state';host.prepend(notice);}
+    const hasOverride=state.kind==='override',advanced=state.layer.mode==='advanced',effective=state.effectiveStyle||{};
+    if(controls.fill)controls.fill.value=effective.fillColor||effective.color||controls.fill.value;if(controls.stroke)controls.stroke.value=effective.color||controls.stroke.value;if(controls.weight)controls.weight.value=Number(effective.weight)||controls.weight.value;if(controls.radius)controls.radius.value=Number(effective.radius)||controls.radius.value;if(controls.fillOpacity)controls.fillOpacity.value=Math.round((Number(effective.fillOpacity)||0)*100);if(controls.opacity)controls.opacity.value=Math.round((Number(effective.opacity)||1)*100);
+    if(hasOverride)notice.innerHTML=`<strong>Feature override active</strong><span>This feature no longer uses ${esc(state.layer.label)}.</span><button type="button" data-v150-use-layer>Use layer style</button>`;
+    else if(advanced)notice.innerHTML=`<strong>Advanced styling active</strong><span>${esc(state.layer.label)} controls this feature.</span><small>Simple controls are disabled until you deliberately override this feature.</small><div><button type="button" data-v150-open-layer-style>Open layer styling</button><button type="button" data-v150-override-feature>Override this feature</button></div>`;
+    else notice.innerHTML=`<strong>Style source: Layer single symbol</strong><span>Changing these controls creates an override for this feature only.</span>`;
+    const editable=!advanced||hasOverride;for(const control of Object.values(controls))if(control&&control!==controls.reset)control.disabled=!editable;
+    notice.querySelector('[data-v150-open-layer-style]')?.addEventListener('click',()=>openAdvanced(r.file));
+    notice.querySelector('[data-v150-override-feature]')?.addEventListener('click',()=>{gisSetFeatureStyleOverride(r.file.id,r.feature.id,state.effectiveStyle,{replace:true});});
+    notice.querySelector('[data-v150-use-layer]')?.addEventListener('click',()=>{gisClearFeatureStyleOverride(r.file.id,r.feature.id);});
+    const applyHandler=event=>{
+      if(!editable)return;event.preventDefault();event.stopImmediatePropagation();const patch={};
+      if(controls.fill){patch.fillColor=controls.fill.value;patch.color=controls.stroke?.value||controls.fill.value;}
+      else if(controls.stroke){patch.color=controls.stroke.value;patch.fillColor=controls.stroke.value;}
+      if(controls.weight)patch.weight=Number(controls.weight.value);if(controls.radius)patch.radius=Number(controls.radius.value);if(controls.fillOpacity)patch.fillOpacity=Number(controls.fillOpacity.value)/100;if(controls.opacity)patch.opacity=Number(controls.opacity.value)/100;
+      try{gisSetFeatureStyleOverride(r.file.id,r.feature.id,patch,{replace:false});setStatus(`Updated feature override for ${r.feature.name}.`);}catch(error){setStatus(error.message,'error');}
+    };
+    if(controls.apply&&!controls.apply.dataset.v150Bound){controls.apply.dataset.v150Bound='1';controls.apply.addEventListener('click',applyHandler,true);}
+    if(controls.reset&&!controls.reset.dataset.v150Bound){controls.reset.dataset.v150Bound='1';controls.reset.textContent='Use layer style';controls.reset.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();try{gisClearFeatureStyleOverride(r.file.id,r.feature.id);}catch(error){setStatus(error.message,'error');}},true);}
+  }
+  const baseRenderSelectedV150=renderSelected;
+  renderSelected=function(){const out=baseRenderSelectedV150.apply(this,arguments);requestAnimationFrame(enhanceInspectorStyle);return out;};window.renderSelected=renderSelected;
+
+  cloneStylePayloadFromFeature=function(feature){const r=fileOfFeature(feature?.id),effective=r?gisResolvedFeatureStyle(r.file,feature,{highlight:false}):gisClone(feature?.style||{});return {style:{color:effective.color||'#1664d6',fillColor:effective.fillColor||effective.color||'#1664d6',weight:Number(effective.weight)||2,fillOpacity:Number.isFinite(Number(effective.fillOpacity))?Number(effective.fillOpacity):.18,radius:Number(effective.radius)||5,dashArray:effective.dashArray||''},opacity:Number.isFinite(Number(effective.opacity))?Number(effective.opacity):null,annotationStyle:feature?.annotationStyle?clone(feature.annotationStyle):null};};
+  applyStylePayloadToFeature=function(feature,payload){if(!feature||!payload)return;const r=fileOfFeature(feature.id);if(!r)return;feature.styleOverride={...(feature.styleOverride||{}),...clone(payload.style||{})};if(payload.opacity!==null&&payload.opacity!==undefined)feature.styleOverride.opacity=Math.max(.05,Math.min(1,Number(payload.opacity)||1));if(payload.annotationStyle)feature.annotationStyle=clone(payload.annotationStyle);gisSyncLegacyFeatureStyle(r.file,feature);gisTouchStyle(r.file,feature);clearFeatureCaches(feature);};
+
+  Object.assign(window.EditPolygonGIS,{styleModelVersion:GIS_STYLE_MODEL_VERSION,getLayerStyleState:gisLayerStyleState,setLayerSimpleStyle:gisSetLayerSimpleStyle,switchLayerStyleMode:gisSwitchLayerStyleMode,getFeatureStyleState:(fileId,featureId)=>{const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);return gisFeatureStyleState(file,feature);},setFeatureStyleOverride:gisSetFeatureStyleOverride,clearFeatureStyleOverride:gisClearFeatureStyleOverride,getEditableLayer:gisEditableSnapshot,getEditableLayers:()=>project.files.map(file=>gisEditableSnapshot(file.id)),getLayerUiSnapshot:gisLayerUiSnapshot,getSelectedFeature:gisSelectedFeatureDetails});
+  for(const file of project.files||[])gisEnsureStyleModel(file);gisTouchStyle();requestAnimationFrame(()=>{enhanceLayerRows();enhanceInspectorStyle();});
+  window.__editPolygonStyleModel=Object.freeze({version:GIS_STYLE_MODEL_VERSION,ensure:gisEnsureStyleModel,resolve:gisResolvedFeatureStyle,state:gisLayerStyleState});
 })();
 
 // Close the main EditPolygon application scope after all enhancements.
