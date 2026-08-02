@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.45.0';
+  const VERSION='1.45.3';
   const ARCGIS_SERVICE=/\/(FeatureServer|MapServer)(?:\/(\d+))?(?:\/query)?\/?$/i;
   const ITEM_ID=/^[0-9a-f]{32}$/i;
 
@@ -135,6 +135,98 @@
     }
     if(payload?.error)throw new RemoteSourceError('arcgis-error',arcgisErrorMessage(payload),{url,status:response.status,payload});
     return payload;
+  }
+
+
+  function signedRingArea(ring){
+    let area=0;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++)area+=(Number(ring[j]?.[0])||0)*(Number(ring[i]?.[1])||0)-(Number(ring[i]?.[0])||0)*(Number(ring[j]?.[1])||0);
+    return area/2;
+  }
+
+  function normaliseRing(input){
+    const ring=(Array.isArray(input)?input:[]).filter(point=>Array.isArray(point)&&Number.isFinite(Number(point[0]))&&Number.isFinite(Number(point[1]))).map(point=>[Number(point[0]),Number(point[1]),...point.slice(2)]);
+    if(ring.length<3)return [];
+    const first=ring[0],last=ring[ring.length-1];
+    if(first[0]!==last[0]||first[1]!==last[1])ring.push(first.slice());
+    return ring.length>=4?ring:[];
+  }
+
+  function pointInRing(point,ring){
+    const x=Number(point?.[0]),y=Number(point?.[1]);
+    if(!Number.isFinite(x)||!Number.isFinite(y))return false;
+    let inside=false;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+      const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+      const intersects=((yi>y)!==(yj>y))&&(x<((xj-xi)*(y-yi))/((yj-yi)||Number.EPSILON)+xi);
+      if(intersects)inside=!inside;
+    }
+    return inside;
+  }
+
+  function orientRing(ring,counterClockwise){
+    const ccw=signedRingArea(ring)>0;
+    return ccw===counterClockwise?ring:ring.slice().reverse();
+  }
+
+  function esriPolygonCoordinates(rings){
+    const entries=(Array.isArray(rings)?rings:[]).map(normaliseRing).filter(Boolean).filter(ring=>ring.length>=4).map((ring,index)=>({ring,index,area:Math.abs(signedRingArea(ring)),parent:-1,depth:0}));
+    entries.sort((a,b)=>b.area-a.area||a.index-b.index);
+    for(let i=0;i<entries.length;i++){
+      const child=entries[i];
+      let parentIndex=-1,parentArea=Infinity;
+      const sample=child.ring[0];
+      for(let j=0;j<i;j++){
+        const candidate=entries[j];
+        if(candidate.area<parentArea&&pointInRing(sample,candidate.ring)){parentIndex=j;parentArea=candidate.area;}
+      }
+      child.parent=parentIndex;
+      child.depth=parentIndex>=0?entries[parentIndex].depth+1:0;
+    }
+    const polygons=[];
+    const polygonForEntry=new Map();
+    entries.forEach((entry,index)=>{
+      if(entry.depth%2===0){
+        const polygon=[orientRing(entry.ring,true)];
+        polygons.push(polygon);
+        polygonForEntry.set(index,polygon);
+      }
+    });
+    entries.forEach((entry,index)=>{
+      if(entry.depth%2===0)return;
+      let ancestor=entry.parent;
+      while(ancestor>=0&&entries[ancestor].depth%2!==0)ancestor=entries[ancestor].parent;
+      const polygon=polygonForEntry.get(ancestor);
+      if(polygon)polygon.push(orientRing(entry.ring,false));
+    });
+    return polygons;
+  }
+
+  function esriGeometryToGeoJSON(geometry,geometryType=''){
+    if(!geometry||typeof geometry!=='object')return null;
+    const type=cleanText(geometryType).toLowerCase();
+    if(Number.isFinite(Number(geometry.x))&&Number.isFinite(Number(geometry.y)))return {type:'Point',coordinates:[Number(geometry.x),Number(geometry.y),...(geometry.z==null?[]:[Number(geometry.z)])]};
+    if(Array.isArray(geometry.points))return {type:'MultiPoint',coordinates:geometry.points.map(point=>point.map(Number))};
+    if(Array.isArray(geometry.paths)){const paths=geometry.paths.map(path=>path.map(point=>point.map(Number))).filter(path=>path.length);return paths.length===1?{type:'LineString',coordinates:paths[0]}:{type:'MultiLineString',coordinates:paths};}
+    if(Array.isArray(geometry.rings)){const polygons=esriPolygonCoordinates(geometry.rings);if(!polygons.length)return null;return polygons.length===1?{type:'Polygon',coordinates:polygons[0]}:{type:'MultiPolygon',coordinates:polygons};}
+    if(['esrigeometryenvelope','envelope'].includes(type)||['xmin','ymin','xmax','ymax'].every(key=>Number.isFinite(Number(geometry[key])))){
+      const x1=Number(geometry.xmin),y1=Number(geometry.ymin),x2=Number(geometry.xmax),y2=Number(geometry.ymax);
+      return {type:'Polygon',coordinates:[[[x1,y1],[x2,y1],[x2,y2],[x1,y2],[x1,y1]]]};
+    }
+    return null;
+  }
+
+  function esriJsonToGeoJSON(payload,metadata={}){
+    if(payload?.type==='FeatureCollection'&&Array.isArray(payload.features))return clone(payload);
+    const geometryType=payload?.geometryType||metadata?.geometryType||'';
+    const objectIdField=payload?.objectIdFieldName||metadata?.objectIdField||metadata?.objectIdFieldName||metadata?.uniqueIdField?.name||'';
+    const features=(Array.isArray(payload?.features)?payload.features:[]).map((feature,index)=>{
+      const properties={...(feature?.attributes||feature?.properties||{})};
+      const geometry=feature?.geometry?.type?clone(feature.geometry):esriGeometryToGeoJSON(feature?.geometry,geometryType);
+      const id=objectIdField&&properties[objectIdField]!=null?properties[objectIdField]:(feature?.id??index+1);
+      return {type:'Feature',id,properties,geometry};
+    }).filter(feature=>feature.geometry);
+    return {type:'FeatureCollection',features};
   }
 
   function geometryLabel(value){
@@ -412,6 +504,8 @@
     discoverItem,
     friendlyError,
     geometryLabel,
+    esriGeometryToGeoJSON,
+    esriJsonToGeoJSON,
     clone
   });
 })(typeof window!=='undefined'?window:globalThis);
