@@ -3300,7 +3300,7 @@ function renderMap(){
         try{if(!b.intersects(L.latLngBounds([[fb[1],fb[0]],[fb[3],fb[2]]])))continue;}catch{}
       }
       let gj=featJSON(f);
-      L.geoJSON(gj,{style:styleWithOpacity(f,file),smoothFactor:V.active?2.5:1.2,interactive:false,pointToLayer:(feature,latlng)=>{const st=styleWithOpacity(f,file);return L.circleMarker(latlng,{radius:Math.max(4,Number(f.annotationStyle?.size||8)/2),color:st.color,fillColor:st.color,fillOpacity:st.opacity??1,weight:2})}}).eachLayer(layer=>{
+      L.geoJSON(gj,{style:styleWithOpacity(f,file),smoothFactor:V.active?2.5:1.2,interactive:false,pointToLayer:(feature,latlng)=>{const st=styleWithOpacity(f,file);return L.circleMarker(latlng,{radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),color:st.color,fillColor:st.color,fillOpacity:st.opacity??1,weight:2})}}).eachLayer(layer=>{
         layer.featureId=f.id;
         layer.addTo(featureGroup);
       });
@@ -17258,11 +17258,11 @@ showAutosaveRecoveryIfAvailable();
       interactive:false,
       pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{
         renderer:bulkRenderer,
-        radius:Math.max(4,Number(f.annotationStyle?.size||8)/2),
+        radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),
         color:styleObject.color,fillColor:styleObject.fillColor||styleObject.color,
         fillOpacity:styleObject.fillOpacity??styleObject.opacity??1,
         opacity:styleObject.opacity??1,
-        weight:2,interactive:false
+        weight:Number(styleObject.weight??2),interactive:false
       })
     });
     geo.eachLayer(layer=>{layer.featureId=f.id;});
@@ -20177,7 +20177,17 @@ window.__editPolygonGisFoundation={version:GIS_FOUNDATION_VERSION,state:gisState
 
 
 /* v141: advanced browser-local GIS data, styling, CRS and processing bridge. */
-const GIS_DATA_VERSION='1.41.0';
+const GIS_DATA_VERSION='1.47.0';
+const gisStylePreviewByFile=new Map();
+const gisStyleCompileCache=new WeakMap();
+function gisStyleCore(){return window.EditPolygonGISStyleCore||null;}
+function gisEffectiveStyle(file){return file?(gisStylePreviewByFile.get(file.id)||file.gisStyle||{version:1,type:'single',mode:'single'}):null;}
+function gisCompiledStyle(style){
+  const core=gisStyleCore();if(!core||!style||typeof style!=='object')return null;
+  let compiled=gisStyleCompileCache.get(style);
+  if(!compiled){compiled=core.compileStyle(style);gisStyleCompileCache.set(style,compiled);}
+  return compiled;
+}
 function gisEditableFile(fileId){return project.files.find(file=>file.id===fileId)||null;}
 function gisEditableSnapshot(fileId){
   const file=gisEditableFile(fileId);if(!file)return null;
@@ -20191,10 +20201,27 @@ function gisApplyFileFilter(file){
 }
 function gisSetAttribute(fileId,featureId,field,value){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)throw Error('Feature not found.');pushHistory();f.properties=f.properties||{};f.properties[field]=value;if(field==='name')f.name=String(value||f.name);gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('attribute-updated',{fileId,featureId,field});return gisEditableSnapshot(fileId);}
 function gisAddField(fileId,field,defaultValue=null){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');field=String(field||'').trim();if(!field)throw Error('Enter a field name.');pushHistory();for(const f of file.features||[]){f.properties=f.properties||{};if(!(field in f.properties))f.properties[field]=defaultValue;}renderAll();setDirty(true);logOperation('field-added',{fileId,field});return gisEditableSnapshot(fileId);}
-function gisDeleteField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');pushHistory();for(const f of file.features||[])delete f.properties?.[field];if(file.gisFilter?.field===field)file.gisFilter=null;if(file.gisLabels?.field===field)file.gisLabels={enabled:false,field:''};renderAll();setDirty(true);logOperation('field-deleted',{fileId,field});return gisEditableSnapshot(fileId);}
+function gisDeleteField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');pushHistory();for(const f of file.features||[])delete f.properties?.[field];if(file.gisFilter?.field===field)file.gisFilter=null;if(file.gisLabels?.field===field)file.gisLabels={enabled:false,field:''};if(file.gisStyle?.field===field)file.gisStyle={version:1,type:'single',mode:'single',symbol:gisStyleCore()?.DEFAULT_SYMBOL||{color:file.color||'#1664d6',fillColor:file.color||'#1664d6',weight:2,fillOpacity:.35,opacity:1,radius:5}};gisStylePreviewByFile.delete(fileId);renderAll();setDirty(true);logOperation('field-deleted',{fileId,field});return gisEditableSnapshot(fileId);}
 function gisCalculateField(fileId,field,expression,selectedIds=[]){const file=gisEditableFile(fileId),core=window.EditPolygonGISDataCore;if(!file||!core)throw Error('Layer or calculator unavailable.');const selected=new Set(selectedIds||[]);pushHistory();let count=0;(file.features||[]).forEach((f,i)=>{if(selected.size&&!selected.has(f.id))return;f.properties=f.properties||{};f.properties[field]=core.calculate(expression,f.properties,i);count++;});gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('field-calculated',{fileId,field,count});return {count,layer:gisEditableSnapshot(fileId)};}
 function gisSetFilter(fileId,rule){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisFilter=rule?.field?gisClone(rule):null;const count=gisApplyFileFilter(file);renderAll();setDirty(true);return {count,total:file.features.length,layer:gisEditableSnapshot(fileId)};}
-function gisSetStyle(fileId,style){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisStyle={mode:'single',...gisClone(style||{})};renderAll();setDirty(true);return gisEditableSnapshot(fileId);}
+function gisSetStyle(fileId,style){
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
+  const core=gisStyleCore();const result=core?core.validateStyle(style):{valid:true,style:{mode:'single',...gisClone(style||{})},errors:[]};
+  if(!result.valid)throw Error(result.errors.join(' '));
+  pushHistory();file.gisStyle=gisClone(result.style);gisStylePreviewByFile.delete(fileId);
+  renderAll();setDirty(true);logOperation('layer-style-updated',{fileId,type:file.gisStyle.type||file.gisStyle.mode||'single',field:file.gisStyle.field||''});
+  return gisEditableSnapshot(fileId);
+}
+function gisPreviewStyle(fileId,style){
+  const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
+  const core=gisStyleCore();const result=core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};
+  if(!result.valid)throw Error(result.errors.join(' '));
+  gisStylePreviewByFile.set(fileId,gisClone(result.style));renderMap();gisNotify();return result.style;
+}
+function gisClearStylePreview(fileId){
+  const changed=gisStylePreviewByFile.delete(fileId);if(changed){renderMap();gisNotify();}return changed;
+}
+function gisValidateStyle(style){const core=gisStyleCore();return core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};}
 function gisSetLabels(fileId,labels){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisLabels={enabled:false,field:'',...gisClone(labels||{})};renderAll();setDirty(true);return gisEditableSnapshot(fileId);}
 function gisSetCrs(fileId,crs){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisCrs=String(crs||'EPSG:4326');setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
 function gisCreateOutputFile(name,features,color='#7c3aed',meta={}){const models=[];flattenSupportedFeatures(features||[]).forEach((raw,i)=>{const m=normalize(raw,featureName(raw,`${name} ${i+1}`));if(m){applyColor(m,color);models.push(m);}});if(!models.length)throw Error('The operation produced no supported geometry.');const file={id:uid('file'),name,visible:true,color,features:models,gisCrs:'EPSG:4326',gisProcessing:meta};project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('gis-processing-output',{name,count:models.length,...meta});return gisEditableSnapshot(file.id);}
@@ -20213,16 +20240,49 @@ function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=f
 function gisSetFeatureVisibility(fileId,featureId,visible){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;f.visible=visible!==false;renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`${f.visible?'Shown':'Hidden'} ${gisFeatureTitle(file,f)}.`);return true;}
 function gisShowAllHidden(fileId){const file=gisEditableFile(fileId);if(!file)return 0;let count=0;for(const f of file.features||[])if(f.visible===false){f.visible=true;count++;}if(count){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Shown ${count} hidden feature${count===1?'':'s'} in ${file.name}.`);}return count;}
 function gisClearFeatureOverrides(fileId){const file=gisEditableFile(fileId);if(!file)return {shown:0,unlocked:0};let shown=0,unlocked=0;for(const f of file.features||[]){if(f.visible===false){f.visible=true;shown++;}if(f.locked){f.locked=false;unlocked++;}}if(shown||unlocked){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Cleared feature overrides in ${file.name}.`);}return {shown,unlocked};}
+let gisLegendHost=null;
+function gisLegendSwatch(entry,target){
+  if(target==='radius'){const size=Math.max(5,Math.min(18,Number(entry.value)||7));return `<i class="gis-map-legend-circle" style="width:${size}px;height:${size}px"></i>`;}
+  if(target==='weight'){const width=Math.max(1,Math.min(9,Number(entry.value)||2));return `<i class="gis-map-legend-line" style="border-top-width:${width}px"></i>`;}
+  return `<i class="gis-map-legend-swatch" style="background:${esc(entry.color||'#b6bec9')}"></i>`;
+}
+function gisRenderMapLegends(){
+  const core=gisStyleCore(),mapElement=document.getElementById('map');if(!core||!mapElement)return;
+  if(!gisLegendHost){gisLegendHost=document.createElement('aside');gisLegendHost.className='gis-map-legend';gisLegendHost.setAttribute('aria-label','Map legend');mapElement.appendChild(gisLegendHost);gisLegendHost.addEventListener('pointerdown',event=>event.stopPropagation());gisLegendHost.addEventListener('click',event=>event.stopPropagation());}
+  const styled=(project.files||[]).filter(file=>file.visible!==false&&(file.features||[]).some(feature=>feature.visible!==false&&!feature._gisFiltered)).map(file=>({file,style:gisEffectiveStyle(file)})).filter(item=>item.style&&core.normaliseStyle(item.style).type!=='single').slice(0,5);
+  if(!styled.length){gisLegendHost.hidden=true;gisLegendHost.innerHTML='';return;}
+  gisLegendHost.hidden=false;
+  gisLegendHost.innerHTML=styled.map(({file,style})=>{
+    const model=core.legendModel(style);
+    let body='';
+    if(model.type==='continuous'){
+      if(model.target==='color')body=`<div class="gis-map-legend-gradient" style="background:linear-gradient(90deg,${model.colorRamp.map((color,index)=>`${color} ${Math.round(index*100/Math.max(1,model.colorRamp.length-1))}%`).join(',')})"></div><div class="gis-map-legend-range"><span>${esc(core.fmt(model.min))}</span><span>${esc(core.fmt(model.max))}</span></div>`;
+      else body=`<div class="gis-map-legend-items"><span>${gisLegendSwatch({value:model.outputRange[0]},model.target)}<b>${esc(core.fmt(model.min))}</b></span><span>${gisLegendSwatch({value:model.outputRange[1]},model.target)}<b>${esc(core.fmt(model.max))}</b></span></div>`;
+      if(model.nullCount)body+=`<div class="gis-map-legend-items gis-map-legend-null"><span>${gisLegendSwatch({color:model.nullSymbol?.fillColor},'color')}<b>Null / invalid</b><small>${model.nullCount.toLocaleString()}</small></span></div>`;
+    }else{
+      const allEntries=[...(model.entries||[])];if(model.nullCount)allEntries.push({label:'Null / invalid',count:model.nullCount,color:model.nullSymbol?.fillColor,_null:true});
+      const entries=allEntries.slice(0,9);body=`<div class="gis-map-legend-items">${entries.map(entry=>`<span>${gisLegendSwatch(entry,entry._null?'color':model.target)}<b>${esc(entry.label)}</b>${Number.isFinite(entry.count)?`<small>${entry.count.toLocaleString()}</small>`:''}</span>`).join('')}${allEntries.length>entries.length?`<span class="gis-map-legend-more">+ ${(allEntries.length-entries.length).toLocaleString()} more</span>`:''}</div>`;
+    }
+    return `<section><strong>${esc(file.name)}</strong><em>${esc(model.title||'Style')}</em>${body}</section>`;
+  }).join('');
+}
 const v141BaseStyleWithOpacity=styleWithOpacity;
-styleWithOpacity=function(f,file){const base=v141BaseStyleWithOpacity(f,file);const cfg=file?.gisStyle||{};let color=cfg.color||base.color,fill=cfg.fillColor||color;if(cfg.mode==='categorized'&&cfg.field){const key=String(f.properties?.[cfg.field]??'(null)');const item=(cfg.categories||[]).find(x=>String(x.value)===key);if(item)color=fill=item.color;}else if(cfg.mode==='graduated'&&cfg.field){const value=Number(f.properties?.[cfg.field]);const item=(cfg.breaks||[]).find((x,i,a)=>Number.isFinite(value)&&value>=Number(x.min)&&(i===a.length-1?value<=Number(x.max):value<Number(x.max)));if(item)color=fill=item.color;}return {...base,color,fillColor:fill,weight:Number(cfg.weight??base.weight),fillOpacity:Number(cfg.fillOpacity??base.fillOpacity),opacity:Number(cfg.opacity??base.opacity)};};
+styleWithOpacity=function(f,file){
+  const base=v141BaseStyleWithOpacity(f,file),style=gisEffectiveStyle(file),core=gisStyleCore();
+  if(!core||!style)return base;
+  try{
+    const compiled=gisCompiledStyle(style);
+    return compiled?compiled(f.properties||{},getDisplayGeometry(f)?.type||'',base):base;
+  }catch(error){console.warn('Unable to evaluate GIS style',error);return base;}
+};
 window.styleWithOpacity=styleWithOpacity;
 const v141BaseRenderMap=renderMap;
-renderMap=function(){v141BaseRenderMap();for(const file of project.files||[]){const labels=file.gisLabels;if(!labels?.enabled||!labels.field||file.visible===false)continue;for(const f of file.features||[]){if(f.visible===false||f._gisFiltered)continue;const value=f.properties?.[labels.field];if(value==null||value==='')continue;try{const p=turf.pointOnFeature(featJSON(f)).geometry.coordinates;L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({className:'gis-feature-label',html:`<span>${esc(value)}</span>`,iconSize:null})}).addTo(featureGroup);}catch(_){}}}};
+renderMap=function(){v141BaseRenderMap();for(const file of project.files||[]){const labels=file.gisLabels;if(!labels?.enabled||!labels.field||file.visible===false)continue;for(const f of file.features||[]){if(f.visible===false||f._gisFiltered)continue;const value=f.properties?.[labels.field];if(value==null||value==='')continue;try{const p=turf.pointOnFeature(featJSON(f)).geometry.coordinates;L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({className:'gis-feature-label',html:`<span>${esc(value)}</span>`,iconSize:null})}).addTo(featureGroup);}catch(_){}}}gisRenderMapLegends();};
 window.renderMap=renderMap;
 // Exclude filtered records from map drawing without changing their user visibility state.
 const v141BaseIsFeatureSleeping=isFeatureSleeping;
 isFeatureSleeping=function(file,f){return !!(f?._gisFiltered||v141BaseIsFeatureSleeping(file,f));};window.isFeatureSleeping=isFeatureSleeping;
-Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,process:gisProcess,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides});
+Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,previewStyle:gisPreviewStyle,clearStylePreview:gisClearStylePreview,validateStyle:gisValidateStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,process:gisProcess,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides});
 window.__editPolygonGisData={version:GIS_DATA_VERSION};
 
 /* v142: consolidated layers, inspector attributes and shared GIS selection bridge. */
