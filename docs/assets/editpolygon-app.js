@@ -20256,7 +20256,7 @@ window.__editPolygonCrs={version:GIS_CRS_VERSION};
 
 // ArcGIS and remote web-data discovery. This accepts directory, service, layer,
 // query and ArcGIS item-page links, while keeping the final import browser-local.
-const GIS_REMOTE_SOURCE_VERSION='1.45.0';
+const GIS_REMOTE_SOURCE_VERSION='1.45.3';
 function gisRemoteResolver(){
   const resolver=window.EditPolygonRemoteSource;
   if(!resolver)throw Error('The remote-source resolver did not load. Refresh the page and try again.');
@@ -20277,17 +20277,51 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
   const options=resolver.queryOptions(source);
   let sourceCrs=knownSourceCrs||'EPSG:4326';
   let maxRecordCount=500;
+  let metadata={};
   try{
-    const metadata=await resolver.fetchJson(resolver.setFormat(options.layerUrl,'json'));
+    metadata=await resolver.fetchJson(resolver.setFormat(options.layerUrl,'json'))||{};
     sourceCrs=knownSourceCrs||gisArcGisSourceCrs(metadata);
     const advertised=Number(metadata?.maxRecordCount);
-    if(Number.isFinite(advertised)&&advertised>0)maxRecordCount=Math.max(50,Math.min(500,Math.floor(advertised)));
+    if(Number.isFinite(advertised)&&advertised>0)maxRecordCount=Math.max(50,Math.min(1000,Math.floor(advertised)));
   }catch(_){ }
+
+  const queryUrl=(params)=>`${options.layerUrl}/query?${params}`;
+  const fetchFeatureBatch=async(rawParams)=>{
+    const params=new URLSearchParams(rawParams);
+    params.set('outFields',params.get('outFields')||options.outFields||'*');
+    params.set('returnGeometry',params.get('returnGeometry')||'true');
+    params.set('outSR','4326');
+    params.delete('resultOffset');
+    params.delete('resultRecordCount');
+
+    let geoJsonError=null;
+    try{
+      params.set('f','geojson');
+      const geojson=await resolver.fetchJson(queryUrl(params));
+      if(geojson?.type==='FeatureCollection'&&Array.isArray(geojson.features))return geojson;
+      if(Array.isArray(geojson?.features)&&geojson.features.every(feature=>feature?.geometry?.type))return {type:'FeatureCollection',features:geojson.features};
+      geoJsonError=new Error('The GeoJSON response did not contain a feature collection.');
+    }catch(error){geoJsonError=error;}
+
+    try{
+      params.set('f','json');
+      const esriJson=await resolver.fetchJson(queryUrl(params));
+      const converted=resolver.esriJsonToGeoJSON(esriJson,metadata);
+      if(Array.isArray(converted?.features))return converted;
+      throw Error('The ArcGIS JSON response did not contain spatial features.');
+    }catch(jsonError){
+      const error=new resolver.RemoteSourceError(
+        'arcgis-feature-query-failed',
+        'The ArcGIS layer was found, but its features could not be downloaded. EditPolygon tried both GeoJSON and ArcGIS JSON responses.',
+        {url:options.layerUrl,geoJsonError:geoJsonError?.message||String(geoJsonError||''),jsonError:jsonError?.message||String(jsonError||'')}
+      );
+      throw error;
+    }
+  };
 
   const directObjectIds=options.params.get('objectIds');
   if(directObjectIds){
-    const data=await resolver.fetchJson(resolver.buildQueryUrl(source));
-    if(!Array.isArray(data?.features))throw Error('The ArcGIS layer did not return GeoJSON features.');
+    const data=await fetchFeatureBatch(options.params);
     data.__sourceCrs=sourceCrs;
     onProgress({loaded:data.features.length,total:data.features.length,complete:true});
     return data;
@@ -20298,12 +20332,11 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
   idParams.set('returnIdsOnly','true');
   idParams.set('f','json');
   let idsJson;
-  try{idsJson=await resolver.fetchJson(`${options.layerUrl}/query?${idParams}`);}
+  try{idsJson=await resolver.fetchJson(queryUrl(idParams));}
   catch(error){
-    // Some older/query-limited services do not support returnIdsOnly. A direct
-    // GeoJSON query is still preferable to exposing a parser or REST error.
-    const data=await resolver.fetchJson(resolver.buildQueryUrl(source));
-    if(!Array.isArray(data?.features))throw resolver.friendlyError(error);
+    // Some older or restricted services do not support returnIdsOnly. Fetch the
+    // query directly and use the JSON fallback when GeoJSON is unavailable.
+    const data=await fetchFeatureBatch(options.params);
     data.__sourceCrs=sourceCrs;
     onProgress({loaded:data.features.length,total:data.features.length,complete:true});
     return data;
@@ -20316,27 +20349,30 @@ async function gisFetchArcGisGeoJsonResolved(source,{onProgress=()=>{},knownSour
     return empty;
   }
 
+  // Avoid object-ID URLs entirely when the complete result fits inside the
+  // layer's advertised record limit. This is simpler and more compatible with
+  // ArcGIS Online services that behave differently for objectIds queries.
+  if(ids.length<=maxRecordCount){
+    const data=await fetchFeatureBatch(options.params);
+    data.__sourceCrs=sourceCrs;
+    onProgress({loaded:data.features.length,total:ids.length,complete:true});
+    return data;
+  }
+
   const features=[];
   const batches=[];
   let pending=[];
   let pendingChars=0;
   for(const id of ids){
     const chars=String(id).length+1;
-    if(pending.length&&(pending.length>=maxRecordCount||pendingChars+chars>6000)){batches.push(pending);pending=[];pendingChars=0;}
+    if(pending.length&&(pending.length>=maxRecordCount||pendingChars+chars>5500)){batches.push(pending);pending=[];pendingChars=0;}
     pending.push(id);pendingChars+=chars;
   }
   if(pending.length)batches.push(pending);
   for(const batch of batches){
     const params=new URLSearchParams(options.params);
     params.set('objectIds',batch.join(','));
-    params.set('outFields',options.outFields||'*');
-    params.set('returnGeometry','true');
-    params.set('outSR','4326');
-    params.set('f','geojson');
-    params.delete('resultOffset');
-    params.delete('resultRecordCount');
-    const json=await resolver.fetchJson(`${options.layerUrl}/query?${params}`);
-    if(!Array.isArray(json?.features))throw Error('The ArcGIS service did not return GeoJSON features.');
+    const json=await fetchFeatureBatch(params);
     features.push(...json.features);
     onProgress({loaded:features.length,total:ids.length,complete:features.length>=ids.length});
   }
