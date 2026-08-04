@@ -131,6 +131,7 @@ function normaliseSavedProjectPayload(raw){
   const imageOverlays=Array.isArray(d.imageOverlays)?clone(d.imageOverlays):[];
   files.forEach(file=>{
     file.id=file.id||uid('file');
+    file.sourceFormat=file.sourceFormat||(file.gisProcessing?'analysis':'geojson');
     file.visible=file.visible!==false;
     file.features=(file.features||[]).map(ensureFeatureModel);
   });
@@ -4062,7 +4063,7 @@ function renderSidebar(){
       <button class="collapse-btn" data-a="collapse" data-file="${file.id}">${sidebarState.collapsedFiles.has(file.id)?'▶':'▼'}</button>
       <input type="checkbox" ${file.visible!==false?'checked':''} data-a="filevis" data-file="${file.id}" title="Visible">
       <input class="file-color" type="color" value="${file.color||'#1664d6'}" data-a="filecolor" data-file="${file.id}" title="File colour">
-      <div class="file-main"><div class="file-name">${esc(file.name)}</div><div class="file-meta">${esc(file.sourceFormat.toUpperCase())} · ${file.features.length} features ${sleeping}</div></div>
+      <div class="file-main"><div class="file-name">${esc(file.name)}</div><div class="file-meta">${esc(String(file.sourceFormat||'project').toUpperCase())} · ${file.features.length} features ${sleeping}</div></div>
       <div class="file-actions"><button class="layer-kebab" data-a="filemenu" data-file="${file.id}" title="Layer actions">⋮</button></div>
     </div>`;
     for(const f of file.features){
@@ -20357,9 +20358,9 @@ function gisClearStylePreview(fileId){const file=gisEditableFile(fileId),changed
 function gisValidateStyle(style){const core=gisStyleCore();return core?core.validateStyle(style):{valid:true,style:gisClone(style),errors:[]};}
 function gisSetLabels(fileId,labels){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisLabels={enabled:false,field:'',...gisClone(labels||{})};renderAll();setDirty(true);return gisEditableSnapshot(fileId);}
 function gisSetCrs(fileId,crs){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisCrs=String(crs||'EPSG:4326');setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
-function gisCreateOutputFile(name,features,color='#7c3aed',meta={}){const models=[];flattenSupportedFeatures(features||[]).forEach((raw,i)=>{const m=normalize(raw,featureName(raw,`${name} ${i+1}`));if(m){applyColor(m,color);models.push(m);}});if(!models.length)throw Error('The operation produced no supported geometry.');const file={id:uid('file'),name,visible:true,color,features:models,gisCrs:'EPSG:4326',gisProcessing:meta};project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('gis-processing-output',{name,count:models.length,...meta});return gisEditableSnapshot(file.id);}
+function gisCreateOutputFile(name,features,color='#7c3aed',meta={}){const models=[];flattenSupportedFeatures(features||[]).forEach((raw,i)=>{const m=normalize(raw,featureName(raw,`${name} ${i+1}`));if(m){applyColor(m,color);models.push(m);}});if(!models.length)throw Error('The operation produced no supported geometry.');const file={id:uid('file'),name,sourceFormat:'analysis',visible:true,color,features:models,gisCrs:'EPSG:4326',gisProcessing:meta};project.files.push(file);sidebarState.collapsedFiles.delete(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('gis-processing-output',{name,count:models.length,...meta});return gisEditableSnapshot(file.id);}
 function gisProcess(fileId,operation,params={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const active=(file.features||[]).filter(f=>!f._gisFiltered).map(featJSON);if(!active.length)throw Error('No visible filtered features to process.');let output=[];const name=String(params.name||`${file.name} — ${operation}`);
-  if(operation==='centroid')output=active.map(f=>turf.centroid(f,{sourceId:f.properties?.name||''}));
+  if(operation==='centroid')output=active.map((f,index)=>turf.centroid(f,{properties:{...(f.properties||{}),source_feature_id:f.id??'',source_feature_name:f.properties?.name||`Feature ${index+1}`,processing_operation:'centroid'}}));
   else if(operation==='point-on-feature')output=active.map(f=>turf.pointOnFeature(f));
   else if(operation==='buffer'){const distance=Number(params.distance||0);if(!Number.isFinite(distance)||distance===0)throw Error('Enter a non-zero buffer distance.');output=active.map(f=>turf.buffer(f,distance,{units:params.units||'kilometers',steps:Math.max(8,Number(params.steps)||16)})).filter(Boolean);}
   else if(operation==='convex-hull'){const pts=[];for(const f of active){turf.coordEach(f,c=>pts.push(turf.point(c)));}const hull=turf.convex(turf.featureCollection(pts));if(hull)output=[hull];}

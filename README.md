@@ -5,7 +5,7 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.51.2
+**Current application baseline:** v1.51.3
 
 ## What EditPolygon is for
 
@@ -323,10 +323,10 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.51.2 baseline used for this README:
+At the v1.51.3 baseline used for this README:
 
 - Repository integration checks pass
-- All 58 automated tests pass
+- All 60 automated tests pass
 - CRS and ArcGIS remote-source browser smoke tests pass
 - Regression coverage includes unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
 
