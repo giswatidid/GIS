@@ -5,7 +5,7 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.51.3
+**Current application baseline:** v1.52.0
 
 ## What EditPolygon is for
 
@@ -56,17 +56,41 @@ The Layers panel supports:
 
 ### Inspect and edit attributes
 
-Editable layers include browser-local data tools for:
+Editable layers use an explicit, browser-local field schema. Supported field types are:
 
-- Attribute tables
-- Search, sorting and pagination
-- Single-feature property editing in the Inspector
-- Adding and deleting fields
-- Field calculations
-- Numeric statistics
-- Attribute filters
-- Selection-aware calculations and statistics
-- Exporting or processing selected subsets
+- Text
+- Integer
+- Decimal
+- Boolean
+- Date
+- Datetime
+
+The schema editor supports:
+
+- Adding, renaming and deleting fields
+- Field aliases and descriptions
+- Default values
+- Nullable, required and read-only rules
+- Conservative type inference for imported and legacy layers
+- Conversion previews before changing a field type
+- Optional conversion of incompatible values to `NULL`
+- Automatic updates to labels, filters, display fields and styles when fields are renamed or removed
+
+The attribute table and Inspector use the schema to provide:
+
+- Type-appropriate editors, including booleans, dates and datetimes
+- Clear `NULL` handling rather than treating every empty value as text
+- Read-only field enforcement
+- Type-aware sorting
+- Shift-click multi-column sorting
+- Search, pagination and configurable page sizes
+- Selection-aware editing and calculations
+
+Filtering supports multiple type-aware conditions joined with `AND` or `OR`, including text matching, numeric and date comparisons, ranges, booleans, lists and populated/empty checks. Filters can be named, saved, reapplied and deleted.
+
+The deterministic field calculator supports typed output, previews and all, visible or selected record scopes. Expressions can reference fields as `[field]` and use arithmetic, comparisons, concatenation, conditionals, text functions, numeric functions and date functions without evaluating arbitrary JavaScript.
+
+GeoJSON and CSV/WKT record exports can be limited to the entire layer, filtered records, visible records or selected records. GeoJSON exports include the EditPolygon field schema.
 
 ### Style and label layers
 
@@ -323,12 +347,12 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.51.3 baseline used for this README:
+At the v1.52.0 baseline used for this README:
 
 - Repository integration checks pass
-- All 60 automated tests pass
-- CRS and ArcGIS remote-source browser smoke tests pass
-- Regression coverage includes unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
+- All 71 automated tests pass
+- CRS, ArcGIS remote-source and typed-data browser smoke tests pass
+- Regression coverage includes typed schema inference and conversion, compound filters, multi-column sorting, field calculations, unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
 
 Run the browser smoke tests with:
 
@@ -354,18 +378,16 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 The next planned development phases are:
 
-1. Typed field schemas and stronger schema editing
-2. Saved filters, improved calculations and table tools
-3. Attribute joins and spatial joins
-4. Geometry validation and repair expansion
-5. Additional processing tools
-6. Virtualised tables and larger-dataset performance
-7. Advanced rule-based styling and label placement
-8. GeoPackage, FlatGeobuf, GeoParquet and GPX support
-9. Better remote-layer refresh and source management
-10. Project snapshots and portable project packages
-11. Print layouts and high-resolution map export
-12. Raster and GeoTIFF analysis tools
+1. Attribute joins, spatial joins and grouped summaries
+2. Geometry validation and repair expansion
+3. Additional processing tools
+4. Virtualised tables and larger-dataset performance
+5. Advanced rule-based styling and label placement
+6. GeoPackage, FlatGeobuf, GeoParquet and GPX support
+7. Better remote-layer refresh and source management
+8. Project snapshots and portable project packages
+9. Print layouts and high-resolution map export
+10. Raster and GeoTIFF analysis tools
 
 ## Feedback
 

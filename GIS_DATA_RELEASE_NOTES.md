@@ -1,17 +1,79 @@
-# EditPolygon Browser GIS v1.41.1
+# EditPolygon Browser GIS v1.52.0
 
-This release retains the Simple editor and adds browser-local data operations to Advanced GIS.
+This release adds an explicit typed attribute model and upgrades the attribute table, Inspector, filtering, calculations and record export while keeping all local data operations in the browser.
 
-## Added
-- Docked attribute table for editable layers with paging, searching, sorting, row selection and inline cell editing.
-- Field creation, deletion and calculator expressions.
-- Attribute filters that control map display and processing inputs without deleting records.
-- Single, categorised and graduated vector styling.
-- Property-driven map labels.
-- CRS metadata assignment with an explicit warning that assignment is not reprojection.
-- Non-destructive processing outputs: buffer, dissolve/union, centroid, point-on-feature, convex hull and bounding rectangle.
-- Processing results are ordinary editable layers.
-- `docs/` is the deployable GitHub Pages directory; no `public/` directory remains.
+## Typed field schemas
+
+Each editable layer now carries a schema with text, integer, decimal, boolean, date and datetime fields. Imported and older projects receive a conservative inferred schema without discarding their original values.
+
+Fields can define:
+
+- A storage name and user-facing alias
+- A description
+- A default value
+- Nullable and required rules
+- Read-only behaviour
+
+The schema editor can add, rename, delete and change field types. Type changes show a conversion preview before applying. Incompatible values are blocked by default and can only be replaced with `NULL` through an explicit option.
+
+Renaming or deleting a field also updates dependent display-field, label, filter and styling references where applicable.
+
+## Typed editing and tables
+
+The attribute table and Inspector now use field-specific controls:
+
+- Numeric inputs for integer and decimal fields
+- Boolean selectors
+- Native date and datetime inputs
+- Explicit `NULL` controls
+- Disabled controls for read-only fields
+
+Sorting is type-aware, supports multiple columns through Shift-click, and keeps null values last. Search, paging and selected-record handling remain available.
+
+## Compound and saved filters
+
+Filters can contain multiple conditions using `AND` or `OR`. Available operators adapt to the field type and include text matching, ordered comparisons, ranges, list membership, boolean matching and empty/populated checks.
+
+Filters can be named, saved, reapplied and removed without deleting records from the layer.
+
+## Type-safe field calculator
+
+The calculator now requires an output type and previews results before changes are applied. It supports all, visible or selected records and rejects values incompatible with the target field.
+
+The deterministic expression language includes:
+
+- Field references such as `[population]`
+- Arithmetic and comparisons
+- Conditional and null-handling functions
+- Text manipulation
+- Numeric rounding and aggregation helpers
+- Date and datetime conversion and extraction
+
+It does not execute arbitrary JavaScript.
+
+## Scoped record export
+
+GeoJSON and CSV/WKT record export can target:
+
+- The entire layer
+- Filtered records
+- Visible records
+- Selected records
+
+GeoJSON record exports include the EditPolygon field schema.
+
+## Compatibility
+
+Existing projects continue to load. Their schemas are inferred in memory and are persisted the next time the project is saved. Processing outputs and selection-derived layers receive or inherit valid schemas.
+
+## Validation
+
+- Repository integration checks pass
+- 71 automated tests pass
+- CRS browser smoke test passes
+- ArcGIS remote-source browser smoke test passes
+- Typed-data browser smoke test passes
 
 ## Privacy
-All local feature editing, filtering, field calculation, styling and processing execute in the browser. Existing remote services continue to be requested directly from their providers.
+
+Schema inference, editing, filtering, calculations, statistics and exports execute locally in the browser. Remote services continue to be requested directly from their providers.

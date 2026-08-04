@@ -5784,7 +5784,7 @@ async function importFile(file,onProgress=()=>{}){
   }else{
     throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT, TXT, zipped Shapefile, project file');
   }
-const features=[];let i=1;for(const raw of flattenForImport(data.features)){const nf=normalize(raw,'Polygon '+i);if(nf){features.push(nf);i++}}onProgress(`Prepared ${features.length} polygon feature${features.length===1?'':'s'} from ${file.name}.`,92);const color=COLORS[project.files.length%COLORS.length];features.forEach(f=>applyColor(f,color));return{id:uid('file'),name,sourceFormat:ext,visible:true,color,features}}
+const features=[];let i=1;for(const raw of flattenForImport(data.features)){const nf=normalize(raw,'Polygon '+i);if(nf){features.push(nf);i++}}onProgress(`Prepared ${features.length} polygon feature${features.length===1?'':'s'} from ${file.name}.`,92);const color=COLORS[project.files.length%COLORS.length];features.forEach(f=>applyColor(f,color));const importedSchema=data?.editpolygonSchema&&Array.isArray(data.editpolygonSchema.fields)?clone(data.editpolygonSchema):null;return{id:uid('file'),name,sourceFormat:ext,visible:true,color,features,...(importedSchema?{gisSchema:importedSchema}:{})}}
 
 function csvEscape(v){
   const s=String(v??'');
@@ -21735,4 +21735,97 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 })();
 
 // Close the main EditPolygon application scope after all enhancements.
+})();
+
+/* v1.52.0 — typed field schemas, compound filters and type-safe calculations. */
+(function(){
+  'use strict';
+  const VERSION='1.52.0';
+  const schemaCore=()=>window.EditPolygonGISSchemaCore;
+  const requireCore=()=>{const core=schemaCore();if(!core)throw Error('Typed field module is not loaded.');return core;};
+  function ensureSchema(file){return requireCore().ensureLayerSchema(file);}
+  function ensureAllSchemas(){for(const file of project.files||[])ensureSchema(file);}
+  function fieldDefinition(file,name){ensureSchema(file);return file.gisSchema.fields.find(field=>field.name===name)||null;}
+  function cleanFieldName(value){const name=String(value??'').trim();if(!name)throw Error('Enter a field name.');if(/[\r\n\t]/.test(name))throw Error('Field names cannot contain tabs or line breaks.');return name;}
+  function duplicateField(file,name,except=''){const lower=name.toLocaleLowerCase();return file.gisSchema.fields.some(field=>field.name!==except&&field.name.toLocaleLowerCase()===lower);}
+  function touchSchema(file){file.gisSchema.version=1;file.gisSchema.updatedAt=new Date().toISOString();}
+  function schemaSnapshot(file){ensureSchema(file);const invalid={};for(const field of file.gisSchema.fields){let count=0;for(const feature of file.features||[]){if(!requireCore().validateValue(feature.properties?.[field.name],field).ok)count++;}if(count)invalid[field.name]=count;}return {...clone(file.gisSchema),invalid};}
+  function selectedScopeFeatures(file,scope='all',featureIds=null){
+    const selected=new Set(Array.isArray(featureIds)?featureIds:(window.EditPolygonGIS?.getSelection?.().ids||[]));
+    return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);
+  }
+  function setTypedValue(file,feature,fieldName,value){
+    const field=fieldDefinition(file,fieldName);if(!field)throw Error(`Field “${fieldName}” does not exist.`);if(field.readOnly)throw Error(`Field “${field.alias||field.name}” is read-only.`);
+    const result=requireCore().validateValue(value,field);if(!result.ok)throw Error(`${field.alias||field.name}: ${result.error}`);
+    feature.properties=feature.properties||{};feature.properties[field.name]=result.value;if(field.name==='name'){feature.name=String(result.value||feature.name||'Feature');feature.properties.name=feature.name;}return result.value;
+  }
+  function applyTypedFilter(file){
+    ensureSchema(file);const filter=file.gisFilter;if(!filter){for(const feature of file.features||[])feature._gisFiltered=false;return (file.features||[]).length;}
+    const keep=new Set(requireCore().filterIds(file.features||[],filter,file.gisSchema));for(const feature of file.features||[])feature._gisFiltered=!keep.has(feature.id);return keep.size;
+  }
+
+  // Schema is inferred conservatively for legacy projects and newly imported layers.
+  ensureAllSchemas();
+  const baseRenderAll=renderAll;
+  renderAll=function(){ensureAllSchemas();return baseRenderAll.apply(this,arguments);};window.renderAll=renderAll;
+  gisApplyFileFilter=applyTypedFilter;
+
+  function getSchema(fileId){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');return schemaSnapshot(file);}
+  function addSchemaField(fileId,definition={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const name=cleanFieldName(definition.name);if(duplicateField(file,name))throw Error(`A field named “${name}” already exists.`);
+    const field=requireCore().normaliseField({...definition,name});if(field.required&&field.defaultValue==null)throw Error('A required field needs a non-null default value.');
+    pushHistory();file.gisSchema.fields.push(field);for(const feature of file.features||[]){feature.properties=feature.properties||{};feature.properties[name]=clone(field.defaultValue);}touchSchema(file);applyTypedFilter(file);renderAll();setDirty(true);logOperation('schema-field-added',{fileId,field:name,type:field.type});return {schema:schemaSnapshot(file),field:clone(field)};
+  }
+  function previewSchemaChange(fileId,fieldName,patch={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const current=fieldDefinition(file,fieldName);if(!current)throw Error('Field not found.');const nextName=current.system?current.name:cleanFieldName(patch.name??current.name);if(duplicateField(file,nextName,current.name))throw Error(`A field named “${nextName}” already exists.`);
+    const next=requireCore().normaliseField({...current,...patch,name:nextName,system:current.system});if(current.system){next.name=current.name;next.type='text';next.required=true;next.nullable=false;}
+    return requireCore().previewConversion(file.features||[],current.name,next);
+  }
+  function updateSchemaField(fileId,fieldName,patch={},options={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const index=file.gisSchema.fields.findIndex(field=>field.name===fieldName);if(index<0)throw Error('Field not found.');const current=file.gisSchema.fields[index],preview=previewSchemaChange(fileId,fieldName,patch),next=preview.field;
+    if(preview.invalid&&options.invalidPolicy!=='null')throw Error(`${preview.invalid} value${preview.invalid===1?' cannot':'s cannot'} be converted. Preview the change and choose “Set invalid values to null” if appropriate.`);
+    if(preview.invalid&&(!next.nullable||next.required))throw Error('Invalid values cannot be set to null because this field is required.');
+    pushHistory();for(const feature of file.features||[]){const raw=feature.properties?.[fieldName],converted=requireCore().validateValue(raw,next);const value=converted.ok?converted.value:null;feature.properties=feature.properties||{};feature.properties[next.name]=value;if(next.name!==fieldName)delete feature.properties[fieldName];if(next.name==='name'){feature.name=String(value||feature.name||'Feature');feature.properties.name=feature.name;}}
+    if(next.name!==fieldName)requireCore().updateReferences(file,fieldName,next.name);file.gisSchema.fields[index]=next;touchSchema(file);applyTypedFilter(file);renderAll();setDirty(true);logOperation('schema-field-updated',{fileId,field:fieldName,nextField:next.name,type:next.type,invalidToNull:preview.invalid||0});return {schema:schemaSnapshot(file),field:clone(next),preview};
+  }
+  function deleteSchemaField(fileId,fieldName){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const field=fieldDefinition(file,fieldName);if(!field)throw Error('Field not found.');if(field.system||field.name==='name')throw Error('The name field is required by EditPolygon and cannot be deleted.');
+    pushHistory();for(const feature of file.features||[])delete feature.properties?.[fieldName];file.gisSchema.fields=file.gisSchema.fields.filter(item=>item.name!==fieldName);if(file.gisFilter){file.gisFilter.conditions=file.gisFilter.conditions.filter(condition=>condition.field!==fieldName);if(!file.gisFilter.conditions.length)file.gisFilter=null;}for(const saved of file.gisSavedFilters||[]){saved.filter.conditions=saved.filter.conditions.filter(condition=>condition.field!==fieldName);}file.gisSavedFilters=(file.gisSavedFilters||[]).filter(saved=>saved.filter?.conditions?.length);
+    if(file.gisLabels?.field===fieldName)file.gisLabels={enabled:false,field:''};if(file.gisStyle?.field===fieldName){file.gisStyle=null;file.styleMode='simple';}if(file.gisDisplayField===fieldName)file.gisDisplayField='name';touchSchema(file);applyTypedFilter(file);renderAll();setDirty(true);logOperation('schema-field-deleted',{fileId,field:fieldName});return schemaSnapshot(file);
+  }
+  function setTypedAttribute(fileId,featureId,field,value){const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);if(!feature)throw Error('Feature not found.');const definition=fieldDefinition(file,field);if(!definition)throw Error(`Field “${field}” does not exist.`);if(definition.readOnly)throw Error(`Field “${definition.alias||definition.name}” is read-only.`);const validated=requireCore().validateValue(value,definition);if(!validated.ok)throw Error(`${definition.alias||definition.name}: ${validated.error}`);pushHistory();feature.properties=feature.properties||{};feature.properties[definition.name]=validated.value;if(definition.name==='name'){feature.name=String(validated.value||feature.name||'Feature');feature.properties.name=feature.name;}applyTypedFilter(file);renderAll();setDirty(true);logOperation('typed-attribute-updated',{fileId,featureId,field});return typedSnapshot(fileId);}
+  function setTypedAttributes(fileId,featureId,values){const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);if(!feature)throw Error('Feature not found.');ensureSchema(file);const pending=[];for(const [name,value] of Object.entries(values||{})){const field=fieldDefinition(file,name);if(!field||field.readOnly)continue;const result=requireCore().validateValue(value,field);if(!result.ok)throw Error(`${field.alias||name}: ${result.error}`);pending.push([field,result.value]);}
+    pushHistory();for(const [field,value] of pending){feature.properties[field.name]=value;if(field.name==='name'){feature.name=String(value||feature.name||'Feature');feature.properties.name=feature.name;}}applyTypedFilter(file);renderAll();setDirty(true);logOperation('typed-attributes-updated',{fileId,featureId,fields:pending.map(([field])=>field.name)});return selectedDetailsTyped();}
+  function setTypedFilter(fileId,filter){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const normal=requireCore().normaliseFilter(filter,file.gisSchema);if(JSON.stringify(normal)!==JSON.stringify(file.gisFilter||null))pushHistory();file.gisFilter=normal;const count=applyTypedFilter(file);renderAll();setDirty(true);logOperation('typed-filter-updated',{fileId,count,conditions:file.gisFilter?.conditions?.length||0});return {count,total:file.features.length,filter:clone(file.gisFilter),layer:typedSnapshot(fileId)};}
+  function saveFilter(fileId,name,filter){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);name=String(name??'').trim();if(!name)throw Error('Enter a saved filter name.');const normal=requireCore().normaliseFilter(filter,file.gisSchema);if(!normal)throw Error('Add at least one filter condition.');pushHistory();const existing=(file.gisSavedFilters||[]).find(item=>item.name.toLocaleLowerCase()===name.toLocaleLowerCase());if(existing){existing.filter=clone(normal);existing.updatedAt=new Date().toISOString();}else file.gisSavedFilters.push({id:uid('filter'),name,filter:clone(normal),createdAt:new Date().toISOString()});setDirty(true);gisNotify();return clone(file.gisSavedFilters);}
+  function deleteSavedFilter(fileId,id){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const next=(file.gisSavedFilters||[]).filter(item=>item.id!==id);if(next.length!==(file.gisSavedFilters||[]).length)pushHistory();file.gisSavedFilters=next;setDirty(true);gisNotify();return clone(file.gisSavedFilters);}
+  function applySavedFilter(fileId,id){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const saved=(file.gisSavedFilters||[]).find(item=>item.id===id);if(!saved)throw Error('Saved filter not found.');return setTypedFilter(fileId,saved.filter);}
+  function previewTypedCalculation(fileId,expression,{scope='all',limit=5,type='text',nullable=true}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const field=requireCore().normaliseField({name:'preview',type,nullable});return requireCore().calculatePreview(selectedScopeFeatures(file,scope),expression,field,limit);}
+  function calculateTypedField(fileId,fieldName,expression,{scope='all',type='',nullable=true,create=true,featureIds=null}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);fieldName=cleanFieldName(fieldName);let field=fieldDefinition(file,fieldName);if(!field){if(!create)throw Error('Output field not found.');field=requireCore().normaliseField({name:fieldName,alias:fieldName,type:type||'text',nullable,defaultValue:nullable?null:requireCore().defaultForType(type||'text')});if(duplicateField(file,fieldName))throw Error('A field with that name already exists.');}else if(field.readOnly)throw Error(`Field “${field.alias||field.name}” is read-only.`);
+    if(type&&type!==field.type)field=requireCore().normaliseField({...field,type,nullable});const features=selectedScopeFeatures(file,scope,featureIds);if(!features.length)throw Error('No records match the requested calculation scope.');const preview=requireCore().calculatePreview(features,expression,field,Math.min(10,features.length));if(preview.invalid)throw Error(`${preview.invalid} record${preview.invalid===1?' has':'s have'} an invalid result for ${field.type}. Review the preview before applying.`);
+    const values=[];for(let index=0;index<features.length;index++){const raw=requireCore().evaluate(expression,features[index].properties||{},index),result=requireCore().validateValue(raw,field);if(!result.ok)throw Error(result.error);values.push(result.value);}pushHistory();if(!fieldDefinition(file,fieldName))file.gisSchema.fields.push(field);else file.gisSchema.fields[file.gisSchema.fields.findIndex(item=>item.name===fieldName)]=field;for(let i=0;i<features.length;i++)features[i].properties[fieldName]=values[i];touchSchema(file);applyTypedFilter(file);invalidateSpatialIndex?.(fileId);renderAll();setDirty(true);logOperation('typed-field-calculated',{fileId,field:fieldName,type:field.type,count:features.length,scope});return {count:features.length,field:clone(field),layer:typedSnapshot(fileId)};
+  }
+  function typedSnapshot(fileId){const file=gisEditableFile(fileId);if(!file)return null;ensureSchema(file);const snapshot=gisEditableSnapshot(fileId);snapshot.schema=schemaSnapshot(file);snapshot.savedFilters=clone(file.gisSavedFilters||[]);snapshot.filter=clone(file.gisFilter||null);return snapshot;}
+  function selectedDetailsTyped(){const details=gisSelectedFeatureDetails();if(!details)return null;const file=gisEditableFile(details.fileId);if(file){ensureSchema(file);details.schema=schemaSnapshot(file);}return details;}
+  function recordsForScope(file,scope){const selected=new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);}
+  function exportLayerRecords(fileId,{scope='all',format='geojson'}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const features=recordsForScope(file,scope);if(!features.length)throw Error('No records match this export scope.');const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');if(format==='csv'){
+      const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];for(const feature of features){lines.push([...fields.map(field=>feature.properties?.[field.name]),geomToWKT(getDisplayGeometry(feature))].map(quote).join(','));}downloadText(`${safe}_${scope}.csv`,lines.join('\n'),'text/csv;charset=utf-8');
+    }else{const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');}return {count:features.length,scope,format};}
+
+  const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
+  function saveSelectionTyped(fileId,options){const source=gisEditableFile(fileId);ensureSchema(source);const result=previousSaveSelection.call(window.EditPolygonGIS,fileId,options);const output=gisEditableFile(result.id);if(output){output.gisSchema=clone(source.gisSchema);output.gisSavedFilters=[];ensureSchema(output);}return typedSnapshot(result.id);}
+
+  // Replace public data APIs with type-aware implementations while retaining legacy aliases.
+  Object.assign(window.EditPolygonGIS,{
+    version:VERSION,schemaVersion:VERSION,getSchema,previewSchemaChange,addSchemaField,updateSchemaField,deleteSchemaField,
+    setAttribute:setTypedAttribute,setFeatureAttributes:setTypedAttributes,setFilter:setTypedFilter,saveFilter,deleteSavedFilter,applySavedFilter,
+    previewFieldCalculation:previewTypedCalculation,calculateFieldAdvanced:calculateTypedField,exportLayerRecords,
+    getEditableLayer:typedSnapshot,getEditableLayers:()=>project.files.map(file=>typedSnapshot(file.id)),getSelectedFeature:selectedDetailsTyped,
+    addField:(fileId,name,defaultValue='')=>addSchemaField(fileId,{name,type:requireCore().inferType([defaultValue]),defaultValue}),
+    deleteField:deleteSchemaField,calculateField:(fileId,field,expression,selectedIds=[])=>calculateTypedField(fileId,field,expression,{scope:selectedIds?.length?'selected':'all',featureIds:selectedIds}),
+    saveSelectionAsLayer:saveSelectionTyped
+  });
+  window.__editPolygonGISSchema={version:VERSION,ensureSchema,applyTypedFilter};
+  try{ensureAllSchemas();for(const file of project.files||[])applyTypedFilter(file);gisNotify();}catch(error){console.warn('Typed field initialisation failed',error);}
 })();
