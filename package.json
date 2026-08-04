@@ -1,11 +1,13 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.44.1",
+  "version": "1.51.2",
   "private": true,
-  "description": "Static privacy-first browser GIS editor with browser-local CRS detection, reprojection and CRS-aware export with large-layer UI performance fixes",
+  "description": "Static privacy-first browser GIS editor with unified styling, analysis selection, responsive mobile compatibility and browser-local geospatial processing",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check-repo.mjs && npm test",
-    "test:browser-crs": "python tests/browser-crs-smoke.py"
+    "test:browser-crs": "python tests/browser-crs-smoke.py",
+    "test:browser-remote": "python tests/browser-remote-source-smoke.py",
+    "test:browser-smoke": "python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py"
   }
 }

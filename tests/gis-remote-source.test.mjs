@@ -23,10 +23,17 @@ function response(body,{status=200,contentType='application/json',statusText='OK
 }
 
 function mockFetch(routes){
-  return async input=>{
+  return async (input,init={})=>{
     const url=String(input);
-    const route=routes.find(entry=>typeof entry.match==='string'?url===entry.match:entry.match.test(url));
-    if(!route)throw new Error(`Unexpected request: ${url}`);
+    const method=String(init.method||'GET').toUpperCase();
+    const body=init.body instanceof URLSearchParams?init.body.toString():String(init.body||'');
+    const route=routes.find(entry=>{
+      const urlMatches=typeof entry.match==='string'?url===entry.match:entry.match.test(url);
+      const methodMatches=!entry.method||String(entry.method).toUpperCase()===method;
+      const bodyMatches=!entry.requestBody||(typeof entry.requestBody==='string'?body===entry.requestBody:entry.requestBody.test(body));
+      return urlMatches&&methodMatches&&bodyMatches;
+    });
+    if(!route)throw new Error(`Unexpected request: ${method} ${url}${body?` body=${body}`:''}`);
     return response(route.body,route.options);
   };
 }
@@ -73,7 +80,7 @@ test('discovers layers from a FeatureServer and resolves the selected layer',asy
   const fetchFn=mockFetch([
     {match:'https://services.example.com/Test/FeatureServer?f=json',body:{mapName:'Outages',layers:[{id:0,name:'Current outages',geometryType:'esriGeometryPoint'},{id:1,name:'Affected areas',geometryType:'esriGeometryPolygon'}]}},
     {match:'https://services.example.com/Test/FeatureServer/0?f=json',body:{name:'Current outages',geometryType:'esriGeometryPoint',capabilities:'Query',extent:{spatialReference:{latestWkid:7844}}}},
-    {match:/\/FeatureServer\/0\/query\?where=1%3D1&returnCountOnly=true&f=json$/,body:{count:37}}
+    {match:'https://services.example.com/Test/FeatureServer/0/query',method:'POST',requestBody:/where=1%3D1&returnCountOnly=true&f=json/,body:{count:37}}
   ]);
   const service=await remote.discover('https://services.example.com/Test/FeatureServer',{fetchFn});
   assert.equal(service.kind,'choose-layer');
@@ -92,7 +99,7 @@ test('resolves an ArcGIS item page to its underlying public service',async()=>{
     {match:`https://www.arcgis.com/sharing/rest/content/items/${itemId}?f=json`,body:{id:itemId,title:'Public outages',type:'Feature Service',url:'https://services.example.com/Outages/FeatureServer'}},
     {match:'https://services.example.com/Outages/FeatureServer?f=json',body:{mapName:'Public outages',layers:[{id:0,name:'Outages',geometryType:'esriGeometryPoint'}]}},
     {match:'https://services.example.com/Outages/FeatureServer/0?f=json',body:{name:'Outages',geometryType:'esriGeometryPoint',extent:{spatialReference:{wkid:4326}}}},
-    {match:/\/Outages\/FeatureServer\/0\/query\?where=1%3D1&returnCountOnly=true&f=json$/,body:{count:12}}
+    {match:'https://services.example.com/Outages/FeatureServer/0/query',method:'POST',requestBody:/where=1%3D1&returnCountOnly=true&f=json/,body:{count:12}}
   ]);
   const result=await remote.discover(`https://www.arcgis.com/home/item.html?id=${itemId}`,{fetchFn});
   assert.equal(result.kind,'ready');

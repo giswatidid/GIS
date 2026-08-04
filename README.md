@@ -5,7 +5,7 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.50.0
+**Current application baseline:** v1.51.2
 
 ## What EditPolygon is for
 
@@ -246,6 +246,20 @@ The application is designed to remain usable with larger vector layers:
 
 Very large or unusually complex datasets can still exceed browser memory or rendering limits.
 
+## Mobile compatibility
+
+EditPolygon remains a desktop-first GIS editor, but the application is usable on phones and small tablets. At mobile widths:
+
+- The map becomes the primary full-width workspace
+- Layers and Inspector open as off-canvas drawers
+- The desktop tool rail becomes a horizontally scrollable bottom dock
+- Project, export, basemap, location and help actions remain available in a dedicated mobile sheet
+- Selection, drawing and editing use compact contextual controls
+- Touch targets and geometry handles are enlarged
+- Safe-area insets, landscape phones and dynamic mobile viewport height are supported
+
+Detailed geometry editing is still easier with a mouse or trackpad.
+
 ## Privacy
 
 Local files and imported geometry are processed using browser memory, Web APIs and IndexedDB. EditPolygon does not upload them to an EditPolygon processing service.
@@ -309,11 +323,18 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.50.0 baseline used for this README:
+At the v1.51.2 baseline used for this README:
 
 - Repository integration checks pass
-- 40 of 44 automated tests pass
-- Four older expectations still need updating for the current remote-source cache-busting and rendering implementation
+- All 58 automated tests pass
+- CRS and ArcGIS remote-source browser smoke tests pass
+- Regression coverage includes unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
+
+Run the browser smoke tests with:
+
+```bash
+npm run test:browser-smoke
+```
 
 The application should also be manually tested in a browser after changes to map interaction, import/export, styling, CRS handling or processing.
 

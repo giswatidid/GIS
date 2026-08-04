@@ -49,8 +49,8 @@ with sync_playwright() as p:
     page.wait_for_selector('#gisRemoteChoice')
     assert 'Outages' in page.locator('#gisRemoteChoice').inner_text()
     page.locator('[data-gis-action="remote-continue"]').click()
-    page.wait_for_function("document.querySelector('#gisRemoteChoice') && document.querySelector('#gisRemoteChoice').textContent.includes('Current outages')")
-    page.locator('[data-gis-action="remote-continue"]').click()
+    page.wait_for_function("document.querySelector('.gis-remote-layer-list') && document.querySelector('.gis-remote-layer-list').textContent.includes('Current outages')")
+    page.locator('[data-gis-action="remote-preview-selected"]').click()
     page.wait_for_selector('[data-gis-action="remote-import"]')
     assert '17 features' in page.locator('.gis-remote-facts').inner_text()
     assert page.locator('#gisRemoteName').input_value() == 'Current outages'

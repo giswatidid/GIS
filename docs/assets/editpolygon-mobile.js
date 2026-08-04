@@ -1,10 +1,10 @@
-/* EditPolygon mobile compatibility controller · v1.51.1
+/* EditPolygon mobile compatibility controller · v1.51.2
    Map-first mobile shell, stable project menu, off-canvas drawers and compact
    context controls. Desktop behaviour is left to the main application. */
 (()=>{
   'use strict';
 
-  const VERSION='1.51.1';
+  const VERSION='1.51.2';
   const MOBILE_QUERY='(max-width: 860px), (pointer: coarse) and (max-width: 1024px)';
   const mq=window.matchMedia?window.matchMedia(MOBILE_QUERY):null;
   const $=id=>document.getElementById(id);
