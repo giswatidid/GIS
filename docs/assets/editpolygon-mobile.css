@@ -1,0 +1,515 @@
+/* EditPolygon mobile compatibility layer · v1.51
+   The desktop editor remains the primary experience. This layer reorganises the
+   existing interface into a map-first, drawer-based layout on phones and small
+   touch tablets without creating a separate mobile application. */
+
+.v151-mobile-only{display:none!important;}
+
+body.v151-mobile-layout{
+  --v151-topbar-h:46px;
+  --v151-status-h:24px;
+  --v151-dock-h:58px;
+  --v151-bottom-safe:env(safe-area-inset-bottom,0px);
+  overscroll-behavior:none;
+  touch-action:manipulation;
+}
+body.v151-mobile-layout,
+body.v151-mobile-layout .app{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  height:100dvh;
+  min-height:100svh;
+  overflow:hidden!important;
+}
+body.v151-mobile-layout .v151-mobile-only{display:flex!important;}
+body.v151-mobile-layout .app{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:var(--v151-topbar-h) minmax(0,1fr) var(--v151-status-h) calc(var(--v151-dock-h) + var(--v151-bottom-safe))!important;
+  grid-template-areas:"toolbar" "map" "status" "toolrail"!important;
+  transition:none!important;
+}
+body.v151-mobile-layout #map,
+body.v151-mobile-layout #editOverlay,
+body.v151-mobile-layout #imageTraceLayer,
+body.v151-mobile-layout .float-toolbar,
+body.v151-mobile-layout .mode-banner,
+body.v151-mobile-layout .map-display-control,
+body.v151-mobile-layout #mouseCoords,
+body.v151-mobile-layout .mini-help,
+body.v151-mobile-layout .geometry-preview-panel{
+  grid-area:map!important;
+  min-width:0!important;
+}
+
+/* Compact but complete top bar. Open remains a first-class action; the More
+   menu contains the less frequent project, export and location actions. */
+body.v151-mobile-layout .compact-topbar{
+  grid-area:toolbar!important;
+  display:grid!important;
+  grid-template-columns:auto auto minmax(0,1fr) auto!important;
+  height:var(--v151-topbar-h)!important;
+  min-height:var(--v151-topbar-h)!important;
+  padding:5px max(6px,env(safe-area-inset-right,0px)) 5px max(6px,env(safe-area-inset-left,0px))!important;
+  gap:5px!important;
+  overflow:visible!important;
+  white-space:nowrap;
+  z-index:4700!important;
+}
+body.v151-mobile-layout .topbar-brand{min-width:0!important;overflow:hidden;}
+body.v151-mobile-layout .topbar-brand .title{font-size:12px!important;max-width:78px;overflow:hidden;text-overflow:ellipsis;}
+body.v151-mobile-layout .topbar-subtitle{display:none!important;}
+body.v151-mobile-layout .topbar-core{
+  display:flex!important;
+  order:2;
+  min-width:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+}
+body.v151-mobile-layout .topbar-core > *:not(#openBtn):not(#fileInput){display:none!important;}
+body.v151-mobile-layout #openBtn{display:inline-flex!important;min-height:34px!important;height:34px!important;padding:0 10px!important;}
+body.v151-mobile-layout .topbar-search-wrap{
+  order:3;
+  display:flex!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:36px!important;
+  padding:2px!important;
+  gap:2px!important;
+}
+body.v151-mobile-layout .topbar-search-wrap .location-search-box{
+  min-width:0!important;
+  width:100%!important;
+  height:30px!important;
+  padding:0 6px!important;
+  font-size:11px!important;
+}
+body.v151-mobile-layout .topbar-search-wrap #locationSearchBtn{min-width:34px!important;width:34px!important;height:30px!important;min-height:30px!important;padding:0!important;font-size:11px!important;}
+body.v151-mobile-layout .topbar-search-wrap #clearLocationSearchBtn{display:none!important;}
+body.v151-mobile-layout .topbar-export-compact{display:none!important;}
+body.v151-mobile-layout .topbar-more-wrap{order:4;min-width:0!important;}
+body.v151-mobile-layout .topbar-more-btn{height:34px!important;min-height:34px!important;padding:0 8px!important;}
+body.v151-mobile-layout .top-more-menu{
+  position:fixed!important;
+  top:calc(var(--v151-topbar-h) + 4px)!important;
+  left:max(6px,env(safe-area-inset-left,0px))!important;
+  right:max(6px,env(safe-area-inset-right,0px))!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 6px)!important;
+  width:auto!important;
+  max-height:none!important;
+  overflow:auto!important;
+  overscroll-behavior:contain;
+  z-index:5400!important;
+}
+.v151-mobile-menu{
+  display:grid;
+  gap:7px;
+  padding:5px 4px 2px;
+  border-bottom:1px solid var(--line,#d7d7d7);
+}
+.v151-mobile-menu-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;}
+.v151-mobile-menu-grid button{justify-content:center!important;text-align:center!important;min-width:0!important;padding:0 5px!important;}
+.v151-mobile-menu-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.v151-mobile-menu label{display:grid;gap:4px;min-width:0;color:var(--muted,#66707b);font-size:10px;font-weight:700;}
+.v151-mobile-menu select,.v151-mobile-menu input{width:100%!important;min-width:0!important;height:36px!important;}
+.v151-mobile-location{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;}
+.v151-mobile-location button{min-width:48px!important;justify-content:center!important;}
+
+/* Bottom tool dock. Existing rail buttons remain the source of truth, while
+   Layers and Inspector are mobile-only drawer controls. */
+body.v151-mobile-layout .tool-rail{
+  grid-area:toolrail!important;
+  position:relative!important;
+  inset:auto!important;
+  z-index:4600!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:flex-start!important;
+  justify-content:flex-start!important;
+  gap:2px!important;
+  width:100%!important;
+  height:calc(var(--v151-dock-h) + var(--v151-bottom-safe))!important;
+  min-height:0!important;
+  padding:3px max(4px,env(safe-area-inset-right,0px)) var(--v151-bottom-safe) max(4px,env(safe-area-inset-left,0px))!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none;
+  border-top:1px solid #cfd3d8!important;
+  border-right:0!important;
+  box-shadow:0 -2px 8px rgba(15,23,42,.10)!important;
+  scroll-snap-type:x proximity;
+}
+body.v151-mobile-layout .tool-rail::-webkit-scrollbar{display:none;}
+body.v151-mobile-layout .rail-spacer,
+body.v151-mobile-layout .rail-tip{display:none!important;}
+body.v151-mobile-layout .rail-btn{
+  flex:0 0 58px!important;
+  width:58px!important;
+  min-width:58px!important;
+  height:50px!important;
+  min-height:50px!important;
+  padding:2px!important;
+  scroll-snap-align:start;
+  touch-action:manipulation;
+}
+body.v151-mobile-layout .rail-btn .ico{height:20px!important;line-height:20px!important;}
+body.v151-mobile-layout .rail-btn .ico svg{width:19px!important;height:19px!important;}
+body.v151-mobile-layout .rail-btn .lbl{font-size:9px!important;line-height:11px!important;max-width:54px;overflow:hidden;text-overflow:ellipsis;}
+body.v151-mobile-layout .v151-mobile-drawer-button[aria-expanded="true"]{background:var(--accentSoft2,#f4e8ea)!important;color:#9e2027!important;border-color:var(--accentBorder,#e5a7ad)!important;box-shadow:inset 0 -3px 0 var(--accent,#d92c32)!important;}
+.v151-mobile-badge{
+  position:absolute;
+  top:1px;
+  right:4px;
+  display:none;
+  min-width:15px;
+  height:15px;
+  padding:0 3px;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #fff;
+  background:#b42318;
+  color:#fff;
+  font-size:8px;
+  font-weight:800;
+  line-height:13px;
+  pointer-events:none;
+}
+.v151-mobile-badge.active{display:flex;}
+
+/* Status is deliberately compact, but remains present for progress, errors and
+   saved/unsaved state. */
+body.v151-mobile-layout .statusbar{
+  grid-area:status!important;
+  height:var(--v151-status-h)!important;
+  min-height:var(--v151-status-h)!important;
+  gap:5px!important;
+  padding:0 6px!important;
+  z-index:4550!important;
+  font-size:10px!important;
+  overflow:hidden!important;
+}
+body.v151-mobile-layout .statusbar > *{display:none!important;}
+body.v151-mobile-layout .statusbar #statusText,
+body.v151-mobile-layout .statusbar #dirtyState{display:inline-flex!important;min-width:0;}
+body.v151-mobile-layout .statusbar #statusText{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+body.v151-mobile-layout .statusbar #dirtyState{flex:0 0 auto;padding:1px 5px!important;font-size:9px!important;}
+
+/* Project/Layers and Inspector become off-canvas drawers. */
+.v151-mobile-backdrop{display:none;}
+body.v151-mobile-layout .v151-mobile-backdrop{
+  position:fixed;
+  top:var(--v151-topbar-h);
+  left:0;
+  right:0;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe));
+  z-index:4800;
+  display:block;
+  background:rgba(15,23,42,.42);
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+  transition:opacity .16s ease,visibility 0s linear .16s;
+}
+body.v151-mobile-layout.v151-mobile-drawer-active .v151-mobile-backdrop{
+  opacity:1;
+  visibility:visible;
+  pointer-events:auto;
+  transition:opacity .16s ease;
+}
+.v151-mobile-drawer-head{display:none;}
+body.v151-mobile-layout .v151-mobile-drawer-head{
+  position:sticky;
+  top:0;
+  z-index:20;
+  display:flex!important;
+  flex:0 0 42px;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-height:42px;
+  padding:5px 7px 5px 10px;
+  border-bottom:1px solid #cfd3d8;
+  background:var(--panel,#fff);
+  color:var(--text,#1f2328);
+}
+body.v151-mobile-layout .v151-mobile-drawer-head strong{font-size:12px;}
+body.v151-mobile-layout .v151-mobile-drawer-close{width:34px!important;min-width:34px!important;height:32px!important;min-height:32px!important;padding:0!important;font-size:19px!important;}
+body.v151-mobile-layout .sidebar,
+body.v151-mobile-layout #selectedSection{
+  position:fixed!important;
+  top:var(--v151-topbar-h)!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe))!important;
+  width:min(92vw,400px)!important;
+  max-width:400px!important;
+  min-width:280px!important;
+  height:auto!important;
+  max-height:none!important;
+  z-index:4900!important;
+  display:flex!important;
+  flex-direction:column!important;
+  padding:0!important;
+  overflow:hidden!important;
+  background:var(--panel2,#f7f7f8)!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:0 12px 36px rgba(15,23,42,.28)!important;
+  visibility:hidden;
+  pointer-events:none;
+  transition:transform .18s ease,visibility 0s linear .18s!important;
+}
+body.v151-mobile-layout .sidebar{left:0!important;right:auto!important;transform:translateX(-104%);}
+body.v151-mobile-layout #selectedSection{right:0!important;left:auto!important;transform:translateX(104%);}
+body.v151-mobile-layout .sidebar.v151-mobile-drawer-open,
+body.v151-mobile-layout #selectedSection.v151-mobile-drawer-open{
+  transform:translateX(0)!important;
+  visibility:visible;
+  pointer-events:auto;
+  transition:transform .18s ease!important;
+}
+body.v151-mobile-layout .sidebar > .v120-collapsed-rail,
+body.v151-mobile-layout #selectedSection > .v120-collapsed-rail,
+body.v151-mobile-layout .v120-sidebar-toggle,
+body.v151-mobile-layout .v149-sidebar-width-resizer{display:none!important;}
+/* Neutralise saved desktop-collapse classes while the panels are drawers. */
+body.v151-mobile-layout .sidebar.v120-sidebar-collapsed > #projectSection{display:block!important;}
+body.v151-mobile-layout .sidebar.v120-sidebar-collapsed > .sidebar-resizer{display:block!important;}
+body.v151-mobile-layout .sidebar.v120-sidebar-collapsed > #filesSection{display:block!important;}
+body.v151-mobile-layout #selectedSection.v120-sidebar-collapsed > .section-title{display:flex!important;}
+body.v151-mobile-layout #selectedSection.v120-sidebar-collapsed > #selectedPanel{display:flex!important;}
+body.v151-mobile-layout #projectSection{
+  flex:0 0 clamp(150px,34%,250px)!important;
+  height:auto!important;
+  min-height:120px!important;
+  max-height:42%!important;
+  overflow:auto!important;
+}
+body.v151-mobile-layout #filesSection{flex:1 1 0!important;min-height:0!important;overflow:auto!important;}
+body.v151-mobile-layout #selectedSection > .section-title{flex:0 0 auto;margin:0!important;padding:9px 10px 7px!important;}
+body.v151-mobile-layout #selectedPanel{flex:1 1 auto!important;min-height:0!important;overflow:auto!important;padding:0 8px 10px;}
+body.v151-mobile-layout .sidebar-resizer[data-resizer="project-files"]{flex:0 0 12px!important;height:12px!important;min-height:12px!important;touch-action:none!important;}
+body.v151-mobile-layout #filesSection .v54-filter-row{overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;}
+body.v151-mobile-layout #filesSection .v54-filter-row::-webkit-scrollbar{display:none;}
+
+/* Existing flyouts become bottom sheets above the tool dock. Inline left/top
+   values from the desktop positioning routine are intentionally overridden. */
+body.v151-mobile-layout .rail-flyout{
+  position:fixed!important;
+  left:max(6px,env(safe-area-inset-left,0px))!important;
+  right:max(6px,env(safe-area-inset-right,0px))!important;
+  top:auto!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 6px)!important;
+  width:auto!important;
+  max-width:none!important;
+  max-height:min(62dvh,540px)!important;
+  overflow:auto!important;
+  overscroll-behavior:contain;
+  z-index:5300!important;
+}
+body.v151-mobile-layout #selectToolFlyout{width:auto!important;max-height:min(68dvh,620px)!important;}
+body.v151-mobile-layout .rail-flyout button{min-height:48px!important;touch-action:manipulation;}
+body.v151-mobile-layout .rail-flyout-label select{height:38px!important;}
+
+/* Map chrome stays reachable and does not sit behind the drawers or dock. */
+body.v151-mobile-layout .leaflet-control-zoom a{width:38px!important;height:38px!important;line-height:38px!important;font-size:20px!important;}
+body.v151-mobile-layout .leaflet-top.leaflet-left{margin-top:2px;}
+body.v151-mobile-layout #selectedFloatToolbar.float-toolbar,
+body.v151-mobile-layout #drawFloatToolbar.float-toolbar,
+body.v151-mobile-layout #vertexFloatToolbar.float-toolbar,
+body.v151-mobile-layout #measureFloatToolbar.float-toolbar,
+body.v151-mobile-layout #imageOverlayToolbar.float-toolbar{
+  margin-top:7px!important;
+  margin-left:54px!important;
+  margin-right:6px!important;
+  max-width:calc(100% - 60px)!important;
+  max-height:46px!important;
+  min-height:38px!important;
+  padding:4px!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none;
+  z-index:1600!important;
+}
+body.v151-mobile-layout .float-toolbar::-webkit-scrollbar{display:none;}
+body.v151-mobile-layout .float-toolbar button,
+body.v151-mobile-layout .float-toolbar select,
+body.v151-mobile-layout .float-toolbar input{min-height:34px!important;height:34px!important;}
+body.v151-mobile-layout #modeBanner.mode-banner{
+  margin-top:56px!important;
+  margin-left:6px!important;
+  margin-right:6px!important;
+  max-width:calc(100% - 12px)!important;
+  width:auto!important;
+  min-height:30px!important;
+  max-height:38px!important;
+  padding:5px 7px!important;
+  z-index:1500!important;
+}
+body.v151-mobile-layout #modeBanner.mode-banner #modeBannerHint{min-width:0!important;}
+body.v151-mobile-layout #modeBanner.mode-banner .mode-banner-metric{display:none!important;}
+body.v151-mobile-layout .map-display-control{
+  margin:0 0 7px 6px!important;
+  max-width:calc(100% - 12px)!important;
+  padding:3px!important;
+  z-index:900!important;
+}
+body.v151-mobile-layout .map-display-control label{font-size:10px!important;gap:4px!important;}
+body.v151-mobile-layout .map-display-control select{min-width:82px!important;height:32px!important;}
+body.v151-mobile-layout .map-display-control button{height:32px!important;min-height:32px!important;padding:0 6px!important;}
+body.v151-mobile-layout .fullscreen-editor-btn{display:none!important;}
+body.v151-mobile-layout #mouseCoords{margin:0 6px 7px 0!important;max-width:45%!important;font-size:9px!important;padding:3px 5px!important;}
+body.v151-mobile-layout .leaflet-control-attribution{max-width:70vw;font-size:8px!important;line-height:1.2!important;}
+body.v151-mobile-layout .geometry-preview-panel{
+  align-self:end!important;
+  justify-self:stretch!important;
+  width:auto!important;
+  max-width:none!important;
+  max-height:58%!important;
+  margin:0 6px 6px!important;
+  overflow:auto!important;
+  z-index:1750!important;
+}
+
+/* Larger handles and practical touch targets. */
+body.v151-mobile-layout .vtx{width:24px!important;height:24px!important;border-width:3px!important;}
+body.v151-mobile-layout .vtx.selected{width:28px!important;height:28px!important;}
+body.v151-mobile-layout .mid{width:17px!important;height:17px!important;border-width:2px!important;}
+body.v151-mobile-layout .mid:hover{width:20px!important;height:20px!important;}
+body.v151-mobile-layout .draw-dot{width:20px!important;height:20px!important;}
+body.v151-mobile-layout .draw-dot.first{width:24px!important;height:24px!important;}
+body.v151-mobile-layout .editpolygon-point-edit-handle{width:26px!important;height:26px!important;}
+body.v151-mobile-layout .v137-circle-edit-center,
+body.v151-mobile-layout .v137-circle-edit-radius{width:26px!important;height:26px!important;}
+body.v151-mobile-layout .trace-image-handle{width:24px!important;height:24px!important;}
+body.v151-mobile-layout .edge-drag-handle{min-width:24px!important;min-height:24px!important;}
+body.v151-mobile-layout input,
+body.v151-mobile-layout select,
+body.v151-mobile-layout textarea{font-size:16px;}
+body.v151-mobile-layout .sidebar input,
+body.v151-mobile-layout .sidebar select,
+body.v151-mobile-layout #selectedSection input,
+body.v151-mobile-layout #selectedSection select{min-height:38px;}
+body.v151-mobile-layout .sidebar button,
+body.v151-mobile-layout #selectedSection button{min-height:36px;}
+
+/* Menus opened from layer rows or map picks become bounded bottom sheets. */
+body.v151-mobile-layout .layer-menu.active,
+body.v151-mobile-layout .pick-menu.active,
+body.v151-mobile-layout .gis-layer-action-menu{
+  position:fixed!important;
+  left:max(6px,env(safe-area-inset-left,0px))!important;
+  right:max(6px,env(safe-area-inset-right,0px))!important;
+  top:auto!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 6px)!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  max-height:62dvh!important;
+  overflow:auto!important;
+  z-index:5350!important;
+}
+
+/* Modal and workspace treatment: full-width sheets with independently
+   scrolling bodies and reachable headers/footers. */
+body.v151-mobile-layout .modal-backdrop{
+  align-items:stretch!important;
+  justify-content:stretch!important;
+  padding:0!important;
+  z-index:6000!important;
+}
+body.v151-mobile-layout .modal{
+  width:100%!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  border:0!important;
+}
+body.v151-mobile-layout .modal-head{position:sticky;top:0;z-index:4;flex:0 0 auto;padding:9px!important;background:var(--panel,#fff);}
+body.v151-mobile-layout .modal-body{flex:1 1 auto;min-height:0;padding:9px!important;overflow:auto!important;overscroll-behavior:contain;}
+body.v151-mobile-layout .modal-foot{position:sticky;bottom:0;z-index:4;flex:0 0 auto;padding:8px!important;background:var(--panel,#fff);overflow-x:auto;justify-content:flex-end;}
+body.v151-mobile-layout .converter-grid,
+body.v151-mobile-layout .validator-grid,
+body.v151-mobile-layout .geom-op-grid{grid-template-columns:1fr!important;}
+body.v151-mobile-layout .import-overlay{min-width:0!important;width:calc(100% - 20px)!important;max-width:none!important;max-height:70%!important;overflow:auto!important;}
+body.v151-mobile-layout .recovery-card{width:calc(100% - 20px)!important;max-height:calc(100dvh - 20px)!important;overflow:auto!important;}
+body.v151-mobile-layout .command-backdrop{padding:0!important;align-items:stretch!important;z-index:6200!important;}
+body.v151-mobile-layout .command-palette{width:100%!important;height:100dvh!important;max-width:none!important;border:0!important;display:flex;flex-direction:column;}
+body.v151-mobile-layout .command-list{flex:1;max-height:none!important;}
+body.v151-mobile-layout .reference-overlay-modal{width:100%!important;max-height:100dvh!important;height:100dvh!important;border:0!important;}
+body.v151-mobile-layout .seo-info-drawer{bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 5px)!important;right:5px!important;}
+body.v151-mobile-layout .mobile-desktop-notice{padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))!important;}
+body.v151-mobile-layout .mobile-desktop-card{max-height:calc(100dvh - 20px);overflow:auto;padding:18px!important;}
+
+/* GIS workspace and data tools are loaded after the main stylesheet, so the
+   mobile layer explicitly owns their small-screen geometry. */
+body.v151-mobile-layout .gis-workspace-panel{
+  position:fixed!important;
+  inset:var(--v151-topbar-h) 0 calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe)) 0!important;
+  width:auto!important;
+  height:auto!important;
+  max-width:none!important;
+  z-index:5500!important;
+  border:0!important;
+}
+body.v151-mobile-layout .gis-panel-head{padding:8px!important;}
+body.v151-mobile-layout .gis-tabs{overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;}
+body.v151-mobile-layout .gis-tabs::-webkit-scrollbar{display:none;}
+body.v151-mobile-layout .gis-tabs button{flex:0 0 auto;min-width:72px;min-height:40px!important;}
+body.v151-mobile-layout .gis-panel-body{padding:7px!important;}
+body.v151-mobile-layout .gis-pane-intro{flex-direction:column;}
+body.v151-mobile-layout .gis-form-grid,
+body.v151-mobile-layout .gis-basemap-grid{grid-template-columns:1fr!important;}
+body.v151-mobile-layout .gis-span-2{grid-column:auto!important;}
+body.v151-mobile-layout .gis-data-modal{padding:0!important;z-index:6500!important;}
+body.v151-mobile-layout .gis-data-shell{width:100%!important;height:100dvh!important;max-width:none!important;max-height:none!important;border:0!important;}
+body.v151-mobile-layout .gis-data-shell>header{grid-template-columns:minmax(0,1fr) 38px!important;gap:6px!important;padding:7px!important;}
+body.v151-mobile-layout .gis-data-shell nav{grid-column:1/-1;overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;}
+body.v151-mobile-layout .gis-data-shell nav::-webkit-scrollbar{display:none;}
+body.v151-mobile-layout .gis-data-shell nav button{flex:0 0 auto;min-height:38px!important;}
+body.v151-mobile-layout .gis-data-shell>main{padding:7px!important;}
+body.v151-mobile-layout .gis-data-shell>footer{padding:6px 8px!important;}
+body.v151-mobile-layout .gis-data-toolbar{align-items:stretch!important;flex-direction:column!important;}
+body.v151-mobile-layout .gis-data-toolbar input{min-width:0!important;width:100%!important;}
+body.v151-mobile-layout .gis-table-wrap{max-height:none!important;}
+body.v151-mobile-layout .gis-tool-card{padding:10px!important;}
+body.v151-mobile-layout .gis-stat-overview,
+body.v151-mobile-layout .gis-stat-grid{grid-template-columns:1fr 1fr!important;}
+body.v151-mobile-layout .gis-style-editor-layout,
+body.v151-mobile-layout .gis-style-main-grid{grid-template-columns:1fr!important;}
+body.v151-mobile-layout .gis-spatial-select-banner{top:6px!important;left:6px!important;right:6px!important;transform:none!important;max-width:none!important;min-width:0!important;}
+
+/* Very narrow phones move location search into More and give the map the full
+   remaining header width. */
+@media(max-width:360px){
+  body.v151-mobile-layout .compact-topbar{grid-template-columns:auto auto 1fr!important;}
+  body.v151-mobile-layout .topbar-search-wrap{display:none!important;}
+  body.v151-mobile-layout .topbar-more-wrap{justify-self:end;}
+  body.v151-mobile-layout .topbar-brand .title{max-width:92px;}
+  body.v151-mobile-layout #mouseCoords{display:none!important;}
+}
+
+/* Landscape phones need every vertical pixel. */
+@media(max-height:500px){
+  body.v151-mobile-layout{
+    --v151-topbar-h:42px;
+    --v151-status-h:20px;
+    --v151-dock-h:50px;
+  }
+  body.v151-mobile-layout .compact-topbar{padding-top:3px!important;padding-bottom:3px!important;}
+  body.v151-mobile-layout .rail-btn{height:43px!important;min-height:43px!important;flex-basis:54px!important;width:54px!important;min-width:54px!important;}
+  body.v151-mobile-layout .rail-btn .lbl{font-size:8px!important;}
+  body.v151-mobile-layout #projectSection{flex-basis:42%!important;max-height:48%!important;}
+  body.v151-mobile-layout .rail-flyout{max-height:65dvh!important;}
+  body.v151-mobile-layout .map-display-control{display:none!important;}
+  body.v151-mobile-layout #modeBanner.mode-banner{margin-top:51px!important;}
+}
+
+@media(prefers-reduced-motion:reduce){
+  body.v151-mobile-layout .sidebar,
+  body.v151-mobile-layout #selectedSection,
+  body.v151-mobile-layout .v151-mobile-backdrop{transition:none!important;}
+}
+/* Preserve layout semantics for the injected mobile menu. */
+body.v151-mobile-layout .v151-mobile-menu.v151-mobile-only{display:grid!important;}
+body.v151-mobile-layout .rail-btn{position:relative!important;}
