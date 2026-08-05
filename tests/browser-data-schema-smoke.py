@@ -150,6 +150,21 @@ with sync_playwright() as p:
     page.locator('[data-action="schema-add"]').click()
     assert page.evaluate("__layer.schema.fields.some(field=>field.name==='score'&&field.type==='decimal')")
 
+    # A history restore must immediately remove the schema row and close an
+    # editor whose field no longer exists. This reproduces the v1.52.1
+    # phantom-field bug in the real Fields & stats interface.
+    page.locator('[data-action="schema-edit"][data-field-name="score"]').click()
+    assert page.locator('#gisEditFieldName').input_value() == 'score'
+    page.evaluate("""() => {
+      __layer.schema.fields=__layer.schema.fields.filter(field=>field.name!=='score');
+      for(const feature of __layer.features)delete feature.properties.score;
+      window.dispatchEvent(new CustomEvent('editpolygon:history-restored',{detail:{direction:'undo'}}));
+    }""")
+    page.wait_for_timeout(50)
+    assert page.locator('[data-action="schema-edit"][data-field-name="score"]').count() == 0
+    assert page.locator('#gisEditFieldName').count() == 0
+    assert 'data view has been refreshed' in page.locator('#gisDataStatus').inner_text()
+
     # Type conversion preview reports incompatible values before mutation.
     page.locator('[data-action="schema-edit"][data-field-name="code"]').click()
     page.locator('#gisEditFieldType').select_option('integer')

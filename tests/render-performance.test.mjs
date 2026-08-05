@@ -19,5 +19,5 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260805-typed-fields-1521/);
+  assert.match(html,/editpolygon-app\.js\?v=20260805-typed-fields-1522/);
 });

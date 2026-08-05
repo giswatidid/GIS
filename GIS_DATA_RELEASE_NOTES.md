@@ -1,3 +1,10 @@
+# v1.52.2 — schema history synchronisation
+
+- Fields & stats refreshes immediately after project undo and redo.
+- Removed schema rows no longer remain as stale, non-editable phantom fields.
+- An open field editor closes safely when its field is removed by history restoration.
+- Ctrl/Cmd+Z and Ctrl/Cmd+Y preserve native text editing while focus is inside an input, textarea or contenteditable control.
+
 # EditPolygon v1.52.1 — Typed-field API wiring fix
 
 - Keeps the typed schema implementation inside the main application scope so field add, edit, delete, filters, calculations and scoped exports register against the live project.

@@ -106,6 +106,31 @@ function render(which=tab()){
   if(which==='style')requestAnimationFrame(()=>{updateStyleControlVisibility();updateStyleCodeFeedback();});
 }
 
+function refreshAfterHistory(event){
+  const dialog=$('gisDataModal');
+  if(!dialog?.classList.contains('active'))return;
+  const layer=active();
+  if(!layer){close();return;}
+  const which=tab();
+  const body=$('gisDataBody');
+  const scrollTop=body?.scrollTop||0;
+  const names=new Set(schemaFields(layer).map(field=>field.name));
+  sorts=sorts.filter(rule=>names.has(rule.field));
+  if(editingField&&!names.has(editingField)){
+    editingField='';
+    fieldConversionPreview=null;
+  }
+  if(which==='filter')filterDraft=clone(layer.filter)||{version:1,logic:'and',conditions:[blankCondition(layer)]};
+  if(which==='style')resetStyleState(layer);
+  render(which);
+  requestAnimationFrame(()=>{
+    const next=$('gisDataBody');
+    if(next)next.scrollTop=Math.min(scrollTop,Math.max(0,next.scrollHeight-next.clientHeight));
+  });
+  const direction=event?.detail?.direction==='redo'?'Redo':'Undo';
+  status(`${direction} applied. The data view has been refreshed.`,'ok');
+}
+
 function schemaFields(layer){return layer?.schema?.fields||core().fields(layer.features).map(field=>({name:field.name,alias:field.name,type:field.type==='number'?'decimal':field.type==='boolean'?'boolean':'text',nullable:true,required:false,readOnly:false}));}
 function schemaField(layer,name){return schemaFields(layer).find(field=>field.name===name)||{name,alias:name,type:'text',nullable:true};}
 function fieldNames(layer){return schemaFields(layer).map(field=>field.name);}
@@ -407,6 +432,7 @@ window.EditPolygonGISDataTools=Object.freeze({open,openLayer:open,ensureButtons:
 window.addEventListener('editpolygon:gis-changed',queueEnsureButtons);
 window.addEventListener('editpolygon:gis-rendered',queueEnsureButtons);
 window.addEventListener('editpolygon:gis-selection-changed',()=>{if($('gisDataModal')?.classList.contains('active')&&tab()==='select')render('select');});
+window.addEventListener('editpolygon:history-restored',refreshAfterHistory);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialise,{once:true});
 else initialise();
 })();

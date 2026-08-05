@@ -2757,6 +2757,9 @@ function pushHistory(featureIds=null){
     return false;
   }
 }
+function notifyHistoryRestored(direction){
+  try{window.dispatchEvent(new CustomEvent('editpolygon:history-restored',{detail:{direction}}));}catch(_){ }
+}
 function undo(){
   if(imageOverlayById(IMAGE.selectedId)&&IMAGE.history.length){imageUndo();return;}
   if(!project.history.length)return;
@@ -2766,6 +2769,7 @@ function undo(){
     if(cur){project.future.push(cur);trimHistoryStack(project.future);}
     restoreHistoryEntry(prev);
     updateUndo();
+    notifyHistoryRestored('undo');
     setStatus('Undo.');
   }catch(err){
     console.error('Undo failed:',err);
@@ -2783,6 +2787,7 @@ function redo(){
     if(cur){project.history.push(cur);trimHistoryStack(project.history);}
     restoreHistoryEntry(next);
     updateUndo();
+    notifyHistoryRestored('redo');
     setStatus('Redo.');
   }catch(err){
     console.error('Redo failed:',err);
@@ -7026,7 +7031,51 @@ document.addEventListener('keydown',e=>{if(e.key==='Shift')updateShiftPanState(e
 document.addEventListener('keyup',e=>{if(e.key==='Shift')updateShiftPanState({shiftKey:false});if(e.key==='Alt'){SNAP.altDown=false;renderOverlay();}}, true);
 window.addEventListener('blur',()=>{const ov=overlay();if(ov)ov.classList.remove('shift-pan');SNAP.altDown=false;SNAP.last=null});
 
-document.addEventListener('keydown',e=>{if($('coordModal').classList.contains('active')){if(e.key==='Escape'){e.preventDefault();closeCoordModal();return}if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();createPolygonFromCoords();return}}const tag=document.activeElement?.tagName,typing=tag==='INPUT'||tag==='TEXTAREA'||document.activeElement?.isContentEditable;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();return}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();return}if(typing)return;if(MEASURE.active){if(e.key==='Escape'){e.preventDefault();cancelMeasure(false);return}if(e.key==='Delete'&&MEASURE.editingId){e.preventDefault();deleteMeasure();return}if(e.key==='Backspace'){e.preventDefault();measureUndo();return}if(e.key==='Enter'){e.preventDefault();finishMeasure();return}}if(D.active){if(e.key==='Escape'){e.preventDefault();DCancel(false);return}if(e.key==='Backspace'||e.key==='Delete'){e.preventDefault();DUndo();return}if(e.key==='Enter'){e.preventDefault();DFinish();return}}if(e.key==='Escape'){if(MOVE.active)stopPolygonMoveMode(false);else if(V.active)VStop(false);else setMode('select');return}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();if(V.active)VDelete();else deletePolygon()}})
+document.addEventListener('keydown',e=>{
+  if($('coordModal').classList.contains('active')){
+    if(e.key==='Escape'){e.preventDefault();closeCoordModal();return;}
+    if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();createPolygonFromCoords();return;}
+  }
+  const activeElement=document.activeElement;
+  const tag=activeElement?.tagName;
+  const typing=tag==='INPUT'||tag==='TEXTAREA'||activeElement?.isContentEditable;
+  // Preserve native text undo/redo inside form controls. Project history remains
+  // available from the toolbar or when focus is outside an editable control.
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){
+    if(typing)return;
+    e.preventDefault();
+    e.shiftKey?redo():undo();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){
+    if(typing)return;
+    e.preventDefault();
+    redo();
+    return;
+  }
+  if(typing)return;
+  if(MEASURE.active){
+    if(e.key==='Escape'){e.preventDefault();cancelMeasure(false);return;}
+    if(e.key==='Delete'&&MEASURE.editingId){e.preventDefault();deleteMeasure();return;}
+    if(e.key==='Backspace'){e.preventDefault();measureUndo();return;}
+    if(e.key==='Enter'){e.preventDefault();finishMeasure();return;}
+  }
+  if(D.active){
+    if(e.key==='Escape'){e.preventDefault();DCancel(false);return;}
+    if(e.key==='Backspace'||e.key==='Delete'){e.preventDefault();DUndo();return;}
+    if(e.key==='Enter'){e.preventDefault();DFinish();return;}
+  }
+  if(e.key==='Escape'){
+    if(MOVE.active)stopPolygonMoveMode(false);
+    else if(V.active)VStop(false);
+    else setMode('select');
+    return;
+  }
+  if(e.key==='Delete'||e.key==='Backspace'){
+    e.preventDefault();
+    if(V.active)VDelete();else deletePolygon();
+  }
+})
 initResizers();renderAll();setDirty(false);updateUndo();
 
 $('snapToggleBtn').onclick=toggleSnapping;
@@ -21734,11 +21783,11 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__editPolygonStyleModel=Object.freeze({version:GIS_STYLE_MODEL_VERSION,ensure:gisEnsureStyleModel,resolve:gisResolvedFeatureStyle,state:gisLayerStyleState});
 })();
 
-/* v1.52.1 — typed field schemas, compound filters and type-safe calculations.
+/* v1.52.2 — typed field schemas, compound filters and type-safe calculations.
    This block must remain inside the main application scope so it can register
    the type-aware API against the live project, history and render model. */
 {
-  const VERSION='1.52.1';
+  const VERSION='1.52.2';
   const schemaCore=()=>window.EditPolygonGISSchemaCore;
   const requireCore=()=>{const core=schemaCore();if(!core)throw Error('Typed field module is not loaded.');return core;};
   function ensureSchema(file){return requireCore().ensureLayerSchema(file);}
