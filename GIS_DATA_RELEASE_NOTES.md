@@ -1,3 +1,11 @@
+# v1.52.3 — visible active-filter state
+
+- Shows a persistent “Filter active” banner with matching and hidden feature counts.
+- Marks the Filter tab with an active count badge even while another data tab is open.
+- Shows an active-filter banner above the attribute table with Edit and Clear actions.
+- Changes Apply filter to Update active filter while a filter is already controlling the layer.
+- Disables Clear active filter when no filter is applied.
+
 # v1.52.2 — schema history synchronisation
 
 - Fields & stats refreshes immediately after project undo and redo.
