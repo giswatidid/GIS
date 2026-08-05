@@ -21734,17 +21734,15 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__editPolygonStyleModel=Object.freeze({version:GIS_STYLE_MODEL_VERSION,ensure:gisEnsureStyleModel,resolve:gisResolvedFeatureStyle,state:gisLayerStyleState});
 })();
 
-// Close the main EditPolygon application scope after all enhancements.
-})();
-
-/* v1.52.0 — typed field schemas, compound filters and type-safe calculations. */
-(function(){
-  'use strict';
-  const VERSION='1.52.0';
+/* v1.52.1 — typed field schemas, compound filters and type-safe calculations.
+   This block must remain inside the main application scope so it can register
+   the type-aware API against the live project, history and render model. */
+{
+  const VERSION='1.52.1';
   const schemaCore=()=>window.EditPolygonGISSchemaCore;
   const requireCore=()=>{const core=schemaCore();if(!core)throw Error('Typed field module is not loaded.');return core;};
   function ensureSchema(file){return requireCore().ensureLayerSchema(file);}
-  function ensureAllSchemas(){for(const file of project.files||[])ensureSchema(file);}
+  function ensureAllSchemas(){for(const file of project.files||[]){try{ensureSchema(file);}catch(error){console.warn(`Typed field schema initialisation failed for ${file?.name||file?.id||'layer'}`,error);}}}
   function fieldDefinition(file,name){ensureSchema(file);return file.gisSchema.fields.find(field=>field.name===name)||null;}
   function cleanFieldName(value){const name=String(value??'').trim();if(!name)throw Error('Enter a field name.');if(/[\r\n\t]/.test(name))throw Error('Field names cannot contain tabs or line breaks.');return name;}
   function duplicateField(file,name,except=''){const lower=name.toLocaleLowerCase();return file.gisSchema.fields.some(field=>field.name!==except&&field.name.toLocaleLowerCase()===lower);}
@@ -21765,7 +21763,6 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
 
   // Schema is inferred conservatively for legacy projects and newly imported layers.
-  ensureAllSchemas();
   const baseRenderAll=renderAll;
   renderAll=function(){ensureAllSchemas();return baseRenderAll.apply(this,arguments);};window.renderAll=renderAll;
   gisApplyFileFilter=applyTypedFilter;
@@ -21828,4 +21825,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   });
   window.__editPolygonGISSchema={version:VERSION,ensureSchema,applyTypedFilter};
   try{ensureAllSchemas();for(const file of project.files||[])applyTypedFilter(file);gisNotify();}catch(error){console.warn('Typed field initialisation failed',error);}
+}
+
+// Close the main EditPolygon application scope after all enhancements.
 })();

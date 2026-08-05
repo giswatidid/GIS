@@ -10,7 +10,7 @@ const ui=fs.readFileSync(new URL('../docs/assets/gis-ui-integration.js',import.m
 test('typed schema core loads before the application',()=>{
   assert.ok(html.indexOf('gis-schema-core.js')>html.indexOf('gis-data-core.js'));
   assert.ok(html.indexOf('gis-schema-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-schema-core\.js\?v=20260804-typed-fields-1520/);
+  assert.match(html,/gis-schema-core\.js\?v=20260805-typed-fields-1521/);
 });
 
 test('application exposes schema, saved-filter, type-safe calculator and scoped export APIs',()=>{
@@ -41,4 +41,15 @@ test('Inspector uses schema types and honours read-only fields',()=>{
   assert.match(ui,/datetime-local/);
   assert.match(ui,/datetimeLocalValue/);
   assert.match(ui,/NULL/);
+});
+
+
+test('typed field API registration remains inside the live application scope',()=>{
+  const marker=app.indexOf('/* v1.52.1 — typed field schemas');
+  const registration=app.indexOf('Object.assign(window.EditPolygonGIS,{',marker);
+  const finalClose=app.indexOf('// Close the main EditPolygon application scope after all enhancements.',marker);
+  assert.ok(marker>0,'typed field block marker missing');
+  assert.ok(registration>marker,'typed field API registration missing');
+  assert.ok(finalClose>registration,'main application closes before typed APIs register');
+  assert.equal(app.slice(marker,registration).includes('\n})();\n'),false,'typed field block escaped the main application scope');
 });

@@ -1,3 +1,9 @@
+# EditPolygon v1.52.1 — Typed-field API wiring fix
+
+- Keeps the typed schema implementation inside the main application scope so field add, edit, delete, filters, calculations and scoped exports register against the live project.
+- Registers the public schema API before layer initialisation and isolates malformed-layer schema inference failures.
+- Adds regression coverage for the runtime scope and API registration order.
+
 # EditPolygon Browser GIS v1.52.0
 
 This release adds an explicit typed attribute model and upgrades the attribute table, Inspector, filtering, calculations and record export while keeping all local data operations in the browser.
