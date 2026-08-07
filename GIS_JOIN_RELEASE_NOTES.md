@@ -1,3 +1,15 @@
+# EditPolygon v1.53.2 — join output spatial-index wiring fix
+
+- Creating an attribute-join, grouped-summary or spatial-join result now invalidates the GIS spatial index through the public application API.
+- The result layer or table completes normally instead of stopping after insertion with `invalidateSpatialIndex is not defined`.
+- Typed field calculations use the same scope-safe spatial-index invalidation path.
+- The v1.53.1 complete join preview remains intact and displays all output fields.
+
+# EditPolygon v1.53.1 — complete join preview columns
+
+- Join previews display the complete output schema instead of truncating the preview to the first eight fields.
+- Joined fields remain visible even when the target layer already contains many attributes.
+
 # EditPolygon v1.53.0 — joins, summaries and spatial enrichment
 
 Version 1.53 adds browser-local tools for combining attribute data, creating grouped summaries and enriching layers according to spatial relationships. All results are materialised as new project layers or tables; the source data is never modified and no EditPolygon server receives the records.

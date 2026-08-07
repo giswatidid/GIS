@@ -1,6 +1,6 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.53.0",
+  "version": "1.53.2",
   "private": true,
   "description": "Static privacy-first browser GIS editor with typed schemas, attribute joins, grouped summaries, spatial joins, unified styling and browser-local geospatial processing",
   "scripts": {
