@@ -95,7 +95,7 @@ function openLayerMenu(e,id,s){
   const styleBadge=s.styleMode==='advanced'?(s.styleLabel||'Advanced'):'Single symbol';
   const selectedBadge=s.selectedFeatureId?'1 selected':'';
   const dataItems=menuAction('table','Attributes')+menuAction('fields','Fields & statistics');
-  const analysisItems=menuAction('select','Select features',selectedBadge)+menuAction('filter','Filter',filterBadge)+menuAction('join','Join & summarize')+menuAction('health','Check & fix geometry','v1.54')+menuAction('process','Processing');
+  const analysisItems=menuAction('select','Select features',selectedBadge)+menuAction('filter','Filter',filterBadge)+menuAction('join','Join & summarize')+menuAction('health','Check & fix geometry','v1.54.1')+menuAction('process','Processing');
   const presentationItems=menuAction('style','Style & labels',styleBadge)+(s.styleMode==='advanced'?`<button type="button" class="gis-layer-menu-secondary" data-style-simple>Switch to single symbol</button>`:s.advancedStyleAvailable?`<button type="button" class="gis-layer-menu-secondary" data-style-advanced>Restore saved advanced style</button>`:'');
   const crsItems=menuAction('crs','CRS',s.crs||'EPSG:4326');
   const recoveryItems=hiddenCount||lockedCount?`${hiddenCount?`<button type="button" class="gis-layer-menu-action" data-show-hidden><span>Show all hidden features</span><strong>${hiddenCount}</strong></button>`:''}<button type="button" class="gis-layer-menu-action" data-clear-overrides><span>Clear visibility and lock overrides</span><strong>${hiddenCount+lockedCount}</strong></button>`:'';

@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 
-const VERSION='1.54.0';
+const VERSION='1.54.1';
 const STATUS_RANK={ready:0,safe:1,review:2,manual:3};
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const finiteCoord=c=>Array.isArray(c)&&Number.isFinite(Number(c[0]))&&Number.isFinite(Number(c[1]));
@@ -31,7 +31,7 @@ function segmentIntersectionPoint(a,b,c,d){
   return [((x1*y2-y1*x2)*(x3-x4)-(x1-x2)*(x3*y4-y3*x4))/den,((x1*y2-y1*x2)*(y3-y4)-(y1-y2)*(x3*y4-y3*x4))/den];
 }
 function selfIntersections(sequence,{closed=false,limit=30,maxSegments=1800}={}){
-  const pts=(sequence||[]).filter(finiteCoord);if(pts.length<4)return {hits:[],skipped:false};const path=closed&&!sameCoord(pts[0],pts[pts.length-1])?pts.concat([pts[0]]):pts;const n=path.length-1;
+  const raw=(sequence||[]).filter(finiteCoord),pts=[];for(const point of raw)if(!pts.length||!sameCoord(pts[pts.length-1],point))pts.push(point);if(pts.length<4)return {hits:[],skipped:false};const path=closed&&!sameCoord(pts[0],pts[pts.length-1])?pts.concat([pts[0]]):pts;const n=path.length-1;
   if(n>maxSegments)return {hits:[],skipped:true,segments:n};const hits=[];
   for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
     if(Math.abs(i-j)<=1)continue;if(closed&&i===0&&j===n-1)continue;
@@ -134,9 +134,10 @@ function validatePolygonPart(ctx,poly,pi){
     issues.push(...validateSequence(ctx,ring,path,{closed:true,geometryPath:gp}));
     const valid=ring.filter(finiteCoord);const body=valid.length>1&&sameCoord(valid[0],valid[valid.length-1])?valid.slice(0,-1):valid;
     if(body.length>=3){
-      const area=ringArea(valid);if(Math.abs(area)<1e-14)issues.push(makeIssue(ctx,'ZERO_AREA_RING',{path,geometryPath:gp,location:body[0]||null,repair:{action:ri===0?'drop_collapsed_polygon':'drop_collapsed_hole',risk:'review'}}));
-      else if((ri===0&&area<0)||(ri>0&&area>0))issues.push(makeIssue(ctx,'WINDING',{path,geometryPath:gp,repair:{action:'normalise_winding',risk:'safe'}}));
-      const self=selfIntersections(valid,{closed:true});if(self.skipped)issues.push(makeIssue(ctx,'SELF_INTERSECTION_SKIPPED',{path,geometryPath:gp,detail:`Detailed crossing scan was limited at ${self.segments.toLocaleString()} segments.`}));else if(self.hits.length){const first=self.hits[0];issues.push(makeIssue(ctx,'SELF_INTERSECTION',{path,geometryPath:{...gp,segments:first.segments},location:first.location,detail:`${self.hits.length}${self.truncated?'+':''} crossing${self.hits.length===1?'':'s'} detected in this boundary.`,technical:`Intersecting segment indexes include ${first.segments.join(' and ')}.`,repair:{action:'make_valid',risk:'review'}}));}
+      const self=selfIntersections(valid,{closed:true});
+      if(self.skipped)issues.push(makeIssue(ctx,'SELF_INTERSECTION_SKIPPED',{path,geometryPath:gp,detail:`Detailed crossing scan was limited at ${self.segments.toLocaleString()} segments.`}));
+      else if(self.hits.length){const first=self.hits[0];issues.push(makeIssue(ctx,'SELF_INTERSECTION',{path,geometryPath:{...gp,segments:first.segments},location:first.location,detail:`${self.hits.length}${self.truncated?'+':''} crossing${self.hits.length===1?'':'s'} detected in this boundary.`,technical:`Intersecting segment indexes include ${first.segments.join(' and ')}.`,repair:{action:'make_valid',risk:'review'}}));}
+      if(!self.hits?.length){const area=ringArea(valid);if(Math.abs(area)<1e-14)issues.push(makeIssue(ctx,'ZERO_AREA_RING',{path,geometryPath:gp,location:body[0]||null,repair:{action:ri===0?'drop_collapsed_polygon':'drop_collapsed_hole',risk:'review'}}));else if((ri===0&&area<0)||(ri>0&&area>0))issues.push(makeIssue(ctx,'WINDING',{path,geometryPath:gp,repair:{action:'normalise_winding',risk:'safe'}}));}
     }
     const key=body.map(coordKey).filter(Boolean).sort().join(';');if(key&&ringKeys.has(key))issues.push(makeIssue(ctx,'DUPLICATE_RING',{path,geometryPath:gp,detail:`This boundary duplicates ${ringKeys.get(key)}.`,repair:{action:'drop_duplicate_ring',risk:'review'}}));else if(key)ringKeys.set(key,role);
     if(ri>0&&valid.length&&shell.length>=3){

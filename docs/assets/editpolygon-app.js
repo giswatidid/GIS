@@ -22231,11 +22231,11 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.54.0 — Geometry Health bridge.
+/* v1.54.1 — Geometry Health bridge.
    Exposes full-geometry layer snapshots and a single undoable materialisation
    path for the dedicated Geometry Health core/worker/UI modules. */
 {
-  const GEOMETRY_HEALTH_VERSION='1.54.0';
+  const GEOMETRY_HEALTH_VERSION='1.54.1';
   function geometryHealthScopeFeatures(file,scope='all'){
     const selected=new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);
     return (file.features||[]).filter(feature=>{

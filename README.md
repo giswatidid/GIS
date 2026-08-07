@@ -5,9 +5,9 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.54.0
+**Current application baseline:** v1.54.1
 
-The v1.54.0 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance.
+The v1.54.1 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. The v1.54.1 refinement integrates Geometry Health into the normal EditPolygon Inspector column and reuses the application’s established Inspector controls and section styling.
 
 ## What EditPolygon is for
 
@@ -406,7 +406,7 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.54.0 baseline used for this README:
+At the v1.54.1 baseline used for this README:
 
 - Repository integration checks pass
 - All 128 automated tests pass

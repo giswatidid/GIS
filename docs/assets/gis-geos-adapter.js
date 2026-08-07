@@ -1,6 +1,6 @@
 (function(global){
 'use strict';
-const VERSION='1.54.0';
+const VERSION='1.54.1';
 const GEOS_WASM_VERSION='3.1.1';
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 function assertGeos(geos){

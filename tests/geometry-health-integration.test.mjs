@@ -17,7 +17,7 @@ test('Geometry Health assets load in safe dependency order',()=>{
 });
 
 test('layer GIS menu exposes Geometry Health as a first-class analysis action',()=>{
-  assert.ok(layerUi.includes("menuAction('health','Check & fix geometry','v1.54')"));
+  assert.ok(layerUi.includes("menuAction('health','Check & fix geometry','v1.54.1')"));
   assert.match(layerUi,/tab==='health'/);
   assert.match(layerUi,/EditPolygonGeometryHealth\?\.open/);
 });
@@ -31,9 +31,9 @@ test('Geometry Health bridge materialises an undoable derived layer with provena
 
 test('guided UI uses plain-language exclusive risk categories and preserves source layer',()=>{
   for(const phrase of ['Ready','Safe to fix','Needs review','Manual review','Standard geometry checks','The original layer is preserved','Unresolved issues remain'])assert.ok(ui.includes(phrase),`Missing ${phrase}`);
-  assert.match(ui,/Feature counts above are exclusive/);
-  assert.match(ui,/Fix safe issues/);
-  assert.match(ui,/Preview repair/);
+  assert.match(ui,/Each feature is counted under its most serious issue/);
+  assert.match(ui,/safe.*available/s);
+  assert.match(ui,/Review repair/);
   assert.match(ui,/Create repaired layer/);
   assert.match(ui,/Export report JSON/);
   assert.match(ui,/Export issue CSV/);
@@ -47,18 +47,30 @@ test('review repairs are explicitly previewed and never include automatic duplic
 });
 
 test('Geometry Health runs long work in a dedicated worker and supports cancellation',()=>{
-  assert.match(ui,/new Worker\('assets\/gis-geometry-health-worker\.js/);
+  assert.match(ui,/new Worker\(`/);
   assert.match(ui,/worker\.terminate/);
   assert.match(ui,/data-gh-action="cancel"/);
   assert.match(worker,/postProgress/);
 });
 
-test('Geometry Health panel is viewport bounded, internally scrollable and mobile-safe',()=>{
-  assert.match(css,/position:fixed/);
-  assert.match(css,/bottom:28px/);
-  assert.match(css,/#geometryHealthContent\{height:100%;overflow:auto/);
+test('Geometry Health reuses the Inspector column and established Inspector section language',()=>{
+  assert.match(ui,/className='geometry-health-panel inspector-panel'/);
+  assert.match(ui,/v53-inspector-section geometry-health-inspector-section/);
+  assert.match(css,/grid-area:inspector/);
+  assert.match(css,/body\.geometry-health-open #selectedSection\{display:none!important\}/);
+  assert.match(css,/\.geometry-health-inspector\{[^}]*overflow:auto/);
   assert.match(css,/@media\(max-width:620px\)/);
   assert.match(css,/body\.night-mode/);
+});
+
+test('Geometry Health groups diagnostics by feature and keeps the issue list compact',()=>{
+  assert.match(ui,/geometry-health-feature-group/);
+  assert.match(ui,/index===0\?'open':''/);
+  assert.match(ui,/\+\$\{extra\} more/);
+  assert.match(ui,/Check'.*Summary|Summary/);
+  assert.match(ui,/section\('Issues'/);
+  assert.match(ui,/section\('Repairs'/);
+  assert.match(ui,/section\('Output'/);
 });
 
 

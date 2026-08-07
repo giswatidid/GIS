@@ -62,7 +62,7 @@ with sync_playwright() as p:
     assert page.locator('#validatorOpenBtn').inner_text() == 'Check & fix geometry'
     page.locator('#validatorOpenBtn').click()
     page.wait_for_selector('#geometryHealthPanel.active')
-    assert page.locator('text=Standard checks are designed to work without GIS topology knowledge.').count() == 1
+    assert page.locator('text=Optional rules describe how this dataset should behave.').count() == 1
     assert page.locator('#geometryHealthScope option[value="selected"]').is_enabled()
 
     page.locator('[data-gh-action="check"]').click()

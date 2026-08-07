@@ -1,4 +1,9 @@
-# EditPolygon v1.54.0 — Geometry Health
+# EditPolygon v1.54.1 — Geometry Health
+
+## v1.54.1 — Inspector integration refinement
+
+Geometry Health now occupies EditPolygon’s normal right Inspector column instead of using a separate oversized floating panel. The normal Inspector is temporarily replaced while Geometry Health is open and restored when it closes. The workflow now uses the existing Inspector section, control and button styling, groups diagnostics by feature, keeps only the first issue group expanded by default, and presents the workflow as **Check → Summary → Issues → Repairs → Output**. The release also removes prominent version branding from the working UI and keeps repair/output controls compact.
+
 
 Version 1.54 replaces the legacy polygon-focused validation dialog with a guided, layer-based **Geometry Health** workflow designed to make serious GIS geometry validation understandable without requiring users to know topology terminology.
 

@@ -1,5 +1,5 @@
 'use strict';
-importScripts('gis-geometry-health-core.js?v=20260807-geometry-health-1540','gis-geos-adapter.js?v=20260807-geometry-health-1540');
+importScripts('gis-geometry-health-core.js?v=20260807-geometry-health-1541','gis-geos-adapter.js?v=20260807-geometry-health-1541');
 const core=self.EditPolygonGeometryHealthCore;
 const geosAdapter=self.EditPolygonGeosAdapter;
 const GEOS_ESM_URL='https://cdn.jsdelivr.net/npm/geos-wasm@3.1.1/build/package/geos.esm.js';

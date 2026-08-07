@@ -13,7 +13,7 @@ test('v1.54 recognises ordinary point, open line and polygon geometry as ready',
     feature('line',{type:'LineString',coordinates:[[153,-27],[153.1,-27.1]]}),
     feature('polygon',square(0,0,5))
   ));
-  assert.equal(report.version,'1.54.0');
+  assert.equal(report.version,'1.54.1');
   assert.deepEqual(report.counts,{checked:3,ready:3,safe:0,review:0,manual:0,issues:0});
   assert.equal(report.featureResults.find(x=>x.featureId==='line').status,'ready');
 });
@@ -26,6 +26,14 @@ test('exact neighbouring duplicate vertices are a safe shape-preserving cleanup'
   const repaired=health.safeRepairCollection(input);
   assert.deepEqual(repaired.collection.features[0].geometry.coordinates,[[1,1],[2,2],[3,3]]);
   assert.equal(health.validateCollection(repaired.collection).counts.ready,1);
+});
+
+test('a duplicate neighbouring polygon vertex is not misclassified as a self-intersection',()=>{
+  const geometry={type:'Polygon',coordinates:[[[0,0],[4,0],[4,0],[4,4],[0,4],[0,0]]]};
+  const report=health.validateCollection(fc(feature('duplicate-vertex-polygon',geometry)));
+  assert.equal(report.featureResults[0].status,'safe');
+  assert.ok(report.issues.some(issue=>issue.code==='CONSECUTIVE_DUPLICATES'));
+  assert.equal(report.issues.some(issue=>issue.code==='SELF_INTERSECTION'),false);
 });
 
 test('unclosed polygon boundaries require review and are never closed by safe repair',()=>{
@@ -47,6 +55,7 @@ test('self-intersecting polygon gets a located review issue and make-valid propo
   assert.equal(issue.repair.action,'make_valid');
   assert.equal(issue.location.length,2);
   assert.match(issue.title,/crosses itself/i);
+  assert.equal(report.issues.some(x=>x.code==='ZERO_AREA_RING'),false,'A bow-tie can have zero signed shoelace area without being a collapsed ring.');
 });
 
 test('hole outside shell is explained as reviewable geometry rather than silently removed',()=>{
