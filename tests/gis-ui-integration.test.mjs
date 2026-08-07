@@ -15,9 +15,10 @@ test('selected feature bridge exposes inspector data and edits',()=>{
 });
 test('layer integration provides every grouped GIS workspace action',()=>{
   assert.match(ui,/gis-layer-actions-btn/);
-  for(const tab of ['table','select','filter','style','fields','join','crs','process'])assert.ok(ui.includes(`menuAction('${tab}'`));
+  for(const tab of ['table','select','filter','style','fields','join','health','crs','process'])assert.ok(ui.includes(`menuAction('${tab}'`));
   for(const section of ['Data','Query & analysis','Presentation','Coordinate system','Settings'])assert.ok(ui.includes(`menuSection('${section}'`));
   assert.match(ui,/Join & summarize/);
+  assert.match(ui,/Check & fix geometry/);
   assert.match(ui,/Display field/);
 });
 test('inspector integration supports summary, all fields and editing',()=>{

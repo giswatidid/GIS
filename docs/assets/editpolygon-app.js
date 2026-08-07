@@ -6707,7 +6707,7 @@ function validatorCurrentOptions(){
   return opts;
 }
 function validatorSetOptions(mode){
-  const recommended=new Set(['closeRings','removeDupes','dropZeroArea','enforceWinding','dropDuplicateRings','dropDuplicateFeatures']);
+  const recommended=new Set(['removeDupes','enforceWinding']);
   document.querySelectorAll('[data-validator-fix]').forEach(cb=>{
     cb.checked=mode==='all'||(mode==='recommended'&&recommended.has(cb.dataset.validatorFix));
     if(mode==='none')cb.checked=false;
@@ -7358,7 +7358,7 @@ function initUxRehaul(){
   const commandDefs=[
     {id:'open',icon:'OP',title:'Open files',hint:'Project · Import GML, KML, KMZ, GeoJSON, CSV, WKT, Shapefile ZIP or project files',kbd:'',run:()=>$('openBtn').click()},
     {id:'convert',icon:'⇄',title:'Convert polygon formats',hint:'Project · Convert GML/KML/KMZ/GeoJSON/CSV/WKT/Shapefile without changing the map',kbd:'',run:()=>openConverterModal()},
-    {id:'validate',icon:'OK',title:'Validate / repair polygons',hint:'Project · Check rings, duplicates, self-intersections, holes and broken imports',kbd:'',run:()=>openValidatorModal()},
+    {id:'validate',icon:'OK',title:'Check & fix geometry',hint:'GIS · Geometry Health checks points, lines and polygons with guided safe/review repairs',kbd:'',run:()=>window.EditPolygonGeometryHealth?.open?.(window.EditPolygonGIS?.getSelectedFeature?.()?.fileId)||openValidatorModal()},
     {id:'export',icon:'EX',title:'Export',hint:'Project · Export current scope using the selected format',kbd:'',run:()=>$('exportBtn').click()},
     {id:'save',icon:'S',title:'Save project',hint:'Project · Save the complete editable project including images and annotations',kbd:'Ctrl+S',run:()=>saveProject()},
     {id:'fullscreen',icon:'FS',title:'Fullscreen editor',hint:'View · Toggle browser fullscreen for the map editor',kbd:'',run:()=>toggleFullscreenEditor()},
@@ -12086,7 +12086,7 @@ initUxRehaul();
   const closeRingsLabel=document.querySelector('[data-validator-fix="closeRings"]')?.closest('label');
   if(closeRingsLabel&&!document.querySelector('[data-validator-fix="convertLineStrings"]')){
     const label=document.createElement('label');
-    label.innerHTML='<input checked data-validator-fix="convertLineStrings" type="checkbox"> Convert LineStrings to polygons by connecting endpoints';
+    label.innerHTML='<input data-validator-fix="convertLineStrings" type="checkbox"> Convert LineStrings to polygons by connecting endpoints';
     closeRingsLabel.insertAdjacentElement('afterend',label);
   }
   const validatorOutput=$('validatorOutputText')?.parentElement;
@@ -12678,7 +12678,7 @@ initUxRehaul();
     return {type:'FeatureCollection',features};
   };
   const v116BaseValidatorSetOptions=validatorSetOptions;
-  validatorSetOptions=function(mode){v116BaseValidatorSetOptions(mode);const cb=document.querySelector('[data-validator-fix="convertLineStrings"]');if(cb)cb.checked=mode==='all'||mode==='recommended';};
+  validatorSetOptions=function(mode){v116BaseValidatorSetOptions(mode);const cb=document.querySelector('[data-validator-fix="convertLineStrings"]');if(cb)cb.checked=mode==='all';};
 
   function collectionSvg(collection,stroke,fill){
     const feats=(collection?.features||[]).filter(f=>f?.geometry&&pathSupported(f.geometry.type));const coords=[];
@@ -17803,8 +17803,8 @@ showAutosaveRecoveryIfAvailable();
     (note||section.querySelector('.v53-section-body'))?.insertAdjacentElement('afterend',row);
     row.querySelector('button')?.addEventListener('click',()=>{
       try{
-        openValidatorModal();
-        setStatus('Validator opened. Use current project polygons to run detailed checks.');
+        if(window.EditPolygonGeometryHealth?.open)window.EditPolygonGeometryHealth.open(window.EditPolygonGIS?.getSelectedFeature?.()?.fileId);else openValidatorModal();
+        setStatus('Geometry Health opened for detailed validation and guided repair.');
       }catch(err){
         console.warn(err);
         setStatus('Could not open the validator.','error');
@@ -22228,6 +22228,81 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const m=$('layerMenu');
     if(m?.classList.contains('active')&&V1533.layerEvent)v1533PositionPopover(m,V1533.layerEvent);
   },{passive:true});
+}
+
+
+/* v1.54.0 — Geometry Health bridge.
+   Exposes full-geometry layer snapshots and a single undoable materialisation
+   path for the dedicated Geometry Health core/worker/UI modules. */
+{
+  const GEOMETRY_HEALTH_VERSION='1.54.0';
+  function geometryHealthScopeFeatures(file,scope='all'){
+    const selected=new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);
+    return (file.features||[]).filter(feature=>{
+      if(scope==='selected')return selected.has(feature.id);
+      if(scope==='filtered')return !feature._gisFiltered;
+      if(scope==='visible')return !feature._gisFiltered&&feature.visible!==false;
+      return true;
+    });
+  }
+  function geometryHealthLayerSnapshot(fileId,{scope='all'}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');
+    if(file.tableOnly)throw Error('Geometry Health requires a spatial layer.');
+    try{window.__editPolygonGISSchema?.ensureSchema?.(file);}catch(_){ }
+    const features=geometryHealthScopeFeatures(file,scope).map(feature=>{
+      const json=featJSON(feature);json.id=feature.id;json.properties={...(json.properties||{}),name:feature.name||json.properties?.name||feature.id};return json;
+    });
+    return {
+      version:GEOMETRY_HEALTH_VERSION,id:file.id,name:file.name,scope,crs:file.gisCrs||'EPSG:4326',sourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',exportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',
+      schema:clone(file.gisSchema||null),featureCount:(file.features||[]).length,scopeCount:features.length,features
+    };
+  }
+  let geometryHealthIssueMarker=null,geometryHealthProposalLayer=null;
+  function clearGeometryHealthOverlay(){
+    try{if(geometryHealthIssueMarker)map.removeLayer(geometryHealthIssueMarker);}catch(_){ }
+    try{if(geometryHealthProposalLayer)map.removeLayer(geometryHealthProposalLayer);}catch(_){ }
+    geometryHealthIssueMarker=null;geometryHealthProposalLayer=null;
+  }
+  function focusGeometryHealthIssue(fileId,featureId,location){
+    try{gisSelectFeatureById(fileId,featureId);}catch(_){ }
+    try{gisZoomFeature(fileId,featureId);}catch(_){ }
+    try{if(geometryHealthIssueMarker)map.removeLayer(geometryHealthIssueMarker);}catch(_){ }
+    geometryHealthIssueMarker=null;
+    if(Array.isArray(location)&&location.length>=2&&Number.isFinite(Number(location[0]))&&Number.isFinite(Number(location[1]))){
+      try{geometryHealthIssueMarker=L.circleMarker([Number(location[1]),Number(location[0])],{radius:8,color:'#b42318',weight:3,fillColor:'#fff',fillOpacity:.9,interactive:false}).addTo(map);map.panInside([Number(location[1]),Number(location[0])],{padding:[70,70]});}catch(_){ }
+    }
+    return true;
+  }
+  function previewGeometryHealthProposal(value){
+    try{if(geometryHealthProposalLayer)map.removeLayer(geometryHealthProposalLayer);}catch(_){ }geometryHealthProposalLayer=null;
+    const features=value?.type==='FeatureCollection'?value:value?.type==='Feature'?[value]:value?.geometry?[{type:'Feature',properties:{},geometry:value.geometry}]:[];if(!features.length)return false;
+    try{geometryHealthProposalLayer=L.geoJSON({type:'FeatureCollection',features:clone(features)},{style:()=>({color:'#7c3aed',weight:4,opacity:.95,dashArray:'7,5',fillColor:'#7c3aed',fillOpacity:.08}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{radius:7,color:'#7c3aed',weight:3,fillColor:'#fff',fillOpacity:.95})}).addTo(map);geometryHealthProposalLayer.bringToFront?.();return true;}catch(_){return false;}
+  }
+  function createGeometryHealthLayer(sourceFileId,collection,{name,scope='all',report=null,changeLog=[],acceptedRepairs=[],rules={}}={}){
+    const source=gisEditableFile(sourceFileId);if(!source)throw Error('Source layer not found.');
+    const raw=Array.isArray(collection?.features)?collection.features:[];if(!raw.length)throw Error('The repaired result contains no features.');
+    const clean=String(name||`${source.name} — repaired`).trim()||`${source.name} — repaired`,color=source.color||COLORS[(project.files||[]).length%COLORS.length]||'#7c3aed';
+    const models=raw.map((feature,index)=>{
+      const properties=clone(feature.properties||{});properties.name=String(properties.name||feature.name||`${clean} ${index+1}`);
+      const model=normalize({type:'Feature',properties,geometry:clone(feature.geometry)},properties.name);if(!model)return null;model.id=uid('feat');model.visible=true;model.locked=false;applyColor(model,color);return model;
+    }).filter(Boolean);
+    if(!models.length)throw Error('The repaired result contains no usable geometry.');
+    if(models.length!==raw.length)throw Error(`${raw.length-models.length} feature${raw.length-models.length===1?'':'s'} still contain unusable geometry. Resolve or explicitly remove those features before creating a repaired layer; Geometry Health will not silently drop them.`);
+    pushHistory();
+    const file={
+      id:uid('file'),name:clean,sourceFormat:'geometry-health',visible:true,color,opacity:source.opacity,features:models,
+      gisCrs:source.gisCrs||'EPSG:4326',gisSourceCrs:source.gisSourceCrs||source.gisCrs||'EPSG:4326',gisExportCrs:source.gisExportCrs||source.gisCrs||'EPSG:4326',
+      gisSchema:clone(source.gisSchema||null),gisSavedFilters:[],gisFilter:null,simpleStyle:clone(source.simpleStyle||null),styleMode:'simple',gisLabels:clone(source.gisLabels||null),gisDisplayField:source.gisDisplayField||'',
+      gisGeometryHealth:{version:GEOMETRY_HEALTH_VERSION,createdAt:new Date().toISOString(),sourceLayerId:source.id,sourceLayerName:source.name,scope,rules:clone(rules||{}),beforeCounts:clone(report?.beforeCounts||report?.counts||null),afterCounts:clone(report?.afterCounts||null),beforeEngine:clone(report?.beforeEngine||null),afterEngine:clone(report?.afterEngine||null),beforeStats:clone(report?.beforeStats||null),afterStats:clone(report?.afterStats||null),warnings:clone(report?.warnings||[]),unresolvedIssueSummary:clone(report?.unresolvedIssueSummary||{}),changeLog:clone(changeLog||[]),acceptedRepairs:clone(acceptedRepairs||[])}
+    };
+    project.files.push(file);sidebarState.collapsedFiles.add(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0]?.id||null;project.mergeIds=[];
+    try{window.__editPolygonGISSchema?.ensureSchema?.(file);window.__editPolygonGISSchema?.applyTypedFilter?.(file);}catch(_){ }
+    window.EditPolygonGIS?.invalidateSpatialIndex?.(file.id);window.EditPolygonGIS?.invalidateRenderCache?.(file.id);renderAll();setDirty(true);gisNotify();
+    logOperation('geometry-health-output',{sourceFileId:source.id,outputFileId:file.id,count:models.length,scope,repairs:(changeLog||[]).length,reviewRepairs:(acceptedRepairs||[]).length});
+    setStatus(`Created ${clean} with ${models.length} repaired feature${models.length===1?'':'s'}. The original layer was not changed.`);
+    return window.EditPolygonGIS.getEditableLayer(file.id);
+  }
+  Object.assign(window.EditPolygonGIS,{geometryHealthVersion:GEOMETRY_HEALTH_VERSION,getGeometryHealthLayer:geometryHealthLayerSnapshot,createGeometryHealthLayer,focusGeometryHealthIssue,previewGeometryHealthProposal,clearGeometryHealthOverlay});
 }
 
 // Close the main EditPolygon application scope after all enhancements.

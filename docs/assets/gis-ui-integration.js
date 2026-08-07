@@ -95,7 +95,7 @@ function openLayerMenu(e,id,s){
   const styleBadge=s.styleMode==='advanced'?(s.styleLabel||'Advanced'):'Single symbol';
   const selectedBadge=s.selectedFeatureId?'1 selected':'';
   const dataItems=menuAction('table','Attributes')+menuAction('fields','Fields & statistics');
-  const analysisItems=menuAction('select','Select features',selectedBadge)+menuAction('filter','Filter',filterBadge)+menuAction('join','Join & summarize')+menuAction('process','Processing');
+  const analysisItems=menuAction('select','Select features',selectedBadge)+menuAction('filter','Filter',filterBadge)+menuAction('join','Join & summarize')+menuAction('health','Check & fix geometry','v1.54')+menuAction('process','Processing');
   const presentationItems=menuAction('style','Style & labels',styleBadge)+(s.styleMode==='advanced'?`<button type="button" class="gis-layer-menu-secondary" data-style-simple>Switch to single symbol</button>`:s.advancedStyleAvailable?`<button type="button" class="gis-layer-menu-secondary" data-style-advanced>Restore saved advanced style</button>`:'');
   const crsItems=menuAction('crs','CRS',s.crs||'EPSG:4326');
   const recoveryItems=hiddenCount||lockedCount?`${hiddenCount?`<button type="button" class="gis-layer-menu-action" data-show-hidden><span>Show all hidden features</span><strong>${hiddenCount}</strong></button>`:''}<button type="button" class="gis-layer-menu-action" data-clear-overrides><span>Clear visibility and lock overrides</span><strong>${hiddenCount+lockedCount}</strong></button>`:'';
@@ -103,7 +103,9 @@ function openLayerMenu(e,id,s){
   document.body.appendChild(menu);positionLayerMenu();
 
   menu.querySelectorAll('[data-tab]').forEach(button=>button.addEventListener('click',()=>{
-    const tab=button.dataset.tab;removeLayerMenu();dataTools()?.openLayer?.(id,tab);
+    const tab=button.dataset.tab;removeLayerMenu();
+    if(tab==='health')window.EditPolygonGeometryHealth?.open?.(id);
+    else dataTools()?.openLayer?.(id,tab);
   }));
   menu.querySelector('[data-style-simple]')?.addEventListener('click',()=>{if(confirm('Switch to single-symbol styling? The advanced configuration will be retained.')){api()?.switchLayerStyleMode?.(id,'simple');removeLayerMenu();}});
   menu.querySelector('[data-style-advanced]')?.addEventListener('click',()=>{api()?.switchLayerStyleMode?.(id,'advanced');removeLayerMenu();});

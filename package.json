@@ -1,15 +1,16 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.53.3",
+  "version": "1.54.0",
   "private": true,
-  "description": "Static privacy-first browser GIS editor with viewport-safe layer menus, typed schemas, joins, summaries, unified styling and browser-local geospatial processing",
+  "description": "Static privacy-first browser GIS editor with Geometry Health validation and guided repair, typed schemas, joins, styling and browser-local geospatial processing",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check-repo.mjs && npm test",
     "test:browser-crs": "python tests/browser-crs-smoke.py",
     "test:browser-remote": "python tests/browser-remote-source-smoke.py",
-    "test:browser-smoke": "python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py",
+    "test:browser-smoke": "python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py && python tests/browser-geometry-health-smoke.py",
     "test:browser-data": "python tests/browser-data-schema-smoke.py",
-    "test:browser-join": "python tests/browser-join-smoke.py"
+    "test:browser-join": "python tests/browser-join-smoke.py",
+    "test:browser-geometry-health": "python tests/browser-geometry-health-smoke.py"
   }
 }

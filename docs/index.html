@@ -169,11 +169,12 @@ html.v121-app-ready body{
 
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
 <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/editpolygon.css?v=20260807-menu-usability-1533"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260807-menu-usability-1533"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260807-menu-usability-1533"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260807-menu-usability-1533"/>
-<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260807-menu-usability-1533"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260807-geometry-health-1540"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260807-geometry-health-1540"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260807-geometry-health-1540"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260807-geometry-health-1540"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260807-geometry-health-1540"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260807-geometry-health-1540"/>
 
 
 
@@ -216,7 +217,7 @@ html.v121-app-ready body{
 <div class="top-menu-section-title">Project</div>
 <button id="restoreAutosaveBtn">Restore autosave</button>
 <button id="converterOpenBtn">Convert formats</button>
-<button id="validatorOpenBtn">Validate / repair polygons</button>
+<button id="validatorOpenBtn" title="Check geometry in the selected project layer">Check &amp; fix geometry</button>
 <button class="danger" id="clearBtn">Clear project</button>
 <div class="top-menu-section-title">Help</div><button id="aboutEditPolygonBtn" type="button">Help, about &amp; privacy</button><a class="top-menu-link" role="menuitem" href="mailto:feedback@editpolygon.com">Send feedback</a><button id="topMenuCommandProxy">Command palette</button>
 </div>
@@ -491,11 +492,11 @@ html.v121-app-ready body{
 <div class="modal-backdrop" id="validatorModal">
 <div aria-labelledby="validatorTitle" aria-modal="true" class="modal validator-modal" role="dialog">
 <div class="modal-head">
-<span id="validatorTitle">Validate / repair polygon file</span>
+<span id="validatorTitle">Legacy file geometry validator</span>
 <button id="validatorCloseBtn">Close</button>
 </div>
 <div class="modal-body">
-<div class="coord-help">Validate GML, KML, KMZ, GeoJSON, JSON, CSV, WKT/TXT, zipped Shapefile, or current project polygons. Safe fixes can repair common ring and export problems before downloading or importing the fixed result.</div>
+<div class="coord-help">Legacy file-based validator for compatibility and separate-file workflows. For project layers, use GIS → Check &amp; fix geometry (Geometry Health), which provides guided review, robust topology checks and repaired-layer outputs. Legacy Recommended fixes are intentionally conservative.</div>
 <input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject" hidden="" id="validatorFileInput" multiple="" type="file"/>
 <div class="validator-grid">
 <div class="validator-panel">
@@ -521,12 +522,12 @@ html.v121-app-ready body{
 <button id="validatorNoneBtn">None</button>
 </div>
 <div class="validator-options">
-<label><input checked="" data-validator-fix="closeRings" type="checkbox"/> Close open rings</label>
+<label><input data-validator-fix="closeRings" type="checkbox"/> Close open rings</label>
 <label><input checked="" data-validator-fix="removeDupes" type="checkbox"/> Remove consecutive duplicate vertices</label>
-<label><input checked="" data-validator-fix="dropZeroArea" type="checkbox"/> Drop zero-area rings</label>
+<label><input data-validator-fix="dropZeroArea" type="checkbox"/> Drop zero-area rings</label>
 <label><input checked="" data-validator-fix="enforceWinding" type="checkbox"/> Enforce GeoJSON/RFC 7946 winding</label>
-<label><input checked="" data-validator-fix="dropDuplicateRings" type="checkbox"/> Drop duplicate rings</label>
-<label><input checked="" data-validator-fix="dropDuplicateFeatures" type="checkbox"/> Drop duplicate / likely duplicate polygon features</label>
+<label><input data-validator-fix="dropDuplicateRings" type="checkbox"/> Drop duplicate rings</label>
+<label><input data-validator-fix="dropDuplicateFeatures" type="checkbox"/> Drop duplicate / likely duplicate polygon features</label>
 <label><input data-validator-fix="dropInvalidHoles" type="checkbox"/> Drop holes outside the outer ring</label>
 <label><input data-validator-fix="repairSelfIntersections" type="checkbox"/> Attempt self-intersection repair</label>
 </div>
@@ -716,19 +717,21 @@ html.v121-app-ready body{
 <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="assets/gis-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-data-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-schema-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-analysis-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-join-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-style-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-crs-core.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-remote-source.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/editpolygon-app.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-workspace.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-data-tools.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/gis-ui-integration.js?v=20260807-menu-usability-1533"></script>
-<script src="assets/editpolygon-mobile.js?v=20260807-menu-usability-1533"></script>
+<script src="assets/gis-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-data-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-schema-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-analysis-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-join-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-style-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-crs-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-remote-source.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/editpolygon-app.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-workspace.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-data-tools.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-ui-integration.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/gis-geometry-health.js?v=20260807-geometry-health-1540"></script>
+<script src="assets/editpolygon-mobile.js?v=20260807-geometry-health-1540"></script>
 
 
 

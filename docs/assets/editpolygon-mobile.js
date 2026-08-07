@@ -211,7 +211,7 @@
           <div class="v151-mobile-list-actions">
             <button type="button" data-v151-proxy="restoreAutosaveBtn">Restore autosave</button>
             <button type="button" data-v151-proxy="converterOpenBtn">Convert formats</button>
-            <button type="button" data-v151-proxy="validatorOpenBtn">Validate / repair polygons</button>
+            <button type="button" data-v151-proxy="validatorOpenBtn">Check &amp; fix geometry</button>
             <button type="button" data-v151-proxy="topMenuCommandProxy">Command palette</button>
           </div>
         </section>

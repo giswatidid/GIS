@@ -5,9 +5,9 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.53.3
+**Current application baseline:** v1.54.0
 
-The v1.53.3 interface maintenance release keeps the layer **More** and **GIS** menus inside the browser viewport, adds internal scrolling for short screens, completes the GIS shortcut list, and replaces the accumulated layer menu controls with clearer layer-management groups.
+The v1.54.0 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance.
 
 ## What EditPolygon is for
 
@@ -189,11 +189,29 @@ Current tools include:
 
 Longer layer-processing operations run in a browser worker and create a new editable output layer, leaving the source layer unchanged.
 
-### Validation and conversion
+### Geometry Health validation and repair
 
-- Validate imported or current project geometry
-- Detect common polygon and ring problems
-- Apply guided repairs
+**GIS → Check & fix geometry** opens a guided Geometry Health workspace for an entire layer or only selected, filtered or visible records.
+
+Standard checks cover Point, MultiPoint, LineString, MultiLineString, Polygon and MultiPolygon geometry. Results use four exclusive, plain-language categories so each feature appears once according to its most serious finding:
+
+- **Ready** — no problem was found by the selected checks
+- **Safe to fix** — an exact, shape-preserving cleanup is available
+- **Needs review** — an automatic proposal can change the represented geometry and must be previewed
+- **Manual review** — EditPolygon should not make the decision automatically
+
+Geometry Health detects structural coordinate problems, repeated vertices and points, polygon closure and ring problems, collapsed geometry, self-intersections, invalid holes, nested/intersecting holes, duplicate rings and overlapping MultiPolygon parts. Optional layer rules can additionally flag exact duplicate features, polygon overlaps, line self-crossings and dangling line endpoints without pretending those conditions are universally invalid GIS geometry.
+
+Polygon topology is independently verified with **GEOS-WASM 3.1.1** when the robust engine can be loaded. Consequential `MakeValid` proposals use GEOS first. If that engine is unavailable, the interface identifies the less-comprehensive Turf fallback rather than presenting it as equivalent. Geometry files themselves remain in browser memory; loading third-party runtime libraries can still send ordinary request metadata to their CDN providers.
+
+Every issue can be located on the map. Consequential repairs show the proposed geometry as a separate preview, identify the repair engine, report geometry-type/vertex changes and relative area or length changes, and elevate material changes for explicit review. Exact duplicate features are never deleted automatically.
+
+**Fix safe issues** is deliberately limited to changes such as removing exact neighbouring duplicate vertices or points, redundant closure storage and normalising polygon ring direction. It does not automatically close ambiguous boundaries, delete holes, remove features or choose between competing interpretations.
+
+The default output is a new **repaired layer**; the input layer is preserved. Outputs retain validation provenance including rules, before/after counts and statistics, robust-engine status, warnings, safe changes, accepted review repairs and unresolved-issue summaries. Full validation reports can also be exported as JSON and issue lists as CSV.
+
+### Conversion
+
 - Convert files without adding them to the current map
 - Preview export scope, format, filename and coordinate precision
 - Export all, visible, selected, picked or active-layer features
@@ -346,6 +364,10 @@ Do not use EditPolygon as the sole validation step for legal, cadastral, safety-
 │   │   ├── gis-crs-core.js
 │   │   ├── gis-data-core.js
 │   │   ├── gis-data-tools.js
+│   │   ├── gis-geometry-health-core.js
+│   │   ├── gis-geometry-health-worker.js
+│   │   ├── gis-geos-adapter.js
+│   │   ├── gis-geometry-health.js
 │   │   ├── gis-remote-source.js
 │   │   ├── gis-style-core.js
 │   │   ├── gis-ui-integration.js
@@ -384,12 +406,13 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.53.3 baseline used for this README:
+At the v1.54.0 baseline used for this README:
 
 - Repository integration checks pass
-- All 101 automated tests pass
-- CRS, ArcGIS remote-source, typed-data, join and summary browser smoke tests pass
-- Regression coverage includes typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, joins and summaries, unified styling, selection tools, viewport-safe menus, Layers-panel resizing, mobile drawers and release cache keys
+- All 128 automated tests pass
+- CRS, ArcGIS remote-source, typed-data, join/summary and Geometry Health browser smoke tests pass
+- Geometry Health regression coverage includes point/line/polygon validity, safe cleanup, unclosed rings, self-intersections, invalid holes, MultiPoint duplicates, CRS-range warnings, MultiPolygon boundary-touch versus true overlap, GEOS adapter memory/GeoJSON handling, worker progress, robust validity augmentation, make-valid previews, viewport-safe UI and repaired-layer provenance
+- Existing regression coverage continues to include typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, joins and summaries, unified styling, selection tools, viewport-safe menus, Layers-panel resizing, mobile drawers and release cache keys
 
 Run the browser smoke tests with:
 
@@ -413,17 +436,18 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-The next planned development phases are:
+With Geometry Health implemented in v1.54, the next planned development phases are:
 
-1. Geometry validation and repair expansion
-2. Additional processing tools
-3. Virtualised tables and larger-dataset performance
-4. Advanced rule-based styling and label placement
-5. GeoPackage, FlatGeobuf, GeoParquet and GPX support
-6. Better remote-layer refresh and source management
-7. Project snapshots and portable project packages
-8. Print layouts and high-resolution map export
-9. Raster and GeoTIFF analysis tools
+1. Additional processing and geometry-construction tools
+2. Virtualised tables and larger-dataset performance
+3. Advanced rule-based styling and label placement
+4. GeoPackage, FlatGeobuf, GeoParquet and GPX support
+5. Better remote-layer refresh and source management
+6. Project snapshots and portable project packages
+7. Print layouts and high-resolution map export
+8. Raster and GeoTIFF analysis tools
+
+Geometry Health will continue to receive targeted validation/topology rules as those later workflows require them, but validation is now a first-class GIS subsystem rather than the next unimplemented foundation phase.
 
 ## Feedback
 
