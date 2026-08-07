@@ -13,7 +13,7 @@ test('v1.54 recognises ordinary point, open line and polygon geometry as ready',
     feature('line',{type:'LineString',coordinates:[[153,-27],[153.1,-27.1]]}),
     feature('polygon',square(0,0,5))
   ));
-  assert.equal(report.version,'1.54.1');
+  assert.equal(report.version,'1.54.2');
   assert.deepEqual(report.counts,{checked:3,ready:3,safe:0,review:0,manual:0,issues:0});
   assert.equal(report.featureResults.find(x=>x.featureId==='line').status,'ready');
 });

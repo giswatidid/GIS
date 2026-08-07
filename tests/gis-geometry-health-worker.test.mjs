@@ -64,4 +64,27 @@ test('worker augments polygon diagnostics and make-valid previews with GEOS when
   assert.equal(preview.engine.fallback,false);
   assert.equal(preview.feature.geometry.type,'Polygon');
   assert.equal(preview.remainingIssues.length,0);
+  assert.equal(preview.metricsComparable,false);
+  assert.equal(preview.areaChangePercent,null);
+  assert.equal(preview.lengthChangePercent,null);
+});
+
+
+function robustGeosClockwiseMock(){
+  let next=200;const strings=new Map(),geometries=new Map();const putString=value=>{const ptr=next++;strings.set(ptr,String(value));return ptr;};const putGeometry=value=>{const ptr=next++;geometries.set(ptr,JSON.parse(JSON.stringify(value)));return ptr;};
+  const clockwise={type:'Polygon',coordinates:[[[0,0],[0,2],[2,2],[2,0],[0,0]]]};
+  return {Module:{_malloc:()=>next++,_free:ptr=>strings.delete(ptr),stringToUTF8:(value,ptr)=>strings.set(ptr,String(value)),UTF8ToString:ptr=>strings.get(ptr)||''},GEOSGeoJSONReader_create:()=>1,GEOSGeoJSONReader_destroy:()=>null,GEOSGeoJSONReader_readGeometry:(_r,ptr)=>putGeometry(JSON.parse(strings.get(ptr))),GEOSGeoJSONWriter_create:()=>2,GEOSGeoJSONWriter_destroy:()=>null,GEOSGeoJSONWriter_writeGeometry:(_w,geom)=>putString(JSON.stringify(geometries.get(geom))),GEOSGeom_destroy:ptr=>geometries.delete(ptr),GEOSFree:ptr=>strings.delete(ptr),GEOSisValidReason:()=>putString('Valid Geometry'),GEOSMakeValid:()=>putGeometry(clockwise)};
+}
+
+test('make-valid preview folds harmless ring-direction cleanup into the proposal',async()=>{
+  const {ctx,messages}=harness();ctx.self.__editPolygonGeosMock=robustGeosClockwiseMock();
+  const bowtie={type:'Feature',id:'bow-winding',properties:{name:'Bow winding'},geometry:{type:'Polygon',coordinates:[[[0,0],[2,2],[0,2],[2,0],[0,0]]]}};
+  const initial=ctx.self.EditPolygonGeometryHealthCore.validateCollection({type:'FeatureCollection',features:[bowtie]},{rules:{}});
+  const issue=initial.issues.find(item=>item.repair?.action==='make_valid');
+  assert.ok(issue);
+  await ctx.self.onmessage({data:{id:'preview-winding',action:'previewReview',feature:bowtie,issue,options:{rules:{},robustEngine:true}}});
+  const preview=messages.find(message=>message.id==='preview-winding'&&message.type==='result')?.result;
+  assert.ok(preview);
+  assert.equal(preview.remainingIssues.length,0);
+  assert.ok(preview.safeChanges.some(change=>/direction/i.test(change)),preview.safeChanges);
 });

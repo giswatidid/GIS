@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 
-const VERSION='1.54.1';
+const VERSION='1.54.2';
 const STATUS_RANK={ready:0,safe:1,review:2,manual:3};
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const finiteCoord=c=>Array.isArray(c)&&Number.isFinite(Number(c[0]))&&Number.isFinite(Number(c[1]));

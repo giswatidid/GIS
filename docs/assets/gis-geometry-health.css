@@ -1,4 +1,4 @@
-/* EditPolygon v1.54.1 — Geometry Health inspector integration */
+/* EditPolygon v1.54.2 — Geometry Health inspector integration */
 body.geometry-health-open #selectedSection{display:none!important}
 .geometry-health-panel{display:none;grid-area:inspector;min-width:0;min-height:0;overflow:hidden;flex-direction:column;background:#f4f5f6!important;border-left:1px solid #cfd3d8!important;border-right:0!important;border-bottom:0!important;padding:8px!important;z-index:885}
 .geometry-health-panel.active{display:flex}

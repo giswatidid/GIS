@@ -1,5 +1,5 @@
 'use strict';
-importScripts('gis-geometry-health-core.js?v=20260807-geometry-health-1541','gis-geos-adapter.js?v=20260807-geometry-health-1541');
+importScripts('gis-geometry-health-core.js?v=20260807-geometry-health-1542','gis-geos-adapter.js?v=20260807-geometry-health-1542');
 const core=self.EditPolygonGeometryHealthCore;
 const geosAdapter=self.EditPolygonGeosAdapter;
 const GEOS_ESM_URL='https://cdn.jsdelivr.net/npm/geos-wasm@3.1.1/build/package/geos.esm.js';
@@ -102,10 +102,15 @@ async function previewReviewRepair(feature,issue,options={}){
     const made=await makeValidPolygonFeature(working);repairedFeature=made.feature;removed=!!made.removed||!made.feature;engine=made.engine;warnings=[...(made.warnings||[])];description=removed?'The robust make-valid result contains no polygonal area, so accepting this proposal would remove the feature.':'Rebuilt the polygon with a topology make-valid operation.';
     if(made.reasonBefore)warnings.push(`Before repair: ${made.reasonBefore}`);if(made.reasonAfter)warnings.push(`After repair: ${made.reasonAfter}`);
   }else throw new Error(`Repair action ${action} is not available.`);
-  const before=featureMetric(feature),after=repairedFeature?featureMetric(repairedFeature):{type:null,vertices:0,area:0,length:0,bbox:null,units:'coordinate'};const proposalCollection=fc(repairedFeature?[repairedFeature]:[]),report=core.validateCollection(proposalCollection,{rules:options.rules||{}});
+  const safeChanges=[...(safe.changes||[])];
+  if(repairedFeature?.geometry){const postSafe=core.safeRepairGeometry(repairedFeature.geometry);repairedFeature={...repairedFeature,geometry:postSafe.geometry};for(const change of postSafe.changes||[])if(!safeChanges.includes(change))safeChanges.push(change);}
+  const before=featureMetric(feature),after=repairedFeature?featureMetric(repairedFeature):{type:null,vertices:0,area:0,length:0,bbox:null,units:'coordinate'};
+  const originalCheck=core.validateFeature(feature,0,{rules:{}}),nonComparableCodes=new Set(['SELF_INTERSECTION','MULTIPOLYGON_PARTS_OVERLAP','ZERO_AREA_RING','UNCLOSED_RING','TOO_FEW_UNIQUE_VERTICES','BAD_RING','EMPTY_POLYGON','INVALID_COORDINATE','HOLE_OUTSIDE_SHELL','HOLE_TOUCHES_SHELL','HOLES_INTERSECT','NESTED_HOLE']);
+  const metricsComparable=!(originalCheck.issues||[]).some(item=>nonComparableCodes.has(item.code));
+  const proposalCollection=fc(repairedFeature?[repairedFeature]:[]),report=core.validateCollection(proposalCollection,{rules:options.rules||{}});
   if(repairedFeature&&core.polygonType(repairedFeature.geometry?.type)&&action==='make_valid'&&!engine.fallback){try{const geos=await ensureGeos(),validity=geosAdapter.validity(geos,repairedFeature.geometry);if(!validity.valid)warnings.push(`GEOS still reports this polygon as invalid: ${validity.reason}`);}catch(_){ }}
-  const areaChange=percentChange(before,after,'area'),lengthChange=percentChange(before,after,'length');let consequence='low';if(removed||before.type!==after.type||Math.abs(areaChange||0)>2||Math.abs(lengthChange||0)>2||warnings.some(w=>/not kept|no polygonal/i.test(w)))consequence='high';else if(Math.abs(areaChange||0)>.1||Math.abs(lengthChange||0)>.1||before.vertices!==after.vertices)consequence='medium';
-  return {featureId:feature.id,issueId:issue.id,action,description,removed,feature:repairedFeature,before,after,areaChangePercent:areaChange,lengthChangePercent:lengthChange,consequence,remainingIssues:report.issues,remainingCounts:report.counts,safeChanges:safe.changes,engine,warnings,metricNote:'Area and length percentages are relative coordinate-space comparisons used only to flag material changes.'};
+  const areaChange=metricsComparable?percentChange(before,after,'area'):null,lengthChange=metricsComparable?percentChange(before,after,'length'):null;let consequence='low';if(removed||before.type!==after.type||Math.abs(areaChange||0)>2||Math.abs(lengthChange||0)>2||warnings.some(w=>/not kept|no polygonal/i.test(w)))consequence='high';else if(Math.abs(areaChange||0)>.1||Math.abs(lengthChange||0)>.1||before.vertices!==after.vertices)consequence='medium';
+  return {featureId:feature.id,issueId:issue.id,action,description,removed,feature:repairedFeature,before,after,areaChangePercent:areaChange,lengthChangePercent:lengthChange,metricsComparable,consequence,remainingIssues:report.issues,remainingCounts:report.counts,safeChanges,engine,warnings,metricNote:metricsComparable?'Area and length percentages are relative coordinate-space comparisons used only to flag material changes.':'Area and length change are not comparable because the original geometry is invalid.'};
 }
 function appendPolygonOverlapRules(collection,report,options,id,onProgress){
   if(!options.rules?.polygonOverlaps)return report;const turf=ensureTurf(),polygons=(collection.features||[]).map((f,index)=>({f,index})).filter(x=>core.polygonType(x.f?.geometry?.type));let checks=0;const total=Math.max(1,polygons.length*(polygons.length-1)/2);const byId=new Map(report.featureResults.map(r=>[String(r.featureId),r]));

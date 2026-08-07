@@ -5,9 +5,9 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.54.1
+**Current application baseline:** v1.54.2
 
-The v1.54.1 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. The v1.54.1 refinement integrates Geometry Health into the normal EditPolygon Inspector column and reuses the application’s established Inspector controls and section styling.
+The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
 ## What EditPolygon is for
 
@@ -406,10 +406,10 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.54.1 baseline used for this README:
+At the v1.54.2 baseline used for this README:
 
 - Repository integration checks pass
-- All 128 automated tests pass
+- All 137 automated tests pass
 - CRS, ArcGIS remote-source, typed-data, join/summary and Geometry Health browser smoke tests pass
 - Geometry Health regression coverage includes point/line/polygon validity, safe cleanup, unclosed rings, self-intersections, invalid holes, MultiPoint duplicates, CRS-range warnings, MultiPolygon boundary-touch versus true overlap, GEOS adapter memory/GeoJSON handling, worker progress, robust validity augmentation, make-valid previews, viewport-safe UI and repaired-layer provenance
 - Existing regression coverage continues to include typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, joins and summaries, unified styling, selection tools, viewport-safe menus, Layers-panel resizing, mobile drawers and release cache keys

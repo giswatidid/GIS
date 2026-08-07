@@ -16,8 +16,9 @@ test('Geometry Health assets load in safe dependency order',()=>{
   assert.match(html,/Check &amp; fix geometry/);
 });
 
-test('layer GIS menu exposes Geometry Health as a first-class analysis action',()=>{
-  assert.ok(layerUi.includes("menuAction('health','Check & fix geometry','v1.54.1')"));
+test('layer GIS menu exposes Geometry Health without a release-version badge',()=>{
+  assert.ok(layerUi.includes("menuAction('health','Check & fix geometry')"));
+  assert.doesNotMatch(layerUi,/Check & fix geometry','v1\.54/);
   assert.match(layerUi,/tab==='health'/);
   assert.match(layerUi,/EditPolygonGeometryHealth\?\.open/);
 });
@@ -99,4 +100,49 @@ test('legacy file-validator fallback uses conservative defaults only',()=>{
   assert.doesNotMatch(html,/checked="" data-validator-fix="dropDuplicateFeatures"/);
   assert.doesNotMatch(html,/checked="" data-validator-fix="closeRings"/);
   assert.match(html,/Legacy Recommended fixes are intentionally conservative/);
+});
+
+
+test('advanced rules are staged until the user explicitly reruns the check',()=>{
+  assert.match(ui,/function effectiveRules\(\)/);
+  assert.match(ui,/Run updated check/);
+  assert.match(ui,/state\.rules\[event\.target\.dataset\.ghRule\]=event\.target\.checked;updateCheckButton\(\)/);
+  assert.doesNotMatch(ui,/data-gh-rule[\s\S]{0,300}recheckCurrent\(\)/);
+});
+
+test('advanced rule controls are geometry-aware',()=>{
+  assert.match(ui,/available\.polygon\?`<label><input type="checkbox" data-gh-rule="polygonOverlaps"/);
+  assert.match(ui,/available\.line\?`<label><input type="checkbox" data-gh-rule="lineSelfIntersections"/);
+  assert.match(ui,/available\.line\?`<label><input type="checkbox" data-gh-rule="danglingEndpoints"/);
+  assert.match(app,/geometryTypes:\[\.\.\.new Set/);
+});
+
+test('import preview reuses Geometry Health diagnostics instead of generic vertex-count heuristics',()=>{
+  const start=app.indexOf('function featureWarnings(features)');
+  const end=app.indexOf('renderImportPreview=function',start);
+  const block=app.slice(start,end);
+  assert.match(block,/EditPolygonGeometryHealthCore/);
+  assert.match(block,/Repeated neighbouring vertex/);
+  assert.match(block,/Polygon parts overlap/);
+  assert.doesNotMatch(block,/very few vertices/);
+  assert.doesNotMatch(block,/possible self-intersection/);
+});
+
+test('repair preview folds safe normalisation into proposals and marks invalid metrics as not comparable',()=>{
+  assert.match(worker,/postSafe=core\.safeRepairGeometry/);
+  assert.match(worker,/metricsComparable/);
+  assert.match(ui,/Not comparable/);
+  assert.match(ui,/safe cleanup.*included in this proposal/s);
+});
+
+test('layer warning badges use Geometry Health validation and repaired outputs discard stale raw warnings',()=>{
+  assert.match(app,/health=window\.EditPolygonGeometryHealthCore/);
+  assert.match(app,/health\?\.validateFeature/);
+  assert.match(app,/delete properties\.__validatorRawIssues/);
+});
+
+test('multiple dangling endpoints are condensed in the issue UI',()=>{
+  assert.match(ui,/function condenseIssues/);
+  assert.match(ui,/dangling endpoints/);
+  assert.match(ui,/Locate \$\{endpoint\}/);
 });

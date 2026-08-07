@@ -75,6 +75,31 @@ with sync_playwright() as p:
     assert page.locator('text=Boundary crosses itself').count() >= 1
     assert page.locator('[data-gh-action="safe-fix"]').is_enabled()
 
+    # Advanced rules are staged: checking a box stays open and does not rerun until requested.
+    page.locator('.geometry-health-advanced > summary').click()
+    advanced = page.locator('.geometry-health-advanced')
+    duplicate_rule = page.locator('[data-gh-rule="duplicateFeatures"]')
+    duplicate_rule.check()
+    assert advanced.evaluate('el=>el.open')
+    staged = page.evaluate('EditPolygonGeometryHealth.getState()')
+    assert staged['report']['rules'].get('duplicateFeatures') is False
+    assert page.locator('[data-gh-action="check"]').inner_text() == 'Run updated check'
+    assert page.locator('[data-gh-action="safe-fix"]').is_disabled()
+    page.locator('[data-gh-action="check"]').click()
+    page.wait_for_function("EditPolygonGeometryHealth.getState().report?.rules?.duplicateFeatures === true")
+    assert page.locator('[data-gh-action="check"]').inner_text() == 'Check again'
+
+    # Restore standard checks before exercising the repair flow.
+    page.locator('.geometry-health-advanced > summary').click()
+    if not advanced.evaluate('el=>el.open'):
+        page.locator('.geometry-health-advanced > summary').click()
+    duplicate_rule = page.locator('[data-gh-rule="duplicateFeatures"]')
+    duplicate_rule.uncheck()
+    assert page.locator('[data-gh-action="check"]').inner_text() == 'Run updated check'
+    page.locator('[data-gh-action="check"]').click()
+    page.wait_for_function("EditPolygonGeometryHealth.getState().report?.rules?.duplicateFeatures === false")
+    assert page.locator('[data-gh-action="safe-fix"]').is_enabled()
+
     page.locator('[data-gh-action="locate"]').first.click()
     assert page.evaluate("__ghCalls.some(call=>call[0]==='focus')")
 
@@ -95,6 +120,15 @@ with sync_playwright() as p:
     assert created[3]['name'] == 'Geometry test — repaired smoke'
     assert created[3]['report']['afterCounts']['review'] == 1
     assert page.locator('#geometryHealthPanel').evaluate("el=>!el.classList.contains('active')")
+
+    # On a line-only layer, polygon-only rules are hidden while line rules remain available.
+    page.evaluate("window.__features=window.__features.filter(feature=>feature.geometry.type==='LineString')")
+    page.evaluate("EditPolygonGeometryHealth.open('layer')")
+    page.wait_for_selector('#geometryHealthPanel.active')
+    page.locator('.geometry-health-advanced > summary').click()
+    assert page.locator('[data-gh-rule="polygonOverlaps"]').count() == 0
+    assert page.locator('[data-gh-rule="lineSelfIntersections"]').count() == 1
+    assert page.locator('[data-gh-rule="danglingEndpoints"]').count() == 1
 
     assert not errors, errors
     browser.close()

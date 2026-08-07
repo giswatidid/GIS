@@ -9270,6 +9270,15 @@ function v53RingIssueCount(geom){
 function v53ValiditySummary(f){
   const geom=getDisplayGeometry(f);
   if(!geom||!polygonSupported(geom.type))return {label:'Not polygon',cls:'warn',detail:'Only polygon and multipolygon features are editable here.'};
+  try{
+    const health=window.EditPolygonGeometryHealthCore;
+    if(health?.validateFeature){
+      const result=health.validateFeature({type:'Feature',id:f.id,properties:{...(f.properties||{}),name:f.name||f.properties?.name||f.id},geometry:clone(geom)},0,{rules:{}});
+      if(!result.issueCount)return {label:'Looks valid',cls:'ok',detail:'Geometry Health found no standard structural issues.'};
+      const titles=[...new Set((result.issues||[]).map(issue=>issue.title).filter(Boolean))];
+      return {label:'Needs check',cls:'warn',detail:titles.slice(0,2).join(' · ')+(titles.length>2?` · +${titles.length-2} more`:'')};
+    }
+  }catch(_){}
   const ringIssues=v53RingIssueCount(geom);
   let kinks=0;
   try{kinks=(turf.kinks({type:'Feature',properties:{},geometry:geom}).features||[]).length;}catch{}
@@ -14485,15 +14494,16 @@ showAutosaveRecoveryIfAvailable();
     [byId('fileInput'),byId('converterFileInput'),byId('validatorFileInput')].forEach(el=>{if(el)el.setAttribute('accept','.gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject')});
   }
   function featureWarnings(features){
-    const warnings=[]; const seen=new Map();
-    for(const raw of features||[]){
-      const name=featureName(raw); if(name){const c=seen.get(name)||0; seen.set(name,c+1);}
-      const g=raw.geometry; if(!g){warnings.push('Feature has no geometry.');continue;}
-      try{const bb=turf.bbox(raw); if(bb.some(v=>!Number.isFinite(v))||bb[1]<-90||bb[3]>90||bb[0]<-360||bb[2]>360)warnings.push(`${name}: coordinates look outside normal lon/lat ranges.`);}catch{}
-      try{const k=turf.kinks(raw); if(k?.features?.length)warnings.push(`${name}: possible self-intersection (${k.features.length}).`);}catch{}
-      if(coordCount(g)<4)warnings.push(`${name}: very few vertices.`);
+    const warnings=[],seen=new Map(),health=window.EditPolygonGeometryHealthCore;
+    const includeCodes=new Set(['EMPTY_GEOMETRY','UNSUPPORTED_GEOMETRY','INVALID_COORDINATE','COORDINATE_RANGE','DUPLICATE_MULTIPOINT','TOO_FEW_LINE_VERTICES','CONSECUTIVE_DUPLICATES','REDUNDANT_CLOSURE','UNCLOSED_RING','TOO_FEW_UNIQUE_VERTICES','SELF_INTERSECTION','SELF_INTERSECTION_SKIPPED','ZERO_AREA_RING','DUPLICATE_RING','HOLE_OUTSIDE_SHELL','HOLE_TOUCHES_SHELL','HOLES_INTERSECT','NESTED_HOLE','MULTIPOLYGON_PARTS_OVERLAP']);
+    for(const [index,raw] of (features||[]).entries()){
+      const name=featureName(raw);if(name)seen.set(name,(seen.get(name)||0)+1);
+      const g=raw.geometry;if(!g){warnings.push(`${name||`Feature ${index+1}`}: feature has no geometry.`);continue;}
+      if(health?.validateFeature){try{const result=health.validateFeature(raw,index,{rules:{}});for(const issue of result.issues||[]){if(!includeCodes.has(issue.code))continue;let message=issue.title;if(issue.code==='CONSECUTIVE_DUPLICATES')message='Repeated neighbouring vertex';else if(issue.code==='SELF_INTERSECTION')message='Boundary crosses itself';else if(issue.code==='MULTIPOLYGON_PARTS_OVERLAP')message='Polygon parts overlap';else if(issue.code==='COORDINATE_RANGE')message='Coordinates may use the wrong CRS';warnings.push(`${name}: ${message}${issue.detail?` — ${issue.detail}`:''}`);}continue;}catch(_){}}
+      try{const bb=turf.bbox(raw);if(bb.some(v=>!Number.isFinite(v))||bb[1]<-90||bb[3]>90||bb[0]<-180||bb[2]>180)warnings.push(`${name}: coordinates may use the wrong CRS.`);}catch{}
+      if((g.type==='LineString'||g.type==='MultiLineString')&&coordCount(g)<2)warnings.push(`${name}: line has too few distinct points.`);
     }
-    for(const [n,c] of seen){if(c>1)warnings.push(`${c} imported features share the name "${n}".`)}
+    for(const [n,c] of seen)if(c>1)warnings.push(`${c} imported features share the name "${n}".`);
     return [...new Set(warnings)].slice(0,12);
   }
   renderImportPreview=function(errors=[],total=0){
@@ -14503,7 +14513,6 @@ showAutosaveRecoveryIfAvailable();
     for(const item of pendingImportFiles){vertices+=item.summary.vertices||0; polys+=item.summary.polygons||0; multi+=item.summary.multipolygons||0; allWarnings.push(...featureWarnings(item.file.features.map(featJSON)));}
     const existingNames=new Set(); for(const file of project.files||[])for(const f of file.features||[])existingNames.add(f.name||f.properties?.name||'');
     for(const item of pendingImportFiles){for(const f of item.file.features||[]){if(existingNames.has(f.name||f.properties?.name||''))allWarnings.push(`Imported feature name already exists in project: "${f.name||f.properties?.name}".`)}}
-    allWarnings.push('Coordinate system assumption: imported polygon coordinates are treated as WGS84 lon/lat. Reproject externally first if the source uses a projected CRS.');
     byId('importPreviewSummary').innerHTML=`<div class="v72-summary-grid"><div><strong>${total}</strong><span>features</span></div><div><strong>${vertices.toLocaleString()}</strong><span>vertices</span></div><div><strong>${polys}</strong><span>polygons</span></div><div><strong>${multi}</strong><span>multipolygons</span></div></div>`;
     const oldOptions=byId('v72ImportOptions'); if(oldOptions)oldOptions.remove();
     const opt=document.createElement('div'); opt.id='v72ImportOptions'; opt.className='v72-import-options'; opt.innerHTML=`<label for="v72ImportMode">Import mode</label><select id="v72ImportMode"><option value="append-new">Append as new layer(s)</option><option value="append-current">Append into active layer</option><option value="replace">Replace project</option></select>`;
@@ -22231,11 +22240,11 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.54.1 — Geometry Health bridge.
+/* v1.54.2 — Geometry Health bridge.
    Exposes full-geometry layer snapshots and a single undoable materialisation
    path for the dedicated Geometry Health core/worker/UI modules. */
 {
-  const GEOMETRY_HEALTH_VERSION='1.54.1';
+  const GEOMETRY_HEALTH_VERSION='1.54.2';
   function geometryHealthScopeFeatures(file,scope='all'){
     const selected=new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);
     return (file.features||[]).filter(feature=>{
@@ -22254,7 +22263,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     });
     return {
       version:GEOMETRY_HEALTH_VERSION,id:file.id,name:file.name,scope,crs:file.gisCrs||'EPSG:4326',sourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',exportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',
-      schema:clone(file.gisSchema||null),featureCount:(file.features||[]).length,scopeCount:features.length,features
+      schema:clone(file.gisSchema||null),featureCount:(file.features||[]).length,scopeCount:features.length,geometryTypes:[...new Set((file.features||[]).map(feature=>getDisplayGeometry(feature)?.type).filter(Boolean))],features
     };
   }
   let geometryHealthIssueMarker=null,geometryHealthProposalLayer=null;
@@ -22283,7 +22292,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const raw=Array.isArray(collection?.features)?collection.features:[];if(!raw.length)throw Error('The repaired result contains no features.');
     const clean=String(name||`${source.name} — repaired`).trim()||`${source.name} — repaired`,color=source.color||COLORS[(project.files||[]).length%COLORS.length]||'#7c3aed';
     const models=raw.map((feature,index)=>{
-      const properties=clone(feature.properties||{});properties.name=String(properties.name||feature.name||`${clean} ${index+1}`);
+      const properties=clone(feature.properties||{});delete properties.__validatorRawIssues;properties.name=String(properties.name||feature.name||`${clean} ${index+1}`);
       const model=normalize({type:'Feature',properties,geometry:clone(feature.geometry)},properties.name);if(!model)return null;model.id=uid('feat');model.visible=true;model.locked=false;applyColor(model,color);return model;
     }).filter(Boolean);
     if(!models.length)throw Error('The repaired result contains no usable geometry.');

@@ -1,4 +1,20 @@
-# EditPolygon v1.54.1 — Geometry Health
+# EditPolygon v1.54.2 — Geometry Health
+
+## v1.54.2 — Live-testing refinement
+
+This follow-up release incorporates issues found while manually exercising Geometry Health against deliberately broken point, line, polygon and MultiPolygon datasets on the deployed GitHub Pages application.
+
+- Advanced rule checkboxes no longer rerun validation or collapse the rule picker immediately. Rule changes are staged until **Run updated check** is pressed.
+- Repair/output actions are temporarily blocked while rule settings are pending so results and provenance cannot silently diverge from the displayed check.
+- Advanced topology controls are geometry-aware: polygon-only rules are omitted for line-only layers and line-only rules are omitted for polygon-only layers. Mixed layers expose both.
+- The layer snapshot now advertises its geometry types so the UI can make those decisions without rescanning only the current record scope.
+- Import preview warnings reuse the Geometry Health structural validator instead of the older generic Turf/vertex-count heuristics. Valid three-point lines and Points are no longer described as having “very few vertices”; repeated vertices are not mislabeled as self-intersections; overlapping MultiPolygon parts are described as overlaps.
+- The generic red coordinate-system assumption was removed from import warnings. Specific out-of-range coordinates still produce the clearer **Coordinates may use the wrong CRS** warning.
+- Consequential repair previews now apply harmless safe normalisation to the proposed output before revalidation. Ring-direction cleanup created by GEOS MakeValid is folded into the proposal instead of appearing as an unresolved issue.
+- When the original geometry is structurally invalid, area and length percentage changes are shown as **Not comparable** instead of a misleading `0.00%`.
+- Layer warning badges now use the same Geometry Health structural validator as the dedicated workflow, and repaired outputs discard stale legacy raw-validator metadata.
+- Multiple dangling endpoints on one feature are condensed into a single **N dangling endpoints** diagnostic with individual Locate actions.
+- The **Check & fix geometry** GIS-menu row no longer displays a release-version badge.
 
 ## v1.54.1 — Inspector integration refinement
 
