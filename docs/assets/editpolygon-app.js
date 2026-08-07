@@ -20373,7 +20373,7 @@ function gisCompiledStyle(style){
 function gisEditableFile(fileId){return project.files.find(file=>file.id===fileId)||null;}
 function gisEditableSnapshot(fileId){
   const file=gisEditableFile(fileId);if(!file)return null;gisEnsureStyleModel(file);const styleState=gisLayerStyleState(file);
-  return {id:file.id,name:file.name,visible:file.visible!==false,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered&&f.visible!==false).length,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(styleState.activeStyle),styleMode:styleState.mode,styleLabel:styleState.label,simpleStyle:gisClone(styleState.simpleStyle),advancedStyle:gisClone(styleState.advancedStyle),advancedStyleAvailable:styleState.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false,field:''}),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked,styleOverride:gisClone(f.styleOverride||null)}))};
+  return {id:file.id,name:file.name,visible:file.visible!==false,tableOnly:!!file.tableOnly,sourceFormat:file.sourceFormat||'',count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered&&f.visible!==false).length,crs:file.gisCrs||'EPSG:4326',filter:gisClone(file.gisFilter||null),style:gisClone(styleState.activeStyle),styleMode:styleState.mode,styleLabel:styleState.label,simpleStyle:gisClone(styleState.simpleStyle),advancedStyle:gisClone(styleState.advancedStyle),advancedStyleAvailable:styleState.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false,field:''}),join:gisClone(file.gisJoin||null),features:(file.features||[]).map(f=>({id:f.id,name:f.name,geometryType:getDisplayGeometry(f)?.type||'',properties:gisClone(f.properties||{}),filtered:!!f._gisFiltered,visible:f.visible!==false,locked:!!f.locked,styleOverride:gisClone(f.styleOverride||null)}))};
 }
 function gisApplyFileFilter(file){
   const core=window.EditPolygonGISDataCore;const rule=file?.gisFilter;
@@ -20495,7 +20495,7 @@ function gisSetFeatureAttributes(fileId,featureId,values){
   gisApplyFileFilter(file);renderAll();setDirty(true);logOperation('attributes-updated',{fileId,featureId,fields:Object.keys(values||{})});return gisSelectedFeatureDetails();
 }
 function gisSetDisplayField(fileId,field){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisDisplayField=String(field||'name');renderSidebar();renderSelected();setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
-function gisLayerUiSnapshot(){return (project.files||[]).map(file=>{gisEnsureStyleModel(file);const state=gisLayerStyleState(file);return {id:file.id,name:file.name,visible:file.visible!==false,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(state.activeStyle),styleMode:state.mode,styleLabel:state.label,simpleStyle:gisClone(state.simpleStyle),advancedStyle:gisClone(state.advancedStyle),advancedStyleAvailable:state.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)};});}
+function gisLayerUiSnapshot(){return (project.files||[]).map(file=>{gisEnsureStyleModel(file);const state=gisLayerStyleState(file);return {id:file.id,name:file.name,visible:file.visible!==false,tableOnly:!!file.tableOnly,sourceFormat:file.sourceFormat||'',sourceUrl:file.sourceUrl||'',featureCount:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,displayField:gisDisplayFieldForFile(file),filter:gisClone(file.gisFilter||null),style:gisClone(state.activeStyle),styleMode:state.mode,styleLabel:state.label,simpleStyle:gisClone(state.simpleStyle),advancedStyle:gisClone(state.advancedStyle),advancedStyleAvailable:state.advancedAvailable,labels:gisClone(file.gisLabels||{enabled:false}),crs:file.gisCrs||'EPSG:4326',selectedFeatureId:project.selectedFileId===file.id?project.selectedFeatureId:null,hiddenFeatureIds:(file.features||[]).filter(f=>f.visible===false).map(f=>f.id),lockedFeatureIds:(file.features||[]).filter(f=>!!f.locked).map(f=>f.id)};});}
 Object.assign(window.EditPolygonGIS,{uiVersion:GIS_UI_VERSION,getSelectedFeature:gisSelectedFeatureDetails,setFeatureAttributes:gisSetFeatureAttributes,setDisplayField:gisSetDisplayField,getLayerUiSnapshot:gisLayerUiSnapshot});
 window.addEventListener('editpolygon:request-selection',()=>gisNotify());
 
@@ -21236,8 +21236,8 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const output={id:uid('file'),name:String(name||`${file.name} — selection`),visible:true,color:color||file.color||'#7c3aed',opacity:file.opacity,features:models,gisCrs:file.gisCrs||'EPSG:4326',gisSourceCrs:file.gisSourceCrs||file.gisCrs||'EPSG:4326',gisExportCrs:file.gisExportCrs||file.gisCrs||'EPSG:4326',simpleStyle:clone(file.simpleStyle||null),styleMode:file.styleMode||'simple',gisStyle:clone(file.gisStyle||null),gisLabels:clone(file.gisLabels||null),gisDisplayField:file.gisDisplayField||''};
     project.files.push(output);project.selectedFileId=output.id;setSelection(models.map(feature=>feature.id),models[0]?.id||null,`Created ${output.name} with ${models.length} selected feature${models.length===1?'':'s'}.`);renderAll();setDirty(true);logOperation('selection-saved-as-layer',{sourceFileId:fileId,outputFileId:output.id,count:models.length});return gisEditableSnapshot(output.id);
   }
-  function layerStatistics(fileId,field,{scope='all'}={}){
-    const file=gisEditableFile(fileId),core=analysisCore();if(!file||!core)throw Error('Layer or statistics engine unavailable.');const chosen=new Set(selectedIds());
+  function layerStatistics(fileId,field,{scope='all',featureIds=null}={}){
+    const file=gisEditableFile(fileId),core=analysisCore();if(!file||!core)throw Error('Layer or statistics engine unavailable.');const chosen=new Set(Array.isArray(featureIds)?featureIds:selectedIds());
     const features=(file.features||[]).filter(feature=>scope==='selected'?chosen.has(feature.id):scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true).map(feature=>({properties:feature.properties||{}}));
     return core.statistics(features,field);
   }
@@ -21846,7 +21846,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function saveFilter(fileId,name,filter){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);name=String(name??'').trim();if(!name)throw Error('Enter a saved filter name.');const normal=requireCore().normaliseFilter(filter,file.gisSchema);if(!normal)throw Error('Add at least one filter condition.');pushHistory();const existing=(file.gisSavedFilters||[]).find(item=>item.name.toLocaleLowerCase()===name.toLocaleLowerCase());if(existing){existing.filter=clone(normal);existing.updatedAt=new Date().toISOString();}else file.gisSavedFilters.push({id:uid('filter'),name,filter:clone(normal),createdAt:new Date().toISOString()});setDirty(true);gisNotify();return clone(file.gisSavedFilters);}
   function deleteSavedFilter(fileId,id){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const next=(file.gisSavedFilters||[]).filter(item=>item.id!==id);if(next.length!==(file.gisSavedFilters||[]).length)pushHistory();file.gisSavedFilters=next;setDirty(true);gisNotify();return clone(file.gisSavedFilters);}
   function applySavedFilter(fileId,id){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const saved=(file.gisSavedFilters||[]).find(item=>item.id===id);if(!saved)throw Error('Saved filter not found.');return setTypedFilter(fileId,saved.filter);}
-  function previewTypedCalculation(fileId,expression,{scope='all',limit=5,type='text',nullable=true}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const field=requireCore().normaliseField({name:'preview',type,nullable});return requireCore().calculatePreview(selectedScopeFeatures(file,scope),expression,field,limit);}
+  function previewTypedCalculation(fileId,expression,{scope='all',limit=5,type='text',nullable=true,featureIds=null}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const field=requireCore().normaliseField({name:'preview',type,nullable});return requireCore().calculatePreview(selectedScopeFeatures(file,scope,featureIds),expression,field,limit);}
   function calculateTypedField(fileId,fieldName,expression,{scope='all',type='',nullable=true,create=true,featureIds=null}={}){
     const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);fieldName=cleanFieldName(fieldName);let field=fieldDefinition(file,fieldName);if(!field){if(!create)throw Error('Output field not found.');field=requireCore().normaliseField({name:fieldName,alias:fieldName,type:type||'text',nullable,defaultValue:nullable?null:requireCore().defaultForType(type||'text')});if(duplicateField(file,fieldName))throw Error('A field with that name already exists.');}else if(field.readOnly)throw Error(`Field “${field.alias||field.name}” is read-only.`);
     if(type&&type!==field.type)field=requireCore().normaliseField({...field,type,nullable});const features=selectedScopeFeatures(file,scope,featureIds);if(!features.length)throw Error('No records match the requested calculation scope.');const preview=requireCore().calculatePreview(features,expression,field,Math.min(10,features.length));if(preview.invalid)throw Error(`${preview.invalid} record${preview.invalid===1?' has':'s have'} an invalid result for ${field.type}. Review the preview before applying.`);
@@ -21854,9 +21854,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   function typedSnapshot(fileId){const file=gisEditableFile(fileId);if(!file)return null;ensureSchema(file);const snapshot=gisEditableSnapshot(fileId);snapshot.schema=schemaSnapshot(file);snapshot.savedFilters=clone(file.gisSavedFilters||[]);snapshot.filter=clone(file.gisFilter||null);return snapshot;}
   function selectedDetailsTyped(){const details=gisSelectedFeatureDetails();if(!details)return null;const file=gisEditableFile(details.fileId);if(file){ensureSchema(file);details.schema=schemaSnapshot(file);}return details;}
-  function recordsForScope(file,scope){const selected=new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);}
-  function exportLayerRecords(fileId,{scope='all',format='geojson'}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const features=recordsForScope(file,scope);if(!features.length)throw Error('No records match this export scope.');const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');if(format==='csv'){
-      const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];for(const feature of features){lines.push([...fields.map(field=>feature.properties?.[field.name]),geomToWKT(getDisplayGeometry(feature))].map(quote).join(','));}downloadText(`${safe}_${scope}.csv`,lines.join('\n'),'text/csv;charset=utf-8');
+  function recordsForScope(file,scope,featureIds=null){const selected=new Set(Array.isArray(featureIds)?featureIds:(window.EditPolygonGIS?.getSelection?.().ids||[]));return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);}
+  function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const features=recordsForScope(file,scope,featureIds);if(!features.length)throw Error('No records match this export scope.');const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');if(format==='csv'){
+      const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];for(const feature of features){lines.push([...fields.map(field=>feature.properties?.[field.name]),(getDisplayGeometry(feature)?geomToWKT(getDisplayGeometry(feature)):'')].map(quote).join(','));}downloadText(`${safe}_${scope}.csv`,lines.join('\n'),'text/csv;charset=utf-8');
     }else{const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');}return {count:features.length,scope,format};}
 
   const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
@@ -21874,6 +21874,120 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   });
   window.__editPolygonGISSchema={version:VERSION,ensureSchema,applyTypedFilter};
   try{ensureAllSchemas();for(const file of project.files||[])applyTypedFilter(file);gisNotify();}catch(error){console.warn('Typed field initialisation failed',error);}
+}
+
+/* v1.53.0 — materialised attribute joins, grouped summaries and spatial joins. */
+{
+  const JOIN_VERSION='1.53.0';
+  const joinCore=()=>window.EditPolygonGISJoinCore;
+  const JOIN_RUNTIME={worker:null,job:null,sequence:0};
+  const joinClone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+  const joinSchema=file=>{try{return window.EditPolygonGIS?.getSchema?.(file.id)||file.gisSchema||joinCore().inferSchema(file.features||[]);}catch(_){return file.gisSchema||joinCore().inferSchema(file.features||[]);}};
+  const joinSelection=()=>new Set(window.EditPolygonGIS?.getSelection?.().ids||[]);
+  function joinScopedFeatures(file,scope='all',featureIds=null){
+    const selected=new Set(Array.isArray(featureIds)?featureIds:joinSelection());
+    return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);
+  }
+  function joinRecord(feature){return {id:feature.id,properties:joinClone(feature.properties||{}),geometry:joinClone(getDisplayGeometry(feature)||null)};}
+  function joinSource(fileId,scope='all',externalSource=null,featureIds=null){
+    if(externalSource){
+      const records=(externalSource.records||externalSource.rows||[]).map((record,index)=>({id:record.id||`external_${index+1}`,properties:joinClone(record.properties||record),geometry:joinClone(record.geometry||null)}));
+      return {id:'external',name:externalSource.name||'Lookup table',tableOnly:!records.some(record=>record.geometry),records,schema:joinClone(externalSource.schema||joinCore().inferSchema(records))};
+    }
+    const file=gisEditableFile(fileId);if(!file)throw Error('Source layer or table not found.');
+    return {id:file.id,name:file.name,tableOnly:!!file.tableOnly,records:joinScopedFeatures(file,scope,featureIds).map(joinRecord),schema:joinClone(joinSchema(file)),file};
+  }
+  function joinTarget(fileId,scope='all',featureIds=null){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Target layer not found.');
+    return {id:file.id,name:file.name,tableOnly:!!file.tableOnly,records:joinScopedFeatures(file,scope,featureIds).map(joinRecord),schema:joinClone(joinSchema(file)),file};
+  }
+  function joinWorkerUrl(){return 'assets/gis-join-worker.js?v=20260807-joins-1530';}
+  function cancelJoinProcessing(){
+    if(JOIN_RUNTIME.worker){try{JOIN_RUNTIME.worker.terminate();}catch(_){ }JOIN_RUNTIME.worker=null;}
+    const job=JOIN_RUNTIME.job;JOIN_RUNTIME.job=null;if(job)job.reject(Error('Join processing cancelled.'));return !!job;
+  }
+  function runJoinWorker(task,onProgress=()=>{}){
+    cancelJoinProcessing();
+    const id=`join_${++JOIN_RUNTIME.sequence}`;let worker;
+    try{worker=new Worker(joinWorkerUrl());}catch(error){return Promise.reject(Error(`Could not start join worker: ${error.message||error}`));}
+    JOIN_RUNTIME.worker=worker;
+    return new Promise((resolve,reject)=>{
+      JOIN_RUNTIME.job={id,reject};
+      worker.onmessage=event=>{
+        const message=event.data||{};if(message.id!==id)return;
+        if(message.type==='progress'){try{onProgress(message);}catch(_){ }return;}
+        JOIN_RUNTIME.worker=null;JOIN_RUNTIME.job=null;try{worker.terminate();}catch(_){ }
+        if(message.type==='error')reject(Error(message.message||'Join processing failed.'));else resolve(message.result);
+      };
+      worker.onerror=event=>{JOIN_RUNTIME.worker=null;JOIN_RUNTIME.job=null;try{worker.terminate();}catch(_){ }reject(Error(event.message||'Join worker failed.'));};
+      worker.postMessage({id,task});
+    });
+  }
+  function outputFeatureModel(row,index,fileName,color,tableOnly=false){
+    const properties=joinClone(row.properties||{});properties.name=String(properties.name||`${fileName} ${index+1}`);
+    if(tableOnly||!row.geometry){return {id:uid('row'),name:properties.name,properties,sourceGeometry:null,renderedGeometry:null,geometry:null,editStack:[],visible:true,style:{color,fillColor:color,weight:0,fillOpacity:0}};}
+    const model=normalize({type:'Feature',properties,geometry:joinClone(row.geometry)},properties.name);if(!model)return null;applyColor(model,color);return model;
+  }
+  function createJoinOutput({name,rows,schema,tableOnly=false,targetFile=null,provenance={}}){
+    const clean=String(name||'Join result').trim()||'Join result',color=targetFile?.color||COLORS[(project.files||[]).length%COLORS.length]||'#7c3aed';
+    const models=(rows||[]).map((row,index)=>outputFeatureModel(row,index,clean,color,tableOnly)).filter(Boolean);if(!models.length)throw Error('The operation produced no output records.');
+    pushHistory();
+    const file={id:uid('file'),name:clean,sourceFormat:tableOnly?'table':'join',visible:!tableOnly,color,features:models,tableOnly:!!tableOnly,gisCrs:targetFile?.gisCrs||'EPSG:4326',gisSchema:joinClone(schema),gisSavedFilters:[],gisFilter:null,gisJoin:{version:JOIN_VERSION,createdAt:new Date().toISOString(),...joinClone(provenance)}};
+    if(targetFile&&!tableOnly){file.simpleStyle=joinClone(targetFile.simpleStyle);file.styleMode='simple';file.opacity=targetFile.opacity;}
+    project.files.push(file);sidebarState.collapsedFiles.add(file.id);project.selectedFileId=file.id;project.selectedFeatureId=tableOnly?null:models[0].id;project.mergeIds=[];
+    try{window.__editPolygonGISSchema?.ensureSchema?.(file);window.__editPolygonGISSchema?.applyTypedFilter?.(file);}catch(_){ }
+    invalidateSpatialIndex?.(file.id);renderAll();setDirty(true);gisNotify();logOperation('gis-join-output',{outputFileId:file.id,name:clean,count:models.length,kind:provenance.operation||'join',tableOnly:!!tableOnly});
+    return window.EditPolygonGIS.getEditableLayer(file.id);
+  }
+  function previewAttributeJoin(fileId,config={}){
+    const target=joinTarget(fileId,config.targetScope||'all',config.targetFeatureIds),source=joinSource(config.sourceFileId,config.sourceScope||'all',config.externalSource,config.sourceFeatureIds);
+    return joinCore().previewAttributeJoin(target.records,source.records,{...joinClone(config),targetSchema:target.schema,sourceSchema:source.schema});
+  }
+  async function executeAttributeJoin(fileId,config={},onProgress=()=>{}){
+    const target=joinTarget(fileId,config.targetScope||'all',config.targetFeatureIds),source=joinSource(config.sourceFileId,config.sourceScope||'all',config.externalSource,config.sourceFeatureIds),workerConfig={...joinClone(config),targetSchema:target.schema,sourceSchema:source.schema};
+    const result=await runJoinWorker({operation:'attributeJoin',targetRecords:target.records,sourceRecords:source.records,config:workerConfig},onProgress);
+    return createJoinOutput({name:config.name||`${target.name} + ${source.name}`,rows:result.rows,schema:result.schema,tableOnly:target.tableOnly,targetFile:target.file,provenance:{operation:'attribute_join',targetLayerId:target.id,targetLayerName:target.name,sourceLayerId:source.id,sourceName:source.name,targetKey:config.targetKey,sourceKey:config.sourceKey,joinType:config.joinType||'left',duplicateHandling:config.duplicateHandling||'block',diagnostics:result.diagnostics}});
+  }
+  function previewGroupSummary(fileId,config={}){
+    const source=joinTarget(fileId,config.scope||'all',config.featureIds);const safeConfig=source.tableOnly?{...joinClone(config),geometryMode:'table'}:joinClone(config);return joinCore().previewGroupSummary(source.records,{...safeConfig,schema:source.schema});
+  }
+  async function executeGroupSummary(fileId,config={},onProgress=()=>{}){
+    const source=joinTarget(fileId,config.scope||'all',config.featureIds),effectiveGeometry=source.tableOnly?'table':(config.geometryMode||'table'),workerConfig={...joinClone(config),geometryMode:effectiveGeometry,schema:source.schema};
+    const result=await runJoinWorker({operation:'groupSummary',records:source.records,config:workerConfig},onProgress),tableOnly=effectiveGeometry==='table';
+    return createJoinOutput({name:config.name||`${source.name} summary`,rows:result.rows,schema:result.schema,tableOnly,targetFile:source.file,provenance:{operation:'group_summary',sourceLayerId:source.id,sourceName:source.name,groupFields:config.groupFields||[],aggregations:config.aggregations||[],geometryMode:effectiveGeometry,diagnostics:result.diagnostics}});
+  }
+  async function previewSpatialJoin(fileId,config={},onProgress=()=>{}){
+    const target=joinTarget(fileId,config.targetScope||'all',config.targetFeatureIds),source=joinSource(config.sourceFileId,config.sourceScope||'all',null,config.sourceFeatureIds);if(target.tableOnly||source.tableOnly)throw Error('Spatial joins require geometry layers, not non-spatial tables.');const workerConfig={...joinClone(config),targetSchema:target.schema,sourceSchema:source.schema};
+    const result=await runJoinWorker({operation:'spatialJoin',targetRecords:target.records,sourceRecords:source.records,config:workerConfig},onProgress);return {...result.diagnostics,schema:result.schema,valid:true,errors:[]};
+  }
+  async function executeSpatialJoin(fileId,config={},onProgress=()=>{}){
+    const target=joinTarget(fileId,config.targetScope||'all',config.targetFeatureIds),source=joinSource(config.sourceFileId,config.sourceScope||'all',null,config.sourceFeatureIds);if(target.tableOnly||source.tableOnly)throw Error('Spatial joins require geometry layers, not non-spatial tables.');const workerConfig={...joinClone(config),targetSchema:target.schema,sourceSchema:source.schema};
+    const result=await runJoinWorker({operation:'spatialJoin',targetRecords:target.records,sourceRecords:source.records,config:workerConfig},onProgress);
+    return createJoinOutput({name:config.name||`${target.name} spatial join ${source.name}`,rows:result.rows,schema:result.schema,targetFile:target.file,provenance:{operation:'spatial_join',targetLayerId:target.id,targetLayerName:target.name,sourceLayerId:source.id,sourceName:source.name,predicate:config.predicate||'intersects',matchMode:config.matchMode||'summarize',diagnostics:result.diagnostics}});
+  }
+  function getJoinSources(){return (project.files||[]).map(file=>({id:file.id,name:file.name,kind:file.tableOnly?'table':'layer',tableOnly:!!file.tableOnly,count:(file.features||[]).length,geometryTypes:[...new Set((file.features||[]).map(feature=>getDisplayGeometry(feature)?.type).filter(Boolean))],schema:joinClone(joinSchema(file)),filterActive:!!file.gisFilter,selectedCount:joinScopedFeatures(file,'selected').length}));}
+  function parseJoinLookupFile(name,text){
+    const extension=String(name||'').split('.').pop().toLowerCase();
+    if(extension==='csv'||extension==='tsv'||extension==='txt'){const parsed=joinCore().parseCsv(text,{delimiter:extension==='tsv'?'\t':undefined});return {name,records:parsed.rows.map((properties,index)=>({id:`external_${index+1}`,properties})),schema:parsed.schema,tableOnly:true};}
+    const data=JSON.parse(text);const features=data.type==='FeatureCollection'?data.features:Array.isArray(data)?data:data.features||[];if(!Array.isArray(features))throw Error('The lookup file must contain a JSON array or GeoJSON FeatureCollection.');const records=features.map((item,index)=>item?.type==='Feature'?{id:item.id||`external_${index+1}`,properties:joinClone(item.properties||{}),geometry:joinClone(item.geometry||null)}:{id:`external_${index+1}`,properties:joinClone(item||{})});return {name,records,schema:joinClone(data.editpolygonSchema||joinCore().inferSchema(records)),tableOnly:!records.some(record=>record.geometry)};
+  }
+
+  // Non-spatial summary tables live in project.files for persistence and reuse the
+  // typed attribute table, but they never enter map rendering or geometry recompute.
+  recomputeAllFeatures=function(){for(const file of project.files||[]){if(file.tableOnly||isFileSleeping(file))continue;for(const feature of file.features||[]){if(isFeatureSleeping(file,feature))continue;recomputeFeature(feature);}}};window.recomputeAllFeatures=recomputeAllFeatures;
+  const v153BaseRenderMap=renderMap;
+  renderMap=function(){const hidden=[];for(const file of project.files||[])if(file.tableOnly){hidden.push([file,file.visible]);file.visible=false;}try{return v153BaseRenderMap.apply(this,arguments);}finally{for(const [file,visible] of hidden)file.visible=visible;}};window.renderMap=renderMap;
+  function enhanceTableLayers(){
+    const root=$('fileList');if(!root)return;
+    for(const file of project.files||[]){if(!file.tableOnly)continue;const card=root.querySelector(`[data-v133-file="${CSS.escape(file.id)}"],[data-v54-file="${CSS.escape(file.id)}"]`);if(!card)continue;card.classList.add('v153-table-layer');const main=card.querySelector('.file-main');if(main&&!main.querySelector('.v153-table-badge'))main.insertAdjacentHTML('beforeend','<span class="v153-table-badge">TABLE</span>');card.querySelectorAll('.feature-row').forEach(row=>row.remove());const collapse=card.querySelector('.collapse-btn');if(collapse)collapse.style.visibility='hidden';}
+  }
+  const v153BaseRenderSidebar=renderSidebar;
+  renderSidebar=function(){const result=v153BaseRenderSidebar.apply(this,arguments);enhanceTableLayers();return result;};window.renderSidebar=renderSidebar;
+  const v153BaseShowFileLayerMenu=showFileLayerMenu;
+  showFileLayerMenu=function(event,fileId){const result=v153BaseShowFileLayerMenu.apply(this,arguments),file=gisEditableFile(fileId);if(file?.tableOnly){const menu=$('layerMenu'),zoom=menu?.querySelector('[data-a="zoomfile"]');if(zoom){zoom.disabled=true;zoom.title='Non-spatial tables do not have a map extent.';}const open=document.createElement('button');open.textContent='Open table';open.onclick=()=>{closeLayerMenu();window.EditPolygonGISDataTools?.open?.(fileId,'table');};menu?.insertBefore(open,menu.firstElementChild?.nextSibling||null);}return result;};window.showFileLayerMenu=showFileLayerMenu;
+
+  Object.assign(window.EditPolygonGIS,{joinVersion:JOIN_VERSION,getJoinSources,parseJoinLookupFile,previewAttributeJoin,executeAttributeJoin,previewGroupSummary,executeGroupSummary,previewSpatialJoin,executeSpatialJoin,cancelJoinProcessing});
+  window.__editPolygonGISJoin={version:JOIN_VERSION,cancel:cancelJoinProcessing};
 }
 
 // Close the main EditPolygon application scope after all enhancements.

@@ -5,7 +5,7 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.52.3
+**Current application baseline:** v1.53.0
 
 ## What EditPolygon is for
 
@@ -91,6 +91,41 @@ Filtering supports multiple type-aware conditions joined with `AND` or `OR`, inc
 The deterministic field calculator supports typed output, previews and all, visible or selected record scopes. Expressions can reference fields as `[field]` and use arithmetic, comparisons, concatenation, conditionals, text functions, numeric functions and date functions without evaluating arbitrary JavaScript.
 
 GeoJSON and CSV/WKT record exports can be limited to the entire layer, filtered records, visible records or selected records. GeoJSON exports include the EditPolygon field schema.
+
+### Join, summarize and enrich data
+
+The **Join & summarize** workspace combines records without changing the input layers. Every operation shows a preview and creates a new materialised result that can be undone, saved, filtered, styled and exported.
+
+**Join by matching fields** works like a spreadsheet lookup: choose a field in the current layer and a matching field in another loaded layer, project table, CSV or JSON lookup file, then copy selected source fields into the result. The workflow includes:
+
+- Typed key compatibility checks
+- Exact text matching with optional case and whitespace normalisation
+- Leading-zero preservation for identifier fields
+- Left and inner joins
+- Explicit handling of duplicate source matches
+- Match, no-match and output-count previews
+- Automatic field-name conflict resolution
+- Source and target scopes based on all, filtered, visible or selected records
+
+**Summarize records** works like a pivot table. Records can be grouped by one or more fields and calculated using count, distinct count, sum, average, median, minimum, maximum, first, last and distinct-text combination operations. Results can be created as:
+
+- A non-spatial project table
+- One feature using the first geometry in each group
+- Dissolved polygon geometry for each group
+
+Non-spatial results appear in the Layers panel with a **TABLE** indicator and use the same typed attribute table, filtering, calculations, exports and project persistence as map layers.
+
+**Join by location** combines records according to where their geometry is located. It supports:
+
+- Point-in-polygon matching
+- Intersects, within, contains, touches and overlaps relationships
+- Nearest-feature matching with an optional maximum distance
+- First-match, expanded or summarized match handling
+- Counts and typed summaries of matching features
+- Match-distance fields for nearest joins
+- Invalid-geometry and skipped-record reporting
+
+Join and summary outputs are self-contained. They do not remain linked to, or modify, the original inputs. Spatial operations run in a dedicated browser worker with progress and cancellation.
 
 ### Style and label layers
 
@@ -347,10 +382,10 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.52.3 baseline used for this README:
+At the v1.53.0 baseline used for this README:
 
 - Repository integration checks pass
-- All 78 automated tests pass
+- All 96 automated tests pass
 - CRS, ArcGIS remote-source and typed-data browser smoke tests pass
 - Regression coverage includes typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
 
@@ -378,16 +413,15 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 The next planned development phases are:
 
-1. Attribute joins, spatial joins and grouped summaries
-2. Geometry validation and repair expansion
-3. Additional processing tools
-4. Virtualised tables and larger-dataset performance
-5. Advanced rule-based styling and label placement
-6. GeoPackage, FlatGeobuf, GeoParquet and GPX support
-7. Better remote-layer refresh and source management
-8. Project snapshots and portable project packages
-9. Print layouts and high-resolution map export
-10. Raster and GeoTIFF analysis tools
+1. Geometry validation and repair expansion
+2. Additional processing tools
+3. Virtualised tables and larger-dataset performance
+4. Advanced rule-based styling and label placement
+5. GeoPackage, FlatGeobuf, GeoParquet and GPX support
+6. Better remote-layer refresh and source management
+7. Project snapshots and portable project packages
+8. Print layouts and high-resolution map export
+9. Raster and GeoTIFF analysis tools
 
 ## Feedback
 

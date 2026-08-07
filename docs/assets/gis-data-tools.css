@@ -174,3 +174,38 @@ body.night-mode .gis-filter-state.active,body.night-mode .gis-table-filter-state
 body.night-mode .gis-filter-state.active strong,body.night-mode .gis-table-filter-state strong{color:#9fc5ff}
 body.night-mode .gis-table-filter-state span{color:#b8c4d3}
 @media(max-width:700px){.gis-filter-state,.gis-table-filter-state{align-items:stretch;flex-direction:column}.gis-filter-state>div:last-child,.gis-table-filter-state>div:last-child{justify-content:flex-start}.gis-table-filter-state>div:first-child{align-items:flex-start;flex-direction:column;gap:2px}.gis-table-filter-state span{white-space:normal}}
+
+/* v1.53.0 — joins, grouped summaries and spatial joins */
+.gis-join-intro{max-width:980px;margin:0 auto 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding:0 0 10px}
+.gis-join-intro h2{margin:0 0 3px;font-size:17px}.gis-join-intro p{margin:0;color:var(--muted);font-size:11px}
+.gis-join-mode-tabs{display:flex;gap:5px;flex-wrap:wrap}.gis-join-mode-tabs button.active{background:#1f2937;color:#fff;border-color:#1f2937}
+.gis-join-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.gis-join-grid>label,.gis-tool-card>label{display:grid;gap:4px;font-size:11px;font-weight:650}
+.gis-join-grid input,.gis-join-grid select,.gis-tool-card>label>input,.gis-tool-card>label>select,.gis-join-aggregation input,.gis-join-aggregation select,.gis-join-field-row>input[type=text]{width:100%;min-width:0}
+.gis-join-file{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px dashed var(--line);background:var(--soft);padding:8px}.gis-join-file span{font-size:10px;color:var(--muted)}
+.gis-join-options{margin:12px 0 0;border:1px solid var(--line);padding:9px 10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.gis-join-options legend{font-size:10px;font-weight:750;padding:0 5px}.gis-join-options label{display:flex;align-items:center;gap:5px;font-size:11px}.gis-join-options small{color:var(--muted);font-size:10px}
+.gis-join-field-toolbar{display:flex;gap:6px;margin:8px 0}.gis-join-field-list{display:grid;gap:5px;max-height:290px;overflow:auto;border:1px solid var(--line);padding:6px;background:var(--soft)}
+.gis-join-field-row{display:grid;grid-template-columns:20px minmax(120px,1fr) minmax(130px,1fr);align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel);padding:7px}.gis-join-field-row>span{display:grid;min-width:0}.gis-join-field-row strong{font-size:11px;overflow:hidden;text-overflow:ellipsis}.gis-join-field-row small{font-size:9px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.gis-join-aggregation{display:grid;grid-template-columns:minmax(150px,1fr) minmax(140px,1fr) minmax(140px,1fr) auto;gap:8px;align-items:end;border:1px solid var(--line);background:var(--soft);padding:8px;margin-bottom:6px}.gis-join-aggregation label{display:grid;gap:3px;font-size:10px;font-weight:650}
+.gis-join-check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 12px}.gis-join-check-grid label{font-size:11px}.gis-join-check-grid small{color:var(--muted)}
+.gis-join-hidden{display:none!important}
+.gis-join-preview-empty{margin-top:12px;border:1px dashed var(--line);background:var(--soft);padding:12px;color:var(--muted);font-size:11px}
+.gis-join-preview{margin-top:12px;border:1px solid var(--line);padding:12px;background:var(--panel)}.gis-join-preview.is-valid{border-left:4px solid #218739}.gis-join-preview.has-errors{border-left:4px solid #b42318}
+.gis-join-messages{display:grid;gap:4px;margin:8px 0}.gis-join-messages p{margin:0;padding:6px 8px;font-size:10px}.gis-join-messages.errors p{background:rgba(180,35,24,.08);color:#8f1d14}.gis-join-messages.warnings p{background:rgba(217,119,6,.1);color:#8a4b05}
+.gis-join-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0}.gis-join-metrics>div{display:grid;gap:2px;border:1px solid var(--line);background:var(--soft);padding:8px}.gis-join-metrics span{font-size:9px;color:var(--muted)}.gis-join-metrics strong{font-size:14px}
+.gis-join-method{font-size:10px;color:var(--muted)}.gis-join-sample{overflow:auto;max-height:240px}.gis-join-sample table{border-collapse:collapse;width:100%;font-size:9px}.gis-join-sample th,.gis-join-sample td{border:1px solid var(--line);padding:5px;white-space:nowrap}
+.gis-join-progress{margin-top:12px;border:1px solid var(--line);padding:10px;background:var(--soft);display:grid;grid-template-columns:1fr auto;gap:6px}.gis-join-progress>div{grid-column:1/-1;height:8px;background:var(--line);overflow:hidden}.gis-join-progress i{display:block;height:100%;background:#1664d6;transition:width .15s linear}.gis-join-progress span{font-size:10px;color:var(--muted)}
+body.night-mode .gis-join-mode-tabs button.active{background:#e5e7eb;color:#111827}body.night-mode .gis-join-messages.errors p{color:#fca5a5}body.night-mode .gis-join-messages.warnings p{color:#fcd34d}
+@media(max-width:850px){.gis-join-intro{align-items:stretch;flex-direction:column}.gis-join-grid{grid-template-columns:1fr}.gis-join-check-grid{grid-template-columns:1fr 1fr}.gis-join-metrics{grid-template-columns:1fr 1fr}.gis-join-aggregation{grid-template-columns:1fr 1fr}.gis-join-aggregation>button{justify-self:start}}
+@media(max-width:560px){.gis-join-check-grid,.gis-join-metrics,.gis-join-aggregation{grid-template-columns:1fr}.gis-join-field-row{grid-template-columns:20px 1fr}.gis-join-field-row>input[type=text]{grid-column:2}}
+.gis-table-row-number{display:inline-flex;min-width:28px;justify-content:center;color:var(--muted);font-variant-numeric:tabular-nums}
+.gis-join-mode-tabs button:disabled{opacity:.45;cursor:not-allowed}
+.gis-join-grid label>small{display:block;color:var(--muted);font-size:9px;font-weight:400;margin-top:2px}
+
+/* v1.53 derived-result notice */
+.gis-derived-result{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;margin:0 0 12px;border:1px solid #a8c7b0;border-left:4px solid #2f855a;background:#f1faf4;color:#183a25}
+.gis-derived-result>div{display:grid;gap:3px;min-width:0}
+.gis-derived-result strong{font-size:13px}
+.gis-derived-result span{font-size:12px;line-height:1.4}
+.gis-derived-result button{flex:0 0 auto}
+body.night .gis-derived-result{border-color:#426b50;border-left-color:#68b77d;background:#18251c;color:#d8f3df}
+@media(max-width:700px){.gis-derived-result{align-items:stretch;flex-direction:column}.gis-derived-result button{align-self:flex-start}}

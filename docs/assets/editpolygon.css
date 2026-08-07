@@ -5084,12 +5084,8 @@ body.night-mode .v149-bulk-menu{background:#20252b;border-color:#8a6a2a;}
   .v149-sidebar-width-resizer{display:none!important;}
 }
 
-
-/* v150 simple / advanced / feature-override styling clarity */
-.v150-layer-style-status{display:block;width:max-content;max-width:100%;margin-top:2px;padding:0;border:0;background:transparent;color:#64748b;font-size:10px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.v150-layer-style-status[data-mode="advanced"]{color:#9a5b00;font-weight:700}
-.file-color.v150-advanced-disabled{opacity:.45;cursor:not-allowed;filter:saturate(.25)}
-.v150-layer-style-menu{display:grid;gap:6px;border-top:1px solid var(--border,#d7dde5);margin-top:6px;padding-top:7px}
-.v150-style-lock{display:grid;gap:3px;padding:9px 10px;background:#fff8e8;border:1px solid #eab75c}.v150-style-lock strong{color:#8a4b00}.v150-style-lock span,.v150-style-lock small{color:#6b7280}.v150-style-lock.simple{background:#f8fafc;border-color:#d7dde5}.v150-style-lock.simple strong{color:#1f2937}
-.v150-inspector-style-state{display:grid;gap:5px;margin-bottom:12px;padding:10px 11px;border:1px solid #d7dde5;background:#f8fafc}.v150-inspector-style-state>span,.v150-inspector-style-state>small{color:#64748b}.v150-inspector-style-state>div{display:flex;gap:6px;flex-wrap:wrap}.v150-inspector-style-state:has([data-v150-override-feature]){background:#fff8e8;border-color:#eab75c}.v150-inspector-style-state:has([data-v150-override-feature]) strong{color:#8a4b00}
-body.night-mode .v150-layer-style-status{color:#94a3b8}body.night-mode .v150-layer-style-status[data-mode="advanced"]{color:#f0b45d}body.night-mode .v150-style-lock,body.night-mode .v150-inspector-style-state{background:#151b24;border-color:#374151}body.night-mode .v150-style-lock:has(+ button),body.night-mode .v150-inspector-style-state:has([data-v150-override-feature]){background:#2b2111}
+/* v1.53.0 non-spatial summary tables */
+#filesSection .file-card.v153-table-layer{border-left-color:#6b7280!important}
+#filesSection .file-card.v153-table-layer .file-meta::before{content:'TABLE · ';font-weight:750;color:#475569}
+#filesSection .v153-table-badge{display:inline-flex;margin-left:6px;border:1px solid #9ca3af;background:#f3f4f6;color:#374151;padding:1px 4px;font-size:8px;font-weight:800;letter-spacing:.04em;vertical-align:1px}
+body.night-mode #filesSection .v153-table-badge{background:#1f2937;color:#d1d5db;border-color:#4b5563}
