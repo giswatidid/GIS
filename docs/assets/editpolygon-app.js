@@ -18322,7 +18322,7 @@ showAutosaveRecoveryIfAvailable();
     row.classList.toggle('v133-active',active);
     row.setAttribute('aria-selected',selected?'true':'false');
     const input=row.querySelector('input[data-v133-feature-select]');
-    if(input){input.checked=selected;input.setAttribute('aria-label',selected?'Deselect polygon':'Select polygon');}
+    if(input){input.checked=selected;input.setAttribute('aria-label',selected?'Deselect feature':'Select feature');}
   }
   function v133SyncLayerCheckbox(card,file,selectedSet=v133AllSelected()){
     if(!card||!file)return;
@@ -18333,7 +18333,7 @@ showAutosaveRecoveryIfAvailable();
       input.checked=ids.length>0&&count===ids.length;
       input.indeterminate=count>0&&count<ids.length;
       input.setAttribute('aria-checked',input.indeterminate?'mixed':(input.checked?'true':'false'));
-      input.title=input.checked?'Deselect every polygon in this layer':(input.indeterminate?'Select every polygon in this layer':'Select every polygon in this layer');
+      input.title=input.checked?'Deselect every polygon in this layer':(input.indeterminate?'Select every feature in this layer':'Select every feature in this layer');
     }
     card.classList.toggle('v133-partial-selection',count>0&&count<ids.length);
     card.classList.toggle('v133-full-selection',ids.length>0&&count===ids.length);
@@ -18447,7 +18447,7 @@ showAutosaveRecoveryIfAvailable();
     let active=project.selectedFeatureId;
     if(active&&!set.has(active))active=[...set].pop()||null;
     V133.anchors.set(file.id,ids[0]||null);
-    v133SetSelection([...set],active,{autoActive:false,message:all?`Deselected all polygons in ${file.name}.`:`Selected all ${ids.length} polygons in ${file.name}.`});
+    v133SetSelection([...set],active,{autoActive:false,message:all?`Deselected all features in ${file.name}.`:`Selected all ${ids.length} features in ${file.name}.`});
   }
 
   function v133Filtered(){
@@ -18463,7 +18463,7 @@ showAutosaveRecoveryIfAvailable();
     input.removeAttribute('checked');
     input.removeAttribute('style');
     if(kind==='feature')input.dataset.v133FeatureSelect=id;else input.dataset.v133LayerSelect=id;
-    input.title=kind==='feature'?'Select polygon':'Select every polygon in this layer';
+    input.title=kind==='feature'?'Select feature':'Select every feature in this layer';
     old.replaceWith(input);
     return input;
   }
@@ -18678,7 +18678,7 @@ showAutosaveRecoveryIfAvailable();
     if(drag.type==='feature'){
       const file=(project.files||[]).find(f=>f.id===drag.fileId);const targetId=target.dataset.v133Feature||target.dataset.v54Feature;
       if(file)changed=v133ReorderFeatures(file,drag.ids,targetId,after);
-      if(changed)v133AfterOrder(`Moved ${drag.ids.length} polygon${drag.ids.length===1?'':'s'} in ${file.name}.`);
+      if(changed)v133AfterOrder(`Moved ${drag.ids.length} feature${drag.ids.length===1?'':'s'} in ${file.name}.`);
     }else{
       const targetId=target.dataset.v133File||target.dataset.v54File;changed=v133ReorderFiles(drag.id,targetId,after);
       if(changed)v133AfterOrder('Layer order updated.');
@@ -18716,7 +18716,7 @@ showAutosaveRecoveryIfAvailable();
     if(mode==='manual'){file._v133SortMode='manual';renderSidebar();setStatus(`${file.name} is in manual order.`);return;}
     v133PushOrderHistory();
     const count=(file.features||[]).length;
-    try{window.EditPolygonBusy?.show('Sorting polygons…',`${v133SortLabel(mode)} for ${count.toLocaleString()} polygons.`);}catch(_){ }
+    try{window.EditPolygonBusy?.show('Sorting features…',`${v133SortLabel(mode)} for ${count.toLocaleString()} features.`);}catch(_){ }
     await v133NextPaint();
     try{
       const decorated=[];
@@ -18730,7 +18730,7 @@ showAutosaveRecoveryIfAvailable();
         else if(mode==='vertices-desc'||mode==='vertices-asc')key=v133Vertices(f);
         decorated.push({f,key,index:i});
         if((mode.startsWith('area')||mode.includes('north')||mode.includes('south')||mode.includes('east')||mode.includes('west'))&&i%8===0){
-          const msg=$('v131BusyMessage');if(msg)msg.textContent=`${v133SortLabel(mode)} · ${Math.min(i+1,count).toLocaleString()} of ${count.toLocaleString()} polygons`;
+          const msg=$('v131BusyMessage');if(msg)msg.textContent=`${v133SortLabel(mode)} · ${Math.min(i+1,count).toLocaleString()} of ${count.toLocaleString()} features`;
           await new Promise(resolve=>requestAnimationFrame(resolve));
         }
       }
@@ -18774,7 +18774,7 @@ showAutosaveRecoveryIfAvailable();
   showFileLayerMenu=function(e,fileId){
     const result=v133BaseFileMenu.apply(this,arguments);const m=$('layerMenu'),file=(project.files||[]).find(f=>f.id===fileId);if(!m||!file)return result;
     const group=document.createElement('div');group.className='v54-menu-group v133-sort-menu';
-    group.innerHTML=`<div class="v54-menu-label">Selection & order</div><button data-v133-select-layer>${(file.features||[]).every(f=>v133AllSelected().has(f.id))?'Deselect layer':'Select all polygons in layer'}</button><button data-v133-layer-top>Move layer to top</button><button data-v133-layer-bottom>Move layer to bottom</button><div class="v133-sort-row"><label for="v133SortSelect">Sort polygons</label><select id="v133SortSelect"><option value="manual">Manual order</option><option value="original">Original import order</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="north-south">North to south</option><option value="south-north">South to north</option><option value="west-east">West to east</option><option value="east-west">East to west</option><option value="area-desc">Largest area first</option><option value="area-asc">Smallest area first</option><option value="vertices-desc">Most vertices first</option><option value="vertices-asc">Fewest vertices first</option></select></div><div class="v133-menu-note">Drag layer or polygon grips for manual ordering. Sorting changes map and export order and can be undone.</div>`;
+    group.innerHTML=`<div class="v54-menu-label">Selection & order</div><button data-v133-select-layer>${(file.features||[]).every(f=>v133AllSelected().has(f.id))?'Deselect layer':'Select all features in layer'}</button><button data-v133-layer-top>Move layer to top</button><button data-v133-layer-bottom>Move layer to bottom</button><div class="v133-sort-row"><label for="v133SortSelect">Sort features</label><select id="v133SortSelect"><option value="manual">Manual order</option><option value="original">Original import order</option><option value="name-asc">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="north-south">North to south</option><option value="south-north">South to north</option><option value="west-east">West to east</option><option value="east-west">East to west</option><option value="area-desc">Largest area first</option><option value="area-asc">Smallest area first</option><option value="vertices-desc">Most vertices first</option><option value="vertices-asc">Fewest vertices first</option></select></div><div class="v133-menu-note">Drag layer or feature grips for manual ordering. Sorting changes map and export order and can be undone.</div>`;
     m.appendChild(group);
     const select=group.querySelector('#v133SortSelect');if(select)select.value=file._v133SortMode||'manual';
     group.querySelector('[data-v133-select-layer]').onclick=()=>{closeLayerMenu();v133ToggleLayer(fileId);};
@@ -18790,7 +18790,7 @@ showAutosaveRecoveryIfAvailable();
     const result=v133BaseFeatureMenu.apply(this,arguments),m=$('layerMenu');if(!m)return result;
     const selected=v133AllSelected().has(featureId);
     const replace=(selector,text,handler)=>{const old=m.querySelector(selector);if(!old)return;const next=old.cloneNode(true);next.textContent=text;old.replaceWith(next);next.onclick=ev=>{ev.preventDefault();ev.stopPropagation();handler();};};
-    replace('[data-a="pickfeat"]',selected?'Deselect polygon':'Select polygon',()=>{closeLayerMenu();v133ToggleFeature(featureId);});
+    replace('[data-a="pickfeat"]',selected?'Deselect feature':'Select feature',()=>{closeLayerMenu();v133ToggleFeature(featureId);});
     replace('[data-a="clearpicks"]','Clear selection',()=>{closeLayerMenu();v133ClearSelection();});
     const label=[...m.querySelectorAll('.v54-menu-label')].find(x=>x.textContent.trim()==='Selection');if(label)label.textContent='Selection';
     return result;
@@ -21901,7 +21901,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const file=gisEditableFile(fileId);if(!file)throw Error('Target layer not found.');
     return {id:file.id,name:file.name,tableOnly:!!file.tableOnly,records:joinScopedFeatures(file,scope,featureIds).map(joinRecord),schema:joinClone(joinSchema(file)),file};
   }
-  function joinWorkerUrl(){return 'assets/gis-join-worker.js?v=20260807-joins-1532';}
+  function joinWorkerUrl(){return 'assets/gis-join-worker.js?v=20260807-menu-usability-1533';}
   function cancelJoinProcessing(){
     if(JOIN_RUNTIME.worker){try{JOIN_RUNTIME.worker.terminate();}catch(_){ }JOIN_RUNTIME.worker=null;}
     const job=JOIN_RUNTIME.job;JOIN_RUNTIME.job=null;if(job)job.reject(Error('Join processing cancelled.'));return !!job;
@@ -21988,6 +21988,246 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 
   Object.assign(window.EditPolygonGIS,{joinVersion:JOIN_VERSION,getJoinSources,parseJoinLookupFile,previewAttributeJoin,executeAttributeJoin,previewGroupSummary,executeGroupSummary,previewSpatialJoin,executeSpatialJoin,cancelJoinProcessing});
   window.__editPolygonGISJoin={version:JOIN_VERSION,cancel:cancelJoinProcessing};
+}
+
+
+/* v1.53.3 — bounded, consistent layer and GIS popovers.
+   Desktop menus now measure their completed contents, flip around the opener,
+   stay inside the viewport and scroll internally when necessary. The layer
+   More menu is rebuilt as a concise layer-management menu rather than a chain
+   of independently appended legacy sections. */
+{
+  const V1533_MENU_MARGIN=8,V1533_MENU_GAP=5,V1533_MIN_MENU_HEIGHT=120;
+  const V1533={layerOpener:null,layerEvent:null};
+
+  function v1533AnchorRect(eventOrAnchor){
+    const candidate=eventOrAnchor?.currentTarget instanceof Element?eventOrAnchor.currentTarget:
+      eventOrAnchor instanceof Element?eventOrAnchor:
+      eventOrAnchor?.target instanceof Element?eventOrAnchor.target.closest('button,[role="button"]'):null;
+    if(candidate?.getBoundingClientRect)return {element:candidate,rect:candidate.getBoundingClientRect()};
+    const x=Number(eventOrAnchor?.clientX),y=Number(eventOrAnchor?.clientY);
+    const px=Number.isFinite(x)?x:V1533_MENU_MARGIN,py=Number.isFinite(y)?y:V1533_MENU_MARGIN;
+    return {element:null,rect:{left:px,right:px,top:py,bottom:py,width:0,height:0}};
+  }
+  function v1533PositionPopover(popover,eventOrAnchor,options={}){
+    if(!popover)return null;
+    const margin=Number(options.margin)||V1533_MENU_MARGIN,gap=Number(options.gap)||V1533_MENU_GAP;
+    const {element,rect}=v1533AnchorRect(eventOrAnchor);
+    const wasHidden=getComputedStyle(popover).display==='none';
+    const hadActive=popover.classList.contains('active');
+    if(wasHidden)popover.classList.add('active');
+    const previousVisibility=popover.style.visibility;
+    popover.style.visibility='hidden';
+    popover.style.position='fixed';
+    popover.style.left='0px';popover.style.top='0px';
+    popover.style.right='auto';popover.style.bottom='auto';
+    popover.style.maxHeight='none';
+    const width=Math.min(popover.offsetWidth||286,Math.max(160,window.innerWidth-margin*2));
+    const naturalHeight=popover.scrollHeight||popover.offsetHeight||V1533_MIN_MENU_HEIGHT;
+    const viewportHeight=Math.max(0,window.innerHeight),viewportWidth=Math.max(0,window.innerWidth);
+    const below=Math.max(0,viewportHeight-margin-(rect.bottom+gap));
+    const above=Math.max(0,rect.top-gap-margin);
+    let maxHeight=Math.max(V1533_MIN_MENU_HEIGHT,Math.min(naturalHeight,viewportHeight-margin*2));
+    let top;
+    if(naturalHeight<=below){
+      top=rect.bottom+gap;
+      maxHeight=Math.min(naturalHeight,below);
+    }else if(naturalHeight<=above){
+      maxHeight=Math.min(naturalHeight,above);
+      top=rect.top-gap-maxHeight;
+    }else if(below>=above){
+      top=Math.max(margin,rect.bottom+gap);
+      maxHeight=Math.max(V1533_MIN_MENU_HEIGHT,viewportHeight-top-margin);
+    }else{
+      maxHeight=Math.max(V1533_MIN_MENU_HEIGHT,above);
+      maxHeight=Math.min(maxHeight,viewportHeight-margin*2);
+      top=Math.max(margin,rect.top-gap-maxHeight);
+    }
+    if(top+maxHeight>viewportHeight-margin)top=Math.max(margin,viewportHeight-margin-maxHeight);
+    const rightSpace=viewportWidth-margin-(rect.right+gap),leftSpace=rect.left-gap-margin;
+    let left;
+    if(width<=rightSpace)left=rect.right+gap;
+    else if(width<=leftSpace)left=rect.left-gap-width;
+    else left=Math.max(margin,Math.min(rect.right-width,viewportWidth-margin-width));
+    popover.style.width=options.width?String(options.width):'';
+    popover.style.maxHeight=`${Math.max(1,Math.min(maxHeight,viewportHeight-margin*2))}px`;
+    popover.style.left=`${Math.round(Math.max(margin,left))}px`;
+    popover.style.top=`${Math.round(Math.max(margin,top))}px`;
+    popover.style.visibility=previousVisibility||'';
+    if(wasHidden&&!hadActive)popover.classList.remove('active');
+    if(element){
+      popover._v1533Anchor=element;
+      element.setAttribute('aria-haspopup','menu');
+      element.setAttribute('aria-expanded','true');
+    }
+    return {left,top,maxHeight,width,anchor:element};
+  }
+  window.EditPolygonPositionPopover=v1533PositionPopover;
+
+  positionLayerMenu=function(event){
+    const m=$('layerMenu');if(!m)return;
+    V1533.layerEvent=event;
+    v1533PositionPopover(m,event);
+  };
+  window.positionLayerMenu=positionLayerMenu;
+
+  const v1533BaseCloseLayerMenu=closeLayerMenu;
+  closeLayerMenu=function(){
+    const m=$('layerMenu'),opener=V1533.layerOpener||m?._v1533Anchor||null;
+    if(opener)opener.setAttribute('aria-expanded','false');
+    v1533BaseCloseLayerMenu();
+    if(m){
+      m.classList.remove('v1533-layer-menu');
+      m.removeAttribute('role');
+      m.style.removeProperty('max-height');
+      m.style.removeProperty('visibility');
+      m._v1533Anchor=null;
+    }
+    V1533.layerEvent=null;
+    V1533.layerOpener=null;
+  };
+  window.closeLayerMenu=closeLayerMenu;
+
+  function v1533GeometryFamily(file){
+    if(file?.tableOnly)return {kind:'table',label:'Table',noun:'records'};
+    const families=new Set((file?.features||[]).map(feature=>{
+      const type=getDisplayGeometry(feature)?.type||'';
+      if(/Point$/i.test(type))return 'point';
+      if(/LineString$/i.test(type))return 'line';
+      if(/Polygon$/i.test(type)||isParametricCircleFeature(feature))return 'polygon';
+      return type?'mixed':'unknown';
+    }).filter(type=>type!=='unknown'));
+    if(families.size===1){
+      const kind=[...families][0];
+      return {kind,label:`${kind[0].toUpperCase()+kind.slice(1)} layer`,noun:'features'};
+    }
+    return {kind:'mixed',label:families.size?'Mixed geometry layer':'Layer',noun:'features'};
+  }
+  function v1533SortOptions(file,family){
+    const common=[
+      ['manual','Manual order'],['original','Original import order'],
+      ['name-asc','Name A–Z'],['name-desc','Name Z–A']
+    ];
+    if(family.kind!=='table')common.push(
+      ['north-south','North to south'],['south-north','South to north'],
+      ['west-east','West to east'],['east-west','East to west']
+    );
+    if(family.kind==='line'||family.kind==='polygon'||family.kind==='mixed')common.push(
+      ['vertices-desc','Most vertices first'],['vertices-asc','Fewest vertices first']
+    );
+    if(family.kind==='polygon')common.push(
+      ['area-desc','Largest area first'],['area-asc','Smallest area first']
+    );
+    return common.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+  }
+  function v1533MenuGroup(label,html,extra=''){
+    return `<section class="v1533-menu-group ${extra}"><div class="v1533-menu-label">${esc(label)}</div>${html}</section>`;
+  }
+  function v1533MenuButton(action,label,options={}){
+    const disabled=options.disabled?' disabled':'',danger=options.danger?' v1533-menu-remove':'';
+    const badge=options.badge?`<span class="v1533-menu-badge">${esc(options.badge)}</span>`:'';
+    const title=options.title?` title="${esc(options.title)}"`:'';
+    return `<button type="button" class="v1533-menu-action${danger}" data-v1533-action="${action}"${disabled}${title}><span>${esc(label)}</span>${badge}</button>`;
+  }
+  function v1533MoveLayerTo(fileId,where){
+    const index=project.files.findIndex(file=>file.id===fileId);if(index<0)return;
+    if(where==='top'&&index===project.files.length-1)return;
+    if(where==='bottom'&&index===0)return;
+    pushHistory();
+    const [file]=project.files.splice(index,1);
+    if(where==='top')project.files.push(file);else project.files.unshift(file);
+    renderAll();setDirty(true);setStatus(`Layer moved to the ${where} of the map stack.`);
+  }
+  function v1533ToggleLayerSelection(file){
+    const hooks=window.__editPolygonLayersV133;if(!hooks)return;
+    const current=new Set(hooks.selectedIds?.()||[]),ids=(file.features||[]).map(feature=>feature.id);
+    const all=ids.length>0&&ids.every(id=>current.has(id));
+    if(all)ids.forEach(id=>current.delete(id));else ids.forEach(id=>current.add(id));
+    let active=project.selectedFeatureId;
+    if(active&&!current.has(active))active=[...current].pop()||null;
+    if(!all&&ids.length)active=ids[0];
+    hooks.select?.([...current],active,{message:all?`Deselected all features in ${file.name}.`:`Selected all ${ids.length} features in ${file.name}.`});
+  }
+  function v1533RenameLayer(file){
+    const next=prompt('Rename layer',file.name||'Layer');
+    if(!next||!next.trim()||next.trim()===file.name)return;
+    pushHistory();file.name=next.trim();renderAll();setDirty(true);setStatus('Layer renamed.');
+  }
+  function v1533OpenStyle(fileId){
+    const tools=window.EditPolygonGISDataTools;
+    if(typeof tools?.openLayer==='function')tools.openLayer(fileId,'style');
+    else tools?.open?.(fileId,'style');
+  }
+
+  showFileLayerMenu=function(event,fileId){
+    event.preventDefault();event.stopPropagation();
+    const file=project.files.find(item=>item.id===fileId);if(!file)return;
+    const m=$('layerMenu');if(!m)return;
+    closeLayerMenu();
+    const opener=event.currentTarget instanceof Element?event.currentTarget:null;
+    V1533.layerOpener=opener;
+    V1533.layerEvent=event;
+    const family=v1533GeometryFamily(file),count=(file.features||[]).length;
+    const countLabel=`${count.toLocaleString()} ${count===1?(family.noun==='records'?'record':'feature'):family.noun}`;
+    const op=Math.max(.05,Math.min(1,Number.isFinite(Number(file.opacity))?Number(file.opacity):1));
+    const selected=new Set(window.__editPolygonLayersV133?.selectedIds?.()||[]);
+    const allSelected=count>0&&(file.features||[]).every(feature=>selected.has(feature.id));
+    const state=typeof gisLayerStyleState==='function'?gisLayerStyleState(file):null;
+    const styleLabel=state?.mode==='advanced'?(state.label||'Advanced'):'Single symbol';
+    const fileIndex=project.files.findIndex(item=>item.id===file.id);
+    const drawing=!!(file.isDrawingGroup||file.isScratch);
+    const tableButton=file.tableOnly?v1533MenuButton('open-table','Open attribute table'):'';
+    const zoomButton=v1533MenuButton('zoom','Zoom to layer',{disabled:!!file.tableOnly,title:file.tableOnly?'Non-spatial tables do not have a map extent.':''});
+    const viewHtml=`${tableButton}${zoomButton}${v1533MenuButton('solo',isSoloFileId(file.id)?'Unsolo layer':'Solo layer')}${STEP2_SOLO.active||STEP3_LAYERS.pickedSolo?v1533MenuButton('unsolo','Unsolo all'):''}${v1533MenuButton('visibility',file.visible!==false?'Hide layer':'Show layer')}`;
+    const layerHtml=`${v1533MenuButton('rename','Rename layer…')}${v1533MenuButton('lock',file.locked?'Unlock layer':'Lock layer')}${drawing?v1533MenuButton('drawing-target',file.isActiveDrawingGroup?'Current drawing target':'Use for new drawings',{disabled:!!file.isActiveDrawingGroup}):''}`;
+    const orderHtml=`<div class="v1533-menu-grid">${v1533MenuButton('up','Move up',{disabled:fileIndex<=0})}${v1533MenuButton('down','Move down',{disabled:fileIndex<0||fileIndex>=project.files.length-1})}${v1533MenuButton('top','Move to top',{disabled:fileIndex===project.files.length-1})}${v1533MenuButton('bottom','Move to bottom',{disabled:fileIndex===0})}</div>`;
+    const featureLabel=family.kind==='table'?'Records':'Features';
+    const featureHtml=`${v1533MenuButton('select-layer',allSelected?`Deselect all ${family.noun}`:`Select all ${family.noun}`,{disabled:count===0})}<label class="v1533-menu-select-row"><span>Sort ${family.noun}</span><select data-v1533-sort aria-label="Sort ${family.noun}">${v1533SortOptions(file,family)}</select></label>`;
+    const appearanceHtml=file.tableOnly?'':`<div class="v1533-menu-state"><span>Style</span><strong>${esc(styleLabel)}</strong></div><label class="v1533-menu-range-row"><span>Opacity</span><input type="range" min="0.05" max="1" step="0.05" value="${op}" data-v1533-opacity><output>${Math.round(op*100)}%</output></label>${v1533MenuButton('style','Style & labels…')}${v1533MenuButton('paste-style','Paste copied style',{disabled:!haveCopiedStyle()})}${state?.mode==='advanced'?v1533MenuButton('single-style','Switch to single symbol'):state?.advancedAvailable?v1533MenuButton('advanced-style','Restore saved advanced style'):''}`;
+    m.className='layer-menu v54-menu v1533-layer-menu';
+    m.setAttribute('role','menu');
+    m.innerHTML=`<header class="v1533-layer-menu-head"><strong>${esc(file.name)}</strong><span>${esc(family.label)} · ${esc(countLabel)}</span></header>${v1533MenuGroup('View',viewHtml)}${v1533MenuGroup('Layer',layerHtml)}${v1533MenuGroup('Layer order',orderHtml)}${v1533MenuGroup(featureLabel,featureHtml)}${appearanceHtml?v1533MenuGroup('Appearance',appearanceHtml):''}${v1533MenuGroup('Remove',v1533MenuButton('remove','Remove layer',{danger:true}),'v1533-menu-danger-group')}`;
+    const sort=m.querySelector('[data-v1533-sort]');if(sort)sort.value=file._v133SortMode||'manual';
+    m.classList.add('active');
+    v1533PositionPopover(m,event);
+    opener?.setAttribute('aria-expanded','true');
+
+    const act=(name,handler)=>m.querySelector(`[data-v1533-action="${name}"]`)?.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();handler();});
+    act('open-table',()=>{closeLayerMenu();const tools=window.EditPolygonGISDataTools;if(typeof tools?.openLayer==='function')tools.openLayer(file.id,'table');else tools?.open?.(file.id,'table');});
+    act('zoom',()=>{closeLayerMenu();if(!file.tableOnly)zoomFile(file.id);});
+    act('solo',()=>{closeLayerMenu();isSoloFileId(file.id)?clearSolo():soloFile(file.id);});
+    act('unsolo',()=>{closeLayerMenu();clearSolo();});
+    act('visibility',()=>{closeLayerMenu();setFileVisibility(file.id,!(file.visible!==false));});
+    act('rename',()=>{closeLayerMenu();v1533RenameLayer(file);});
+    act('lock',()=>{closeLayerMenu();toggleFileLock(file.id);});
+    act('drawing-target',()=>{closeLayerMenu();window.__editPolygonDrawingGroupsV135?.setTarget?.(file.id);});
+    act('up',()=>{closeLayerMenu();moveFile(file.id,-1);});
+    act('down',()=>{closeLayerMenu();moveFile(file.id,1);});
+    act('top',()=>{closeLayerMenu();v1533MoveLayerTo(file.id,'top');});
+    act('bottom',()=>{closeLayerMenu();v1533MoveLayerTo(file.id,'bottom');});
+    act('select-layer',()=>{closeLayerMenu();v1533ToggleLayerSelection(file);});
+    act('style',()=>{closeLayerMenu();v1533OpenStyle(file.id);});
+    act('paste-style',()=>{closeLayerMenu();pasteStyleToFile(file.id);});
+    act('single-style',()=>{if(confirm('Switch to single-symbol styling? The advanced configuration will be retained.')){closeLayerMenu();gisSwitchLayerStyleMode(file.id,'simple');}});
+    act('advanced-style',()=>{closeLayerMenu();gisSwitchLayerStyleMode(file.id,'advanced');});
+    act('remove',()=>{closeLayerMenu();removeFile(file.id);});
+    sort?.addEventListener('change',()=>{const mode=sort.value;closeLayerMenu();window.__editPolygonLayersV133?.sortFile?.(file.id,mode);});
+    const opacity=m.querySelector('[data-v1533-opacity]'),output=opacity?.parentElement?.querySelector('output');
+    opacity?.addEventListener('input',ev=>{if(output)output.textContent=`${Math.round(Number(ev.target.value)*100)}%`;setFileOpacity(file.id,ev.target.value);});
+  };
+  window.showFileLayerMenu=showFileLayerMenu;
+
+  window.addEventListener('keydown',event=>{
+    if(event.key!=='Escape')return;
+    const m=$('layerMenu'),opener=V1533.layerOpener||m?._v1533Anchor;
+    if(m?.classList.contains('active')){
+      event.preventDefault();event.stopPropagation();closeLayerMenu();requestAnimationFrame(()=>opener?.focus?.());
+    }
+  },true);
+  window.addEventListener('resize',()=>{
+    const m=$('layerMenu');
+    if(m?.classList.contains('active')&&V1533.layerEvent)v1533PositionPopover(m,V1533.layerEvent);
+  },{passive:true});
 }
 
 // Close the main EditPolygon application scope after all enhancements.

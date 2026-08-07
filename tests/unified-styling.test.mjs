@@ -50,5 +50,7 @@ test('simple editors clearly lock while advanced styling is active',()=>{
   assert.match(app,/Override this feature/);
   assert.match(app,/Use layer style/);
   assert.match(dataTools,/styleMode\|\|'simple'/);
-  assert.match(ui,/Simple layer colour controls are disabled/);
+  assert.match(ui,/styleBadge/);
+  assert.match(ui,/data-style-simple/);
+  assert.match(ui,/data-style-advanced/);
 });

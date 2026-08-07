@@ -5,7 +5,9 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.53.2
+**Current application baseline:** v1.53.3
+
+The v1.53.3 interface maintenance release keeps the layer **More** and **GIS** menus inside the browser viewport, adds internal scrolling for short screens, completes the GIS shortcut list, and replaces the accumulated layer menu controls with clearer layer-management groups.
 
 ## What EditPolygon is for
 
@@ -382,12 +384,12 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.53.2 baseline used for this README:
+At the v1.53.3 baseline used for this README:
 
 - Repository integration checks pass
-- All 96 automated tests pass
-- CRS, ArcGIS remote-source and typed-data browser smoke tests pass
-- Regression coverage includes typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, unified styling, selection tools, Layers-panel resizing, mobile drawers and release cache keys
+- All 101 automated tests pass
+- CRS, ArcGIS remote-source, typed-data, join and summary browser smoke tests pass
+- Regression coverage includes typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, joins and summaries, unified styling, selection tools, viewport-safe menus, Layers-panel resizing, mobile drawers and release cache keys
 
 Run the browser smoke tests with:
 

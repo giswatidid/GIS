@@ -11,7 +11,7 @@ const worker=fs.readFileSync(new URL('../docs/assets/gis-join-worker.js',import.
 test('join engine loads before the application and uses a dedicated worker',()=>{
   assert.ok(html.indexOf('gis-join-core.js')>html.indexOf('gis-analysis-core.js'));
   assert.ok(html.indexOf('gis-join-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(app,/gis-join-worker\.js\?v=20260807-joins-1532/);
+  assert.match(app,/gis-join-worker\.js\?v=20260807-menu-usability-1533/);
   assert.match(worker,/attributeJoin/);
   assert.match(worker,/groupSummary/);
   assert.match(worker,/spatialJoin/);
@@ -66,4 +66,13 @@ test('join outputs and typed calculations invalidate indexes through the public 
   assert.doesNotMatch(app,/(^|[^.\w])invalidateSpatialIndex\?\./m);
   assert.match(app,/window\.EditPolygonGIS\?\.invalidateSpatialIndex\?\.\(file\.id\)/);
   assert.match(app,/window\.EditPolygonGIS\?\.invalidateSpatialIndex\?\.\(fileId\)/);
+});
+
+test('join completion wording distinguishes output rows from actual matches',()=>{
+  assert.match(tools,/function joinCompletionMessage/);
+  assert.match(tools,/Created “\$\{output\?\.name\|\|'Result'\}”/);
+  assert.match(tools,/matchedTargets/);
+  assert.match(tools,/unmatchedTargets/);
+  assert.doesNotMatch(tools,/joined record\(s\)/);
+  assert.doesNotMatch(tools,/spatially joined record\(s\)/);
 });

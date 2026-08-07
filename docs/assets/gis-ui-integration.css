@@ -12,3 +12,138 @@ body.night-mode .editpolygon-point-edit-handle{border-color:#111827}
 .gis-inspector-form label.is-readonly{opacity:.68}
 .gis-inspector-form label.is-readonly input,.gis-inspector-form label.is-readonly select{background:#eef1f5;cursor:not-allowed}
 body.night-mode .gis-inspector-form label.is-readonly input,body.night-mode .gis-inspector-form label.is-readonly select{background:#202733}
+
+
+/* v1.53.3 — complete, grouped and viewport-safe GIS shortcut menu. */
+.gis-layer-action-menu{
+  width:min(286px,calc(100vw - 16px));
+  min-width:0;
+  max-width:calc(100vw - 16px);
+  padding:0;
+  display:block;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  border-radius:4px;
+}
+.gis-layer-menu-head{
+  position:sticky;
+  top:0;
+  z-index:3;
+  display:grid!important;
+  gap:2px!important;
+  margin:0!important;
+  padding:10px 11px 9px!important;
+  background:#fff;
+  border-bottom:1px solid #d9dee5!important;
+}
+.gis-layer-menu-head strong{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#1f2933;
+  font-size:12px;
+  line-height:1.25;
+}
+.gis-layer-menu-head span{
+  color:#667383!important;
+  font-size:10px!important;
+  line-height:1.3;
+}
+.gis-layer-menu-section{
+  display:grid;
+  gap:1px;
+  margin:0;
+  padding:7px 6px;
+  border-bottom:1px solid #e2e6eb;
+}
+.gis-layer-menu-section:last-child{border-bottom:0}
+.gis-layer-menu-label{
+  padding:1px 5px 4px;
+  color:#718096;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.065em;
+  line-height:1.2;
+  text-transform:uppercase;
+}
+.gis-layer-action-menu .gis-layer-menu-action,
+.gis-layer-action-menu .gis-layer-menu-secondary,
+.gis-layer-action-menu .gis-layer-menu-setting{
+  width:100%;
+  min-height:30px;
+  margin:0;
+  border:0;
+  border-radius:2px;
+  background:transparent;
+  color:#28323d;
+  font-size:11px;
+  text-align:left;
+}
+.gis-layer-action-menu .gis-layer-menu-action{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:6px 7px;
+}
+.gis-layer-menu-action strong{
+  flex:0 1 auto;
+  max-width:48%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#667383;
+  font-size:9px;
+  font-weight:600;
+}
+.gis-layer-action-menu .gis-layer-menu-secondary{
+  min-height:26px;
+  padding:4px 7px 4px 18px;
+  color:#52606d;
+  font-size:10px;
+}
+.gis-layer-action-menu .gis-layer-menu-setting{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:7px;
+  padding:6px 7px;
+}
+.gis-layer-menu-setting strong{
+  max-width:110px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  color:#28323d;
+  font-size:10px;
+}
+.gis-layer-menu-setting small{
+  color:#2f6fbb;
+  font-size:9px;
+  font-weight:600;
+}
+.gis-layer-action-menu .gis-layer-menu-action:hover,
+.gis-layer-action-menu .gis-layer-menu-secondary:hover,
+.gis-layer-action-menu .gis-layer-menu-setting:hover{background:#eef2f6}
+.gis-layer-action-menu button:focus-visible{
+  outline:2px solid #2f6fbb;
+  outline-offset:-1px;
+}
+.night-mode .gis-layer-action-menu{background:#15181f;border-color:#414a57;color:#e5e7eb}
+.night-mode .gis-layer-menu-head{background:#15181f;border-color:#303744!important}
+.night-mode .gis-layer-menu-head strong{color:#f1f5f9}
+.night-mode .gis-layer-menu-head span,
+.night-mode .gis-layer-menu-label,
+.night-mode .gis-layer-menu-action strong{color:#98a5b5!important}
+.night-mode .gis-layer-menu-section{border-color:#303744}
+.night-mode .gis-layer-action-menu .gis-layer-menu-action,
+.night-mode .gis-layer-action-menu .gis-layer-menu-secondary,
+.night-mode .gis-layer-action-menu .gis-layer-menu-setting{background:transparent;color:#e5e7eb}
+.night-mode .gis-layer-menu-setting strong{color:#f1f5f9}
+.night-mode .gis-layer-menu-setting small{color:#8dbdf3}
+.night-mode .gis-layer-action-menu .gis-layer-menu-action:hover,
+.night-mode .gis-layer-action-menu .gis-layer-menu-secondary:hover,
+.night-mode .gis-layer-action-menu .gis-layer-menu-setting:hover{background:#252b35}
