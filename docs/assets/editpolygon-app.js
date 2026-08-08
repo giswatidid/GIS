@@ -3059,24 +3059,82 @@ function layerContainsPoint(f,latlng){
     );
   }catch{return false}
 }
-function featuresAtLatLng(latlng){
-  const out=[];
-  const rows=renderOrderRows();
+function mapHitTolerancePx(feature,file){
+  const st=styleWithOpacity(feature,file)||{},geom=getDisplayGeometry(feature);
+  const stroke=Math.max(1,Number(st.weight)||2);
+  if(isParametricCircleFeature(feature))return Math.max(7,stroke/2+4);
+  if(geom?.type==='Point'||geom?.type==='MultiPoint')return Math.max(8,Number(st.radius||feature?.style?.radius||5)+4);
+  if(geom?.type==='LineString'||geom?.type==='MultiLineString')return Math.max(8,stroke/2+6);
+  return Math.max(6,stroke/2+4);
+}
+function pixelPointSegmentDistance(pointValue,aCoord,bCoord){
+  const p=MAP_ADAPTER.point(pointValue),a=coordToPt(aCoord),b=coordToPt(bCoord);
+  return distPx(p,closestPointOnSeg(p,a,b).point);
+}
+function lineCoordinatesHitPixel(coords,pixel,tolerance){
+  if(!Array.isArray(coords)||!coords.length)return false;
+  if(coords.length===1)return distPx(MAP_ADAPTER.point(pixel),coordToPt(coords[0]))<=tolerance;
+  for(let i=0;i<coords.length-1;i++)if(pixelPointSegmentDistance(pixel,coords[i],coords[i+1])<=tolerance)return true;
+  return false;
+}
+function polygonBoundaryHitPixel(coords,pixel,tolerance){
+  for(const ring of coords||[])if(lineCoordinatesHitPixel(ring,pixel,tolerance))return true;
+  return false;
+}
+function featureHitAtMapPoint(feature,file,latlng,pixel){
+  if(!feature||!latlng||!pixel)return false;
+  if(isParametricCircleFeature(feature))return circleContainsLatLng(feature.parametricGeometry,latlng);
+  const geom=getDisplayGeometry(feature);if(!geom)return false;
+  const tolerance=mapHitTolerancePx(feature,file),p=MAP_ADAPTER.point(pixel);
+  try{
+    if(geom.type==='Point')return distPx(p,coordToPt(geom.coordinates))<=tolerance;
+    if(geom.type==='MultiPoint')return (geom.coordinates||[]).some(coord=>distPx(p,coordToPt(coord))<=tolerance);
+    if(geom.type==='LineString')return lineCoordinatesHitPixel(geom.coordinates,p,tolerance);
+    if(geom.type==='MultiLineString')return (geom.coordinates||[]).some(line=>lineCoordinatesHitPixel(line,p,tolerance));
+    if(geom.type==='Polygon')return layerContainsPoint(feature,latlng)||polygonBoundaryHitPixel(geom.coordinates,p,tolerance);
+    if(geom.type==='MultiPolygon')return layerContainsPoint(feature,latlng)||(geom.coordinates||[]).some(poly=>polygonBoundaryHitPixel(poly,p,tolerance));
+  }catch(_){ }
+  return false;
+}
+function featuresAtLatLng(latlng,pixel=null){
+  const out=[],rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng);
   for(const row of rows){
     if(isLocked(row.file,row.feature))continue;
+    const tolerance=mapHitTolerancePx(row.feature,row.file);
+    const nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance));
+    const se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
+    const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng));
+    const latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat));
     const fb=featureBBox(row.feature);
-    if(fb && (latlng.lng<fb[0]||latlng.lng>fb[2]||latlng.lat<fb[1]||latlng.lat>fb[3]))continue;
-    if(layerContainsPoint(row.feature,latlng))out.push(row);
+    if(fb && (latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
+    if(featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))out.push(row);
   }
   // Top-most first: last rendered is on top.
   return out.reverse();
+}
+function mapSelectionHooks(){return window.__editPolygonLayersV133||null;}
+function applyMapFeatureSelection(featureId,modifiers={}){
+  const hooks=mapSelectionHooks();
+  if(!hooks){selectFeatureMulti(featureId,!!(modifiers.shiftKey||modifiers.ctrlKey||modifiers.metaKey));return;}
+  const current=new Set(hooks.selectedIds?.()||[]),toggle=!!(modifiers.ctrlKey||modifiers.metaKey),add=!!modifiers.shiftKey;
+  let active=featureId;
+  if(toggle){
+    if(current.has(featureId)){current.delete(featureId);active=project.selectedFeatureId===featureId?[...current].pop()||null:project.selectedFeatureId;}
+    else current.add(featureId);
+  }else if(add){current.add(featureId);}
+  else{current.clear();current.add(featureId);}
+  hooks.select?.([...current],active,{message:current.size?`${current.size} feature${current.size===1?'':'s'} selected.`:'Selection cleared.',forceInspector:true});
+}
+function clearMapFeatureSelection(){
+  const hooks=mapSelectionHooks();
+  if(hooks?.clear)hooks.clear('Selection cleared.');else clearSelection();
 }
 function closePickMenu(){closeLayerMenu();
   const m=$('pickMenu');
   if(m){m.classList.remove('active');m.innerHTML='';}
   LAYER.pickCandidates=[];
 }
-function showPickMenu(point,candidates,additive=false){
+function showPickMenu(point,candidates,additive=false,modifiers=null){
   const m=$('pickMenu');
   if(!m)return;
   LAYER.pickCandidates=candidates;
@@ -3087,7 +3145,7 @@ function showPickMenu(point,candidates,additive=false){
       <span><strong>${i+1}. ${esc(c.feature.name)}</strong><div class="pick-meta">${esc(c.file.name)} · ${vertexCount(getDisplayGeometry(c.feature)).toLocaleString()} vertices</div></span>
     </button>`;
   }).join('');
-  m.innerHTML=`<div class="pick-title">Select overlapping polygon</div>${rows}`;
+  m.innerHTML=`<div class="pick-title">Select overlapping feature</div>${rows}`;
   m.style.left=Math.min(point.x+10,MAP_RUNTIME.getSize().x-370)+'px';
   m.style.top=Math.min(point.y+10,MAP_RUNTIME.getSize().y-220)+'px';
   m.classList.add('active');
@@ -3095,7 +3153,7 @@ function showPickMenu(point,candidates,additive=false){
     e.preventDefault();
     const row=candidates[Number(btn.dataset.i)];
     closePickMenu();
-    if(row)selectFeatureMulti(row.feature.id,additive);
+    if(row)applyMapFeatureSelection(row.feature.id,modifiers||{shiftKey:!!additive});
   });
 }
 
@@ -3233,24 +3291,23 @@ window.addEventListener('blur',()=>{if(MOVE.drag)finishPolygonMoveDrag(false);})
 function selectFromMapClick(e){
   if(MEASURE.active){measureMapClick(e);return;}
   if(MOVE.active||V.active||D.active)return;
-  const candidates=featuresAtLatLng(e.latLng);
-  if(!candidates.length){clearSelection();return;}
-  const additive=!!(e.originalEvent&&(e.originalEvent.shiftKey||e.originalEvent.ctrlKey||e.originalEvent.metaKey));
-  if(e.originalEvent?.altKey){
+  const modifiers=e.originalEvent||{},candidates=featuresAtLatLng(e.latLng,e.pixel);
+  if(!candidates.length){
+    if(!modifiers.shiftKey&&!modifiers.ctrlKey&&!modifiers.metaKey)clearMapFeatureSelection();
+    return;
+  }
+  if(modifiers.altKey){
     const key=candidates.map(c=>c.feature.id).join('|');
     if(!LAYER.cycle||LAYER.cycle.key!==key)LAYER.cycle={key,index:0};
     else LAYER.cycle.index=(LAYER.cycle.index+1)%candidates.length;
     const row=candidates[LAYER.cycle.index];
-    selectFeatureMulti(row.feature.id,additive);
+    applyMapFeatureSelection(row.feature.id,modifiers);
     setStatus(`Alt-click selected ${row.feature.name} (${LAYER.cycle.index+1}/${candidates.length} under cursor).`);
     return;
   }
   LAYER.cycle=null;
-  if(candidates.length===1){
-    selectFeatureMulti(candidates[0].feature.id,additive);
-  }else{
-    showPickMenu(e.pixel,candidates,additive);
-  }
+  if(candidates.length===1)applyMapFeatureSelection(candidates[0].feature.id,modifiers);
+  else showPickMenu(e.pixel,candidates,!!(modifiers.shiftKey||modifiers.ctrlKey||modifiers.metaKey),modifiers);
 }
 function moveArrayItem(arr,from,to){
   if(!arr||from<0||from>=arr.length)return false;
@@ -3339,7 +3396,8 @@ function selectFeature(fid){IMAGE.selectedId=null;closeLayerMenu();closePickMenu
 function selectFeatureMulti(fid,additive){if(V.active)return;const r=selectOrWakeFeature(fid);if(!r)return;if(additive){if(project.selectedFeatureId&&project.selectedFeatureId!==fid&&!project.mergeIds.includes(project.selectedFeatureId))project.mergeIds.push(project.selectedFeatureId);project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);project.selectedFeatureId=fid;project.selectedFileId=r.file.id;renderAll();setStatus(`${project.mergeIds.length} polygons selected for merge.`)}else selectFeature(fid)}
 function clearSelection(){closeLayerMenu();closePickMenu();if(MOVE.active||V.active||D.active||project.mode==='draw'||project.mode==='movePolygon')return;project.selectedFeatureId=null;project.selectedFileId=null;renderAll()}
 MAP_RUNTIME.on('click',selectFromMapClick);
-MAP_RUNTIME.on('contextmenu',e=>{if(V.active||D.active)return;const c=featuresAtLatLng(e.latLng);if(c.length){MAP_RUNTIME.stopNativeEvent(e);showPickMenu(e.pixel,c,false)}});
+window.__editPolygonMapClickSelection={featuresAtLatLng,featureHitAtMapPoint,applyMapFeatureSelection,clear:clearMapFeatureSelection};
+MAP_RUNTIME.on('contextmenu',e=>{if(V.active||D.active)return;const c=featuresAtLatLng(e.latLng,e.pixel);if(c.length){MAP_RUNTIME.stopNativeEvent(e);showPickMenu(e.pixel,c,false,{})}});
 let overlayRaf = 0;
 let zoomHideTimer = null;
 function scheduleOverlayRender(){
@@ -18026,7 +18084,9 @@ showAutosaveRecoveryIfAvailable();
   }
   function v132ApplyFeatureStyles(featureIds){
     const ids=new Set((featureIds||[]).filter(Boolean));
-    if(!ids.size||!featureGroup)return;
+    if(!ids.size)return;
+    if(MAP_RUNTIME.engine==='openlayers'){try{renderMap();}catch(_){ }return;}
+    if(!featureGroup)return;
     const styles=new Map();
     for(const id of ids){
       const r=ref(id);
@@ -18267,7 +18327,9 @@ showAutosaveRecoveryIfAvailable();
 
   function v133ApplyMapStyles(featureIds){
     const ids=new Set((featureIds||[]).filter(Boolean));
-    if(!ids.size||!featureGroup)return;
+    if(!ids.size)return;
+    if(MAP_RUNTIME.engine==='openlayers'){try{renderMap();}catch(_){ }return;}
+    if(!featureGroup)return;
     const styles=new Map();
     for(const id of ids){const r=ref(id);if(r)styles.set(id,styleWithOpacity(r.feature,r.file));}
     function visit(layer){

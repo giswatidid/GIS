@@ -19,5 +19,5 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-15514-overlay-selection-fix/);
+  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-15515-map-selection-fix/);
 });
