@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.10');
+  assert.equal(runtime.version,'1.55.1.11');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));

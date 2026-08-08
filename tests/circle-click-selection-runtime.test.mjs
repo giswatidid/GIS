@@ -107,3 +107,12 @@ test('ordinary OpenLayers click still returns a true circle when native rendered
   vm.runInContext(`${functionSource('parametricCircleHitAtMapPoint')}\n${functionSource('featureHitAtMapPoint')}\n${functionSource('featuresAtLatLng')}\nresult=featuresAtLatLng({lng:0,lat:0},{x:100,y:100}).map(row=>row.feature.id);`,context);
   assert.deepEqual(Array.from(context.result),['circle-1']);
 });
+
+
+test('late v1.16 compatibility code cannot replace the authoritative click selector',()=>{
+  const declaration=app.indexOf('function featuresAtLatLng');
+  assert.ok(declaration>=0,'authoritative featuresAtLatLng declaration must exist');
+  const afterDeclaration=app.slice(declaration);
+  assert.doesNotMatch(afterDeclaration,/featuresAtLatLng\s*=\s*function/,'no later compatibility block may overwrite featuresAtLatLng');
+  assert.match(app,/Do not override\s*\n\s*\/\/ it in this legacy v1\.16 LineString compatibility block/);
+});

@@ -61,3 +61,13 @@ test('OpenLayers click delivery has a compatibility-surface fallback instead of 
   assert.match(adapter,/nativeMap\.getViewport/);
   assert.match(adapter,/queueMicrotask/);
 });
+
+
+test('critical map click-selection functions are not overwritten later in the monolithic compatibility script',()=>{
+  for(const name of ['featuresAtLatLng','featureHitAtMapPoint','parametricCircleHitAtMapPoint','applyMapFeatureSelection','selectFromMapClick']){
+    const declaration=app.indexOf(`function ${name}(`);
+    assert.ok(declaration>=0,`${name} declaration must exist`);
+    const tail=app.slice(declaration+1);
+    assert.doesNotMatch(tail,new RegExp(`${name}\\s*=\\s*function`),`${name} must retain its authoritative runtime binding`);
+  }
+});

@@ -12575,11 +12575,13 @@ initUxRehaul();
     return false;
   }
   layerContainsPoint=function(f,latlng){return geometryHit(latlng,getDisplayGeometry(f));};
-  featuresAtLatLng=function(latlng){
-    const out=[];const rows=renderOrderRows();
-    for(const row of rows){if(isLocked(row.file,row.feature))continue;if(geometryHit(latlng,getDisplayGeometry(row.feature)))out.push(row);}
-    return out.reverse();
-  };
+  // The authoritative featuresAtLatLng() implementation above already handles
+  // point, line, polygon and parametric-circle click selection. Do not override
+  // it in this legacy v1.16 LineString compatibility block. The old override
+  // called geometryHit(getDisplayGeometry(feature)); after canonical circles were
+  // introduced, getDisplayGeometry(circle) intentionally became the descriptor
+  // {type:'CircleByCenterPoint'}, which geometryHit() does not support. That late
+  // assignment silently replaced the modern circle-aware selector at runtime.
   const v116BaseShowPickMenu=showPickMenu;
   showPickMenu=function(point,candidates,additive=false){v116BaseShowPickMenu(point,candidates,additive);const title=$('pickMenu')?.querySelector('.pick-title');if(title)title.textContent='Select overlapping feature';};
 
