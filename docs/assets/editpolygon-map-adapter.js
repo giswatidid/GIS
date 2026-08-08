@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.1.2';
+  const VERSION='1.55.1.3';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -45,6 +45,51 @@
     const lng=Math.max(-180,Math.min(180,c[0])),lat=Math.max(-85.05112878,Math.min(85.05112878,c[1]));
     const sin=Math.sin(lat*Math.PI/180);
     return point((lng+180)/360*scale,(0.5-Math.log((1+sin)/(1-sin))/(4*Math.PI))*scale);
+  }
+
+
+  function createDomOverlayController(spec={}){
+    const container=spec.container,lonLatToPixel=spec.lonLatToPixel,pixelToLonLat=spec.pixelToLonLat,onMap=spec.onMap,setPanEnabled=spec.setPanEnabled,isPanEnabled=spec.isPanEnabled;
+    if(!container||typeof lonLatToPixel!=='function'||typeof pixelToLonLat!=='function')throw new Error('DOM overlay requires a map container and coordinate converters.');
+    const element=spec.element||global.document?.createElement?.('div');
+    if(!element)throw new Error('DOM overlay element could not be created.');
+    if(spec.className)element.className=spec.className;
+    if(spec.html!=null)element.innerHTML=String(spec.html);
+    if(spec.title)element.title=String(spec.title);
+    element.dataset.editpolygonMapOverlay='1';
+    Object.assign(element.style,{position:'absolute',zIndex:String(spec.zIndex??3000),pointerEvents:spec.interactive===false?'none':'auto',touchAction:spec.draggable?'none':'auto',userSelect:'none',willChange:'transform'});
+    if(!element.parentNode)container.appendChild(element);
+    let coordinate=lonLat(spec.coordinate||[0,0]),removed=false,dragging=false,panWasEnabled=true;
+    const anchor=Array.isArray(spec.anchor)?[finite(spec.anchor[0]),finite(spec.anchor[1])]:[0,0];
+    function update(){if(removed)return;const p=lonLatToPixel(coordinate);element.style.transform=`translate(${p.x-anchor[0]}px, ${p.y-anchor[1]}px)`;}
+    function setCoordinate(next){coordinate=lonLat(next);update();return api;}
+    function getCoordinate(){return coordinate.slice();}
+    function eventPayload(originalEvent){const c=getCoordinate();return {target:api,lonLat:c,latLng:{lng:c[0],lat:c[1]},originalEvent};}
+    const unsubs=[];
+    if(typeof onMap==='function'){['move','moveend','zoomstart','zoomend','viewreset','resize'].forEach(type=>{try{const off=onMap(type,update);if(typeof off==='function')unsubs.push(off);}catch(_){ }});}
+    let moveHandler=null,upHandler=null;
+    function finishDrag(event,cancelled=false){
+      if(!dragging)return;dragging=false;
+      try{global.removeEventListener?.('pointermove',moveHandler,true);global.removeEventListener?.('pointerup',upHandler,true);global.removeEventListener?.('pointercancel',upHandler,true);}catch(_){ }
+      try{if(typeof setPanEnabled==='function')setPanEnabled(panWasEnabled);}catch(_){ }
+      try{spec.onDragEnd?.({...eventPayload(event),cancelled});}catch(_){ }
+    }
+    if(spec.draggable){
+      element.addEventListener?.('pointerdown',event=>{
+        if(event.button!=null&&event.button!==0)return;
+        try{event.preventDefault();event.stopPropagation();element.setPointerCapture?.(event.pointerId);}catch(_){ }
+        dragging=true;panWasEnabled=typeof isPanEnabled==='function'?!!isPanEnabled():true;
+        try{if(typeof setPanEnabled==='function')setPanEnabled(false);}catch(_){ }
+        try{spec.onDragStart?.(eventPayload(event));}catch(_){ }
+        moveHandler=ev=>{if(!dragging)return;const rect=container.getBoundingClientRect?.()||{left:0,top:0};const px=point((ev.clientX??0)-rect.left,(ev.clientY??0)-rect.top);coordinate=lonLat(pixelToLonLat(px));update();try{spec.onDrag?.(eventPayload(ev));}catch(_){ }};
+        upHandler=ev=>finishDrag(ev,ev.type==='pointercancel');
+        global.addEventListener?.('pointermove',moveHandler,true);global.addEventListener?.('pointerup',upHandler,true);global.addEventListener?.('pointercancel',upHandler,true);
+      });
+    }
+    function getElement(){return element;}
+    function remove(){if(removed)return;removed=true;finishDrag({type:'remove'},true);for(const off of unsubs.splice(0))try{off();}catch(_){ }try{element.remove();}catch(_){try{element.parentNode?.removeChild?.(element);}catch(__){ }} }
+    const api=Object.freeze({__editpolygonDomOverlay:true,setCoordinate,getCoordinate,getElement,remove,destroy:remove,update,isDragging:()=>dragging});
+    update();return api;
   }
 
   function createLeafletRuntime(options={}){
@@ -101,7 +146,14 @@
       };
       visit(layer);return updated;
     }
-    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getLegacyMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,updateEditableFeatureGeometry});
+    function createVectorOverlayLayer(spec={}){const group=L.layerGroup();group.__editpolygonEngine='leaflet';group.__editpolygonOverlay=true;if(spec.autoAdd!==false)group.addTo(nativeMap);return group;}
+    function clearVectorOverlayLayer(layer){try{layer?.clearLayers?.();return true;}catch(_){return false;}}
+    function setVectorOverlayFeatures(layer,items=[]){
+      if(!layer)return false;clearVectorOverlayLayer(layer);
+      for(const item of items||[]){if(!item?.geometry)continue;const st=item.style||{};try{const geo=L.geoJSON({type:'Feature',properties:item.properties||{},geometry:item.geometry},{interactive:item.interactive===true,style:()=>st,pointToLayer:(feature,ll)=>L.circleMarker(ll,{radius:Math.max(1,Number(st.radius??6)),color:st.color||'#1664d6',fillColor:st.fillColor||st.color||'#1664d6',fillOpacity:st.fillOpacity??.9,opacity:st.opacity??1,weight:st.weight??2,dashArray:st.dashArray||null,interactive:item.interactive===true})});geo.eachLayer(child=>{child.__editpolygonOverlayId=item.id||null;if(item.onClick)child.on?.('click',event=>item.onClick({id:item.id,item,originalEvent:event?.originalEvent||null,latLng:event?.latlng||null}));});layer.addLayer(geo);}catch(_){ }}return true;
+    }
+    function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
+    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getLegacyMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry});
   }
 
   function createOpenLayersRuntime(options={}){
@@ -214,9 +266,18 @@
       if(!feature||typeof feature.setGeometry!=='function')return false;
       try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometry,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
+    function createVectorOverlayLayer(spec={}){const source=new ol.source.Vector();const layer=new ol.layer.Vector({source,zIndex:spec.zIndex??900,visible:spec.visible!==false,opacity:spec.opacity??1,declutter:spec.declutter===true});layer.__editpolygonEngine='openlayers';layer.__editpolygonOverlay=true;layer.__editpolygonOverlayCallbacks=new Map();if(spec.interactive===true&&typeof nativeMap.forEachFeatureAtPixel==='function'){nativeMap.on('click',event=>{try{nativeMap.forEachFeatureAtPixel(event.pixel,(feature,hitLayer)=>{if(hitLayer&&hitLayer!==layer)return;const id=feature?.__editpolygonOverlayId;const cb=id!=null?layer.__editpolygonOverlayCallbacks.get(id):null;if(cb){cb({id,feature,layer,originalEvent:event?.originalEvent||event});return true;}},{layerFilter:hit=>hit===layer});}catch(_){ }});}if(spec.autoAdd!==false)addDisplayLayer(layer);return layer;}
+    function clearVectorOverlayLayer(layer){try{layer?.getSource?.()?.clear?.();return true;}catch(_){return false;}}
+    function setVectorOverlayFeatures(layer,items=[]){
+      const source=layer?.getSource?.();if(!source)return false;try{source.clear?.();}catch(_){ }const format=new ol.format.GeoJSON(),features=[];
+      layer.__editpolygonOverlayCallbacks?.clear?.();
+      for(const item of items||[]){if(!item?.geometry)continue;try{const feature=format.readFeature({type:'Feature',geometry:item.geometry,properties:{...(item.properties||{}),__editpolygonOverlayId:item.id||null}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setId?.(item.id||undefined);feature.__editpolygonOverlayId=item.id||null;feature.setStyle?.(styleFromDescriptor(item.style||{}));if(item.id!=null&&typeof item.onClick==='function')layer.__editpolygonOverlayCallbacks?.set?.(item.id,item.onClick);features.push(feature);}catch(_){ }}
+      source.addFeatures?.(features);source.changed?.();nativeMap.render?.();return true;
+    }
+    function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
 
     syncLegacy();
-    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),parityBridge:'leaflet-overlays',getNativeMap:()=>nativeMap,getLegacyMap:()=>legacyMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createEditableVectorLayer,updateEditableFeatureGeometry,syncLegacy});
+    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),parityBridge:'leaflet-reference-image-overlays',getNativeMap:()=>nativeMap,getLegacyMap:()=>legacyMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,syncLegacy});
   }
 
   function createRuntime(options={}){

@@ -68,9 +68,9 @@ The stored source/layer definitions and privacy model are unchanged. Remote requ
 
 ## OpenLayers loading
 
-For the parity period, the OpenLayers browser bundle and stylesheet are loaded only when the OpenLayers query switch is requested. The preview is pinned to OpenLayers 10.9.0. Leaflet remains loaded because the specialised compatibility overlay still needs it.
+The parity preview is pinned to OpenLayers 10.9.0. v1.55.1.3 loads the pinned browser bundle and stylesheet with normal static tags rather than the earlier `document.write()` bootstrap, eliminating Chrome's parser-blocking warning. Leaflet remains loaded because the reduced reference/image compatibility renderer still needs it.
 
-This conditional CDN bootstrap is appropriate for the temporary parity build. Before OpenLayers becomes the sole production renderer, the dependency should be vendored/bundled with the application's static assets so a third-party runtime CDN is not a permanent startup dependency.
+Before OpenLayers becomes the sole production renderer, the dependency should be vendored/bundled with the application's static assets so a third-party runtime CDN is not a permanent startup dependency.
 
 ## No data-model migration
 

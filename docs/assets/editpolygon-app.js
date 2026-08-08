@@ -1915,91 +1915,64 @@ function makeMeasureLabelIcon(text,style={}){
     iconSize:null
   });
 }
+function clearMeasurementDomOverlays(){while(measurementDomOverlays.length){try{measurementDomOverlays.pop()?.remove?.();}catch(_){ }}}
+function measureLabelHtml(text,style={}){
+  const color=style.color||'#1664d6',size=style.size||14,font=style.font||'Arial',weight=style.bold?'700':'400',ital=style.italic?'italic':'normal';
+  return `<div class="measure-label-inner" style="color:${esc(color)};font-size:${size}px;font-family:${esc(font)};font-weight:${weight};font-style:${ital};">${esc(text)}</div>`;
+}
+function addMeasurementLabel(coordinate,text,style={},onClick=null){
+  const overlay=MAP_RUNTIME.createDomOverlay({coordinate,className:measureLabelClass(style),html:measureLabelHtml(text,style),anchor:[6,6],zIndex:1450,interactive:!!onClick,title:onClick?'Click to edit measurement':''});
+  if(onClick)overlay.getElement()?.addEventListener?.('click',event=>{event.preventDefault?.();event.stopPropagation?.();onClick();});
+  measurementDomOverlays.push(overlay);return overlay;
+}
+function addMeasurementPointMarker(coordinate,style={},onClick=null){
+  const size=Math.max(8,Number(style.size||14)),overlay=MAP_RUNTIME.createDomOverlay({coordinate,className:'measure-point-marker',html:'',anchor:[size/2,size/2],zIndex:1440,interactive:!!onClick,title:onClick?'Click to edit measurement':''});
+  const el=overlay.getElement();try{el.style.width=`${size}px`;el.style.height=`${size}px`;el.style.background=style.color||'#1664d6';}catch(_){ }
+  if(onClick)el?.addEventListener?.('click',event=>{event.preventDefault?.();event.stopPropagation?.();onClick();});
+  measurementDomOverlays.push(overlay);return overlay;
+}
 function renderMeasurementPreview(){
-  measurementGroup.clearLayers();
-  for(const item of MEASURE.items){
-    if(MEASURE.active && MEASURE.editingId===item.id)continue;
-    renderMeasureItem(item);
-  }
-  if(!MEASURE.active)return;
-  const style=measureStyleFromControls();
-  const pts=clone(MEASURE.points);
-  if(MEASURE.cursor && (MEASURE.type==='distance'||MEASURE.type==='area'))pts.push(MEASURE.cursor);
-  if(MEASURE.type==='distance' && pts.length>=2){
-    const latlngs=pts.map(c=>[c[1],c[0]]);
-    L.polyline(latlngs,{color:style.color,weight:3,dashArray:'6 4'}).addTo(measurementGroup);
-    addMeasureLineLabels(pts,style,true);
-  }else if(MEASURE.type==='area' && pts.length>=2){
-    const latlngs=pts.map(c=>[c[1],c[0]]);
-    L.polyline(latlngs,{color:style.color,weight:3,dashArray:'6 4'}).addTo(measurementGroup);
-    if(pts.length>=3)L.polygon(latlngs,{color:style.color,weight:2,fillColor:style.color,fillOpacity:.12,dashArray:'6 4'}).addTo(measurementGroup);
-    addMeasureAreaLabel(pts,style,true);
-  }else if((MEASURE.type==='point'||MEASURE.type==='annotation')&&pts.length){
-    const c=pts[0];
-    if(MEASURE.type==='point'){
-      const icon=L.divIcon({className:'measure-point-marker',html:'',iconSize:[style.size||14,style.size||14],iconAnchor:[(style.size||14)/2,(style.size||14)/2]});
-      const marker=L.marker([c[1],c[0]],{icon}).addTo(measurementGroup);
-      marker.getElement()?.style?.setProperty('background',style.color||'#1664d6');
-    }else{
-      L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(currentMeasureLabel(),{...style,annotation:true})}).addTo(measurementGroup);
+  MAP_RUNTIME.clearVectorOverlayLayer?.(measurementGroup);clearMeasurementDomOverlays();
+  const vectorItems=[];
+  for(const item of MEASURE.items){if(MEASURE.active&&MEASURE.editingId===item.id)continue;renderMeasureItem(item,vectorItems);}
+  if(MEASURE.active){
+    const style=measureStyleFromControls(),pts=clone(MEASURE.points);if(MEASURE.cursor&&(MEASURE.type==='distance'||MEASURE.type==='area'))pts.push(MEASURE.cursor);
+    if(MEASURE.type==='distance'&&pts.length>=2){
+      vectorItems.push({id:'measure-preview-line',geometry:{type:'LineString',coordinates:pts},style:{color:style.color,weight:3,dashArray:'6,4',fillOpacity:0}});addMeasureLineLabels(pts,style,true);
+    }else if(MEASURE.type==='area'&&pts.length>=2){
+      if(pts.length>=3)vectorItems.push({id:'measure-preview-area',geometry:{type:'Polygon',coordinates:[closeRing(clone(pts))]},style:{color:style.color,weight:2,fillColor:style.color,fillOpacity:.12,dashArray:'6,4'}});
+      else vectorItems.push({id:'measure-preview-area-line',geometry:{type:'LineString',coordinates:pts},style:{color:style.color,weight:3,dashArray:'6,4',fillOpacity:0}});
+      addMeasureAreaLabel(pts,style,true);
+    }else if((MEASURE.type==='point'||MEASURE.type==='annotation')&&pts.length){
+      const c=pts[0];if(MEASURE.type==='point')addMeasurementPointMarker(c,style);else addMeasurementLabel(c,currentMeasureLabel(),{...style,annotation:true});
+    }
+    for(let i=0;i<pts.length;i++){
+      if(MEASURE.type==='point'||MEASURE.type==='annotation')continue;const c=pts[i],isFirstArea=MEASURE.type==='area'&&i===0&&MEASURE.points.length>=3;
+      vectorItems.push({id:`measure-preview-vertex-${i}`,geometry:{type:'Point',coordinates:c},style:{radius:isFirstArea?7:4,color:'#fff',weight:2,fillColor:isFirstArea?'#16a34a':style.color,fillOpacity:1}});
     }
   }
-  for(let i=0;i<pts.length;i++){
-    const c=pts[i];
-    if(MEASURE.type==='point'||MEASURE.type==='annotation')continue;
-    const isFirstArea=MEASURE.type==='area'&&i===0&&MEASURE.points.length>=3;
-    L.circleMarker([c[1],c[0]],{radius:isFirstArea?7:4,color:'#fff',weight:2,fillColor:isFirstArea?'#16a34a':style.color,fillOpacity:1}).addTo(measurementGroup);
-  }
+  MAP_RUNTIME.setVectorOverlayFeatures?.(measurementGroup,vectorItems);
 }
 function midCoord(a,b){return [(a[0]+b[0])/2,(a[1]+b[1])/2]}
 function addMeasureLineLabels(coords,style,preview=false){
-  if(coords.length<2)return;
-  const z=MAP_RUNTIME.getZoom();
-  const stride=z<=8?Infinity:z<=10?3:z<=12?2:1;
-  if(Number.isFinite(stride)){
-    for(let i=0;i<coords.length-1;i++){
-      if(i%stride!==0)continue;
-      const seg=[coords[i],coords[i+1]];
-      const mid=midCoord(seg[0],seg[1]);
-      const txt=formatLengthKm(lineLengthKm(seg));
-      L.marker([mid[1],mid[0]],{icon:makeMeasureLabelIcon(txt,style),interactive:false}).addTo(measurementGroup);
-    }
-  }
-  const end=coords[coords.length-1];
-  const total=`Total: ${formatLengthKm(lineLengthKm(coords))}`;
-  L.marker([end[1],end[0]],{icon:makeMeasureLabelIcon(total,{...style,total:true}),interactive:false}).addTo(measurementGroup);
+  if(coords.length<2)return;const z=MAP_RUNTIME.getZoom(),stride=z<=8?Infinity:z<=10?3:z<=12?2:1;
+  if(Number.isFinite(stride))for(let i=0;i<coords.length-1;i++){if(i%stride!==0)continue;const seg=[coords[i],coords[i+1]],mid=midCoord(seg[0],seg[1]);addMeasurementLabel(mid,formatLengthKm(lineLengthKm(seg)),style);}
+  const end=coords[coords.length-1];addMeasurementLabel(end,`Total: ${formatLengthKm(lineLengthKm(coords))}`,{...style,total:true});
 }
 function addMeasureAreaLabel(coords,style,preview=false){
-  if(coords.length<3)return;
-  let c;
-  try{c=turf.centroid({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]}}).geometry.coordinates}catch{c=coords[0]}
-  const z=MAP_RUNTIME.getZoom();
-  const txt=z<=8?`${formatAreaM2(polygonAreaM2(coords))}`:`${formatAreaM2(polygonAreaM2(coords))} · ${formatLengthKm(lineLengthKm([...coords,coords[0]]))}`;
-  L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(txt,{...style,total:true}),interactive:false}).addTo(measurementGroup);
+  if(coords.length<3)return;let c;try{c=turf.centroid({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]}}).geometry.coordinates}catch{c=coords[0]}
+  const z=MAP_RUNTIME.getZoom(),txt=z<=8?`${formatAreaM2(polygonAreaM2(coords))}`:`${formatAreaM2(polygonAreaM2(coords))} · ${formatLengthKm(lineLengthKm([...coords,coords[0]]))}`;addMeasurementLabel(c,txt,{...style,total:true});
 }
-function renderMeasureItem(item){
-  const style=item.style||{};
-  const coords=item.coordinates||[];
-  const popup=measurePopupHtml(item);
-  if(item.type==='distance'){
-    const line=L.polyline(coords.map(c=>[c[1],c[0]]),{color:style.color||'#1664d6',weight:3}).addTo(measurementGroup).bindPopup(popup);
-    line.on('click',()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id)});
-    addMeasureLineLabels(coords,style);
-  }else if(item.type==='area'){
-    const poly=L.polygon(coords.map(c=>[c[1],c[0]]),{color:style.color||'#1664d6',weight:2,fillColor:style.color||'#1664d6',fillOpacity:.12}).addTo(measurementGroup).bindPopup(popup);
-    poly.on('click',()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id)});
-    addMeasureAreaLabel(coords,style);
+function renderMeasureItem(item,vectorItems=[]){
+  const style=item.style||{},coords=item.coordinates||[],open=()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id);};
+  if(item.type==='distance'&&coords.length>=2){
+    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'LineString',coordinates:coords},style:{color:style.color||'#1664d6',weight:3,fillOpacity:0},interactive:true,onClick:open});addMeasureLineLabels(coords,style);
+  }else if(item.type==='area'&&coords.length>=3){
+    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]},style:{color:style.color||'#1664d6',weight:2,fillColor:style.color||'#1664d6',fillOpacity:.12},interactive:true,onClick:open});addMeasureAreaLabel(coords,style);
   }else if(item.type==='point'){
-    const c=coords[0]; if(!c)return;
-    const icon=L.divIcon({className:'measure-point-marker',html:'',iconSize:[style.size||14,style.size||14],iconAnchor:[(style.size||14)/2,(style.size||14)/2]});
-    const marker=L.marker([c[1],c[0]],{icon}).addTo(measurementGroup).bindPopup(popup);
-    marker.on('click',()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id)});
-    marker.getElement()?.style?.setProperty('background',style.color||'#1664d6');
-    if(item.label)L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(item.label,{...style,annotation:true}),interactive:false}).addTo(measurementGroup);
+    const c=coords[0];if(!c)return;addMeasurementPointMarker(c,style,open);if(item.label)addMeasurementLabel(c,item.label,{...style,annotation:true});
   }else if(item.type==='annotation'){
-    const c=coords[0]; if(!c)return;
-    const marker=L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(item.label||'Annotation',{...style,annotation:true})}).addTo(measurementGroup).bindPopup(popup);
-    marker.on('click',()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id)});
+    const c=coords[0];if(!c)return;addMeasurementLabel(c,item.label||'Annotation',{...style,annotation:true},open);
   }
 }
 function measurePopupHtml(item){
@@ -2890,7 +2863,7 @@ function makeBuiltinBasemaps(){
   return {osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:22}),light:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:22})};
 }
 const basemaps=makeBuiltinBasemaps();mapLayerAdd(basemaps.osm);
-const featureGroup=L.featureGroup().addTo(map);const geometryPreviewGroup=L.featureGroup().addTo(map);const locationSearchGroup=L.featureGroup().addTo(map);const measurementGroup=L.featureGroup().addTo(map);let drawLayer=null,drawPoints=[];
+const featureGroup=L.featureGroup().addTo(map);const geometryPreviewGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:850});const locationSearchOverlays=[];const measurementGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1250,interactive:true});const measurementDomOverlays=[];let drawLayer=null,drawPoints=[];
 
 
 function parseLatLngSearch(q){
@@ -2907,12 +2880,11 @@ function parseLatLngSearch(q){
   if(Math.abs(lat)>90||Math.abs(lng)>180)return null;
   return {lat,lng,label:`${lat.toFixed(6)}, ${lng.toFixed(6)}`};
 }
+function clearLocationSearchOverlays(){while(locationSearchOverlays.length){try{locationSearchOverlays.pop()?.remove?.();}catch(_){ }}}
 function setLocationMarker(lat,lng,label='Search result'){
-  locationSearchGroup.clearLayers();
-  const icon=L.divIcon({className:'location-marker',html:'',iconSize:[18,18],iconAnchor:[9,9]});
-  const marker=L.marker([lat,lng],{icon,zIndexOffset:2000}).bindPopup(esc(label));
-  marker.addTo(locationSearchGroup);
-  marker.openPopup();
+  clearLocationSearchOverlays();
+  const marker=MAP_RUNTIME.createDomOverlay({coordinate:[lng,lat],className:'location-marker',anchor:[9,9],zIndex:2400,title:label});
+  locationSearchOverlays.push(marker);
   return marker;
 }
 async function searchLocation(){
@@ -2962,7 +2934,7 @@ async function searchLocation(){
   }
 }
 function clearLocationSearch(){
-  locationSearchGroup.clearLayers();
+  clearLocationSearchOverlays();
   const input=$('locationSearchInput');
   if(input)input.value='';
   setStatus('Location search cleared.');
@@ -4846,7 +4818,7 @@ function finishSplitLine(){
 
 const GEOMETRY_OP={active:false,action:null,preview:null,targets:[],mode:null};
 function clearGeometryPreview(){
-  if(typeof geometryPreviewGroup!=='undefined')geometryPreviewGroup.clearLayers();
+  if(typeof geometryPreviewGroup!=='undefined')MAP_RUNTIME.clearVectorOverlayLayer?.(geometryPreviewGroup);
   GEOMETRY_OP.preview=null;
 }
 function previewStyle(kind='result'){
@@ -4858,10 +4830,7 @@ function drawGeometryPreview(preview){
   clearGeometryPreview();
   if(!preview)return;
   const items=Array.isArray(preview.items)?preview.items:[preview];
-  for(const item of items){
-    if(!item||!item.geometry)continue;
-    L.geoJSON({type:'Feature',properties:{},geometry:item.geometry},{style:previewStyle(item.kind)}).addTo(geometryPreviewGroup);
-  }
+  MAP_RUNTIME.setVectorOverlayFeatures?.(geometryPreviewGroup,items.filter(item=>item?.geometry).map((item,index)=>({id:`geometry-preview-${index}`,geometry:item.geometry,style:previewStyle(item.kind)})));
 }
 function featureGeom(f){return clone(getDisplayGeometry(f));}
 
@@ -16698,8 +16667,7 @@ showAutosaveRecoveryIfAvailable();
   }
 
   /* Leaflet-anchored LineString endpoints. */
-  let endpointLayer=null,endpointMap=null,endpointSignature='';
-  const endpointPane='v120LineEndpoints';
+  let endpointLayer=null,endpointSignature='';
   function selectedLineGeometry(){
     try{
       if((typeof V!=='undefined'&&V?.active)||(typeof D!=='undefined'&&D?.active))return null;
@@ -16723,40 +16691,19 @@ showAutosaveRecoveryIfAvailable();
     }).join('|'):'';
   }
   function ensureEndpointLayer(){
-    const m=editorMap();
-    if(!m||!window.L)return null;
-    if(endpointMap&&endpointMap!==m){try{endpointLayer?.remove();}catch(_){} endpointLayer=null;endpointMap=null;endpointSignature='';}
-    endpointMap=m;
-    if(!m.getPane(endpointPane)){
-      const pane=m.createPane(endpointPane);pane.style.zIndex='645';pane.style.pointerEvents='none';
-    }
-    if(!endpointLayer){
-      endpointLayer=L.layerGroup();
-      endpointLayer.addTo(m);
-    }
+    if(!endpointLayer)endpointLayer=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1420});
     return endpointLayer;
   }
   function syncEndpoints(force=false){
     document.querySelectorAll('.v116-line-endpoint').forEach(n=>n.remove());
     const layer=ensureEndpointLayer();if(!layer)return;
-    const geom=selectedLineGeometry(),sig=signature(geom);
-    if(!force&&sig===endpointSignature)return;
-    endpointSignature=sig;layer.clearLayers();if(!geom)return;
-    const seen=new Set();
-    lineComponents(geom).forEach(line=>{
-      if(!Array.isArray(line)||!line.length)return;
-      [line[0],line[line.length-1]].forEach(c=>{
-        const lng=Number(c?.[0]),lat=Number(c?.[1]);if(!Number.isFinite(lng)||!Number.isFinite(lat))return;
-        const key=lng.toFixed(12)+','+lat.toFixed(12);if(seen.has(key))return;seen.add(key);
-        L.circleMarker([lat,lng],{pane:endpointPane,radius:7,color:'#d97706',weight:3,opacity:1,fillColor:'#fff',fillOpacity:1,interactive:false,bubblingMouseEvents:false,className:'v120-line-endpoint-path'}).addTo(layer);
-      });
-    });
+    const geom=selectedLineGeometry(),sig=signature(geom);if(!force&&sig===endpointSignature)return;
+    endpointSignature=sig;const items=[];if(geom){const seen=new Set();lineComponents(geom).forEach(line=>{if(!Array.isArray(line)||!line.length)return;[line[0],line[line.length-1]].forEach(c=>{const lng=Number(c?.[0]),lat=Number(c?.[1]);if(!Number.isFinite(lng)||!Number.isFinite(lat))return;const key=lng.toFixed(12)+','+lat.toFixed(12);if(seen.has(key))return;seen.add(key);items.push({id:`line-endpoint-${key}`,geometry:{type:'Point',coordinates:[lng,lat]},style:{radius:7,color:'#d97706',weight:3,opacity:1,fillColor:'#fff',fillOpacity:1}});});});}
+    MAP_RUNTIME.setVectorOverlayFeatures?.(layer,items);
   }
   function installEndpointTracking(){
-    const m=editorMap();
-    if(m&&!m.__v120EndpointEvents){m.__v120EndpointEvents=true;m.on('moveend zoomend resize',()=>syncEndpoints(false));}
-    syncEndpoints(true);
-    setInterval(()=>syncEndpoints(false),350);
+    if(!window.__v120EndpointEvents){window.__v120EndpointEvents=true;MAP_RUNTIME.on('moveend zoomend resize',()=>syncEndpoints(false));}
+    syncEndpoints(true);setInterval(()=>syncEndpoints(false),350);
   }
 
   /* Reliable Project/Layers splitter. */
@@ -19463,23 +19410,26 @@ renderSelected=function(){const r=ref();if(!r||!isParametricCircleFeature(r.feat
 
 
 /* v1.37 — direct map selection, parametric circle handles, explicit polygon-operation conversion and export notices. */
-const CIRCLE_EDIT={active:false,featureId:null,group:L.layerGroup().addTo(map),centerMarker:null,radiusMarker:null,guide:null,bearing:90,changed:false,moveDrag:null};
+const CIRCLE_EDIT={active:false,featureId:null,guideLayer:MAP_RUNTIME.createVectorOverlayLayer({zIndex:1550}),centerMarker:null,radiusMarker:null,bearing:90,changed:false,moveDrag:null};
 window.__editPolygonCircleEditState=CIRCLE_EDIT;
 function circleEditRef(){const r=CIRCLE_EDIT.featureId?ref(CIRCLE_EDIT.featureId):null;return r&&isParametricCircleFeature(r.feature)?r:null;}
 function circleRadiusLatLng(circle,bearing=CIRCLE_EDIT.bearing){
   return circlePointLatLng(circle,bearing,polygonMoveBehavior());
 }
-function circleEditIcon(kind){
+function circleEditHandleHtml(kind){
   const label=kind==='center'?'Move circle':'Change radius';
-  const size=kind==='center'?28:24;
-  return L.divIcon({className:'v137-circle-edit-div-icon',html:`<span class="v137-circle-edit-handle v137-circle-edit-${kind}" title="${label}" aria-label="${label}"></span>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+  return `<span class="v137-circle-edit-handle v137-circle-edit-${kind}" title="${label}" aria-label="${label}"></span>`;
 }
-function clearCircleEditLayers(){CIRCLE_EDIT.group.clearLayers();CIRCLE_EDIT.centerMarker=null;CIRCLE_EDIT.radiusMarker=null;CIRCLE_EDIT.guide=null;CIRCLE_EDIT.moveDrag=null;}
+function clearCircleEditLayers(){
+  try{CIRCLE_EDIT.centerMarker?.remove?.();}catch(_){ }try{CIRCLE_EDIT.radiusMarker?.remove?.();}catch(_){ }
+  MAP_RUNTIME.clearVectorOverlayLayer?.(CIRCLE_EDIT.guideLayer);
+  CIRCLE_EDIT.centerMarker=null;CIRCLE_EDIT.radiusMarker=null;CIRCLE_EDIT.moveDrag=null;
+}
 function updateCircleEditGuide(){
   const r=circleEditRef();if(!r||!CIRCLE_EDIT.centerMarker||!CIRCLE_EDIT.radiusMarker)return;
   const c=normaliseParametricCircle(r.feature.parametricGeometry),center=circleDisplayCenterLatLng(c),radius=circleRadiusLatLng(c);
-  CIRCLE_EDIT.centerMarker.setLatLng(center);CIRCLE_EDIT.radiusMarker.setLatLng(radius);
-  if(CIRCLE_EDIT.guide)CIRCLE_EDIT.guide.setLatLngs([center,radius]);
+  CIRCLE_EDIT.centerMarker.setCoordinate([center.lng,center.lat]);CIRCLE_EDIT.radiusMarker.setCoordinate([radius.lng,radius.lat]);
+  MAP_RUNTIME.setVectorOverlayFeatures?.(CIRCLE_EDIT.guideLayer,[{id:'circle-edit-guide',geometry:{type:'LineString',coordinates:[[center.lng,center.lat],[radius.lng,radius.lat]]},style:{color:'#1f5fbf',weight:2,dashArray:'5,4',fillOpacity:0}}]);
 }
 function circleEditLiveRefresh(feature){invalidateParametricGeometryCache(feature);renderMap();}
 function circleScreenRadiusAt(circle){return circleScreenRadiusPixels(circle);}
@@ -19487,41 +19437,31 @@ function circleRadiusForScreenSize(center,pixelRadius){return circleMetresForScr
 function buildCircleEditHandles(){
   clearCircleEditLayers();const r=circleEditRef();if(!r)return;
   const f=r.feature,c=normaliseParametricCircle(f.parametricGeometry),center=circleDisplayCenterLatLng(c),radius=circleRadiusLatLng(c);
-  CIRCLE_EDIT.guide=L.polyline([center,radius],{color:'#1f5fbf',weight:2,dashArray:'5,4',interactive:false}).addTo(CIRCLE_EDIT.group);
-  CIRCLE_EDIT.centerMarker=L.marker(center,{icon:circleEditIcon('center'),draggable:true,autoPan:true,zIndexOffset:2800,title:'Move circle'}).addTo(CIRCLE_EDIT.group);
-  CIRCLE_EDIT.radiusMarker=L.marker(radius,{icon:circleEditIcon('radius'),draggable:true,autoPan:true,zIndexOffset:2801,title:'Change radius'}).addTo(CIRCLE_EDIT.group);
   const begin=()=>{pushHistory([f.id]);CIRCLE_EDIT.changed=false;};
-  CIRCLE_EDIT.centerMarker.on('dragstart',()=>{
-    begin();
-    CIRCLE_EDIT.moveDrag={base:normaliseParametricCircle(f.parametricGeometry),pixelRadius:circleScreenRadiusAt(f.parametricGeometry),behavior:polygonMoveBehavior()};
+  CIRCLE_EDIT.centerMarker=MAP_RUNTIME.createDomOverlay({coordinate:[center.lng,center.lat],className:'v137-circle-edit-div-icon',html:circleEditHandleHtml('center'),anchor:[14,14],draggable:true,zIndex:3300,title:'Move circle',
+    onDragStart:()=>{begin();CIRCLE_EDIT.moveDrag={base:normaliseParametricCircle(f.parametricGeometry),pixelRadius:circleScreenRadiusAt(f.parametricGeometry),behavior:polygonMoveBehavior()};},
+    onDrag:event=>{
+      const ll=event.latLng,centerCoord=[ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag=CIRCLE_EDIT.moveDrag;
+      const radiusMetres=drag?.behavior==='screen'?circleRadiusForScreenSize(centerCoord,drag.pixelRadius):(drag?.base.radiusMetres||f.parametricGeometry.radiusMetres);
+      f.parametricGeometry=normaliseParametricCircle({...drag.base,center:centerCoord,radiusMetres});CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
+    },
+    onDragEnd:()=>{CIRCLE_EDIT.moveDrag=null;invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-moved',{featureId:f.id,moveBehavior:polygonMoveBehavior()});setStatus(polygonMoveBehavior()==='screen'?'Circle moved with its screen shape preserved.':'Circle moved with its geographic radius preserved.');}
   });
-  CIRCLE_EDIT.centerMarker.on('drag',event=>{
-    const ll=event.target.getLatLng();
-    // Match standard polygon movement by allowing movement into adjacent map
-    // worlds instead of wrapping back across the antimeridian.
-    const center=[ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag=CIRCLE_EDIT.moveDrag;
-    const radiusMetres=drag?.behavior==='screen'?circleRadiusForScreenSize(center,drag.pixelRadius):(drag?.base.radiusMetres||f.parametricGeometry.radiusMetres);
-    f.parametricGeometry=normaliseParametricCircle({...drag.base,center,radiusMetres});
-    CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
+  CIRCLE_EDIT.radiusMarker=MAP_RUNTIME.createDomOverlay({coordinate:[radius.lng,radius.lat],className:'v137-circle-edit-div-icon',html:circleEditHandleHtml('radius'),anchor:[12,12],draggable:true,zIndex:3301,title:'Change radius',
+    onDragStart:begin,
+    onDrag:event=>{
+      const ll=event.latLng,centerNow=circleDisplayCenterLatLng(f.parametricGeometry,ll.lng);let radiusMetres;
+      if(polygonMoveBehavior()==='screen'){
+        const centerPoint=MAP_RUNTIME.latLngToPixel(centerNow),edgePoint=MAP_RUNTIME.latLngToPixel(ll),dx=edgePoint.x-centerPoint.x,dy=edgePoint.y-centerPoint.y;
+        radiusMetres=circleMetresForScreenRadius([centerNow.lng,centerNow.lat],Math.max(.01,Math.hypot(dx,dy)));CIRCLE_EDIT.bearing=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
+      }else{
+        radiusMetres=Math.max(.01,MAP_RUNTIME.distanceLatLng(centerNow,ll));try{CIRCLE_EDIT.bearing=turf.bearing(turf.point(f.parametricGeometry.center),turf.point([ll.lng,ll.lat]));}catch(_){CIRCLE_EDIT.bearing=90;}
+      }
+      f.parametricGeometry=normaliseParametricCircle({...f.parametricGeometry,radiusMetres});CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
+    },
+    onDragEnd:()=>{invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-radius-changed',{featureId:f.id,radiusMetres:f.parametricGeometry.radiusMetres});setStatus('Circle radius updated.');}
   });
-  CIRCLE_EDIT.centerMarker.on('dragend',()=>{CIRCLE_EDIT.moveDrag=null;invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-moved',{featureId:f.id,moveBehavior:polygonMoveBehavior()});setStatus(polygonMoveBehavior()==='screen'?'Circle moved with its screen shape preserved.':'Circle moved with its geographic radius preserved.');});
-  CIRCLE_EDIT.radiusMarker.on('dragstart',begin);
-  CIRCLE_EDIT.radiusMarker.on('drag',event=>{
-    const ll=event.target.getLatLng(),center=circleDisplayCenterLatLng(f.parametricGeometry,ll.lng);
-    let radiusMetres;
-    if(polygonMoveBehavior()==='screen'){
-      const centerPoint=MAP_RUNTIME.latLngToPixel(center),edgePoint=MAP_RUNTIME.latLngToPixel(ll);
-      const dx=edgePoint.x-centerPoint.x,dy=edgePoint.y-centerPoint.y;
-      radiusMetres=circleMetresForScreenRadius([center.lng,center.lat],Math.max(.01,Math.hypot(dx,dy)));
-      CIRCLE_EDIT.bearing=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
-    }else{
-      radiusMetres=Math.max(.01,MAP_RUNTIME.distanceLatLng(center,ll));
-      try{CIRCLE_EDIT.bearing=turf.bearing(turf.point(f.parametricGeometry.center),turf.point([ll.lng,ll.lat]));}catch(_){CIRCLE_EDIT.bearing=90;}
-    }
-    f.parametricGeometry=normaliseParametricCircle({...f.parametricGeometry,radiusMetres});
-    CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
-  });
-  CIRCLE_EDIT.radiusMarker.on('dragend',()=>{invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-radius-changed',{featureId:f.id,radiusMetres:f.parametricGeometry.radiusMetres});setStatus('Circle radius updated.');});
+  updateCircleEditGuide();
 }
 function startCircleEditMode(){
   const r=ref();if(!r||!isParametricCircleFeature(r.feature)){setStatus('Select a true circle first.','error');return;}
@@ -20908,7 +20848,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__v146PointEditing=true;
 
   const pointSupported=type=>type==='Point'||type==='MultiPoint';
-  const POINT_EDIT={active:false,featureId:null,group:null,markers:[],changed:false};
+  const POINT_EDIT={active:false,featureId:null,markers:[],changed:false};
 
   function pointEditRef(){
     const r=ref(POINT_EDIT.featureId||project.selectedFeatureId);
@@ -20932,50 +20872,26 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     feature.editStack=[];
     clearFeatureCaches(feature);
   }
-  function pointEditIcon(){
-    return L.divIcon({
-      className:'editpolygon-point-edit-icon',
-      html:'<div class="editpolygon-point-edit-handle" aria-hidden="true"></div>',
-      iconSize:[18,18],
-      iconAnchor:[9,9]
-    });
-  }
   function clearPointEditMarkers(){
-    if(POINT_EDIT.group){try{POINT_EDIT.group.clearLayers();map.removeLayer(POINT_EDIT.group);}catch(_){ }}
-    POINT_EDIT.group=null;POINT_EDIT.markers=[];
+    for(const marker of POINT_EDIT.markers.splice(0))try{marker.remove?.();}catch(_){ }
   }
   function rebuildPointEditMarkers(){
     clearPointEditMarkers();
     const r=pointEditRef();
     if(!POINT_EDIT.active||!r)return;
-    POINT_EDIT.group=L.layerGroup().addTo(map);
     pointCoordinates(getDisplayGeometry(r.feature)).forEach((coordinate,index)=>{
       if(!Array.isArray(coordinate)||coordinate.length<2)return;
-      const marker=L.marker([coordinate[1],coordinate[0]],{
-        icon:pointEditIcon(),draggable:true,autoPan:true,zIndexOffset:3200,
-        title:`Move ${r.feature.name}${pointCoordinates(getDisplayGeometry(r.feature)).length>1?` point ${index+1}`:''}`
-      }).addTo(POINT_EDIT.group);
-      marker.on('dragstart',()=>{
-        pushHistory([r.feature.id]);POINT_EDIT.changed=false;
-        try{MAP_RUNTIME.setPanEnabled(false);}catch(_){ }
-        setStatus('Moving point. Release to save the new location.');
-      });
-      marker.on('drag',event=>{
-        setPointCoordinate(r.feature,index,event.target.getLatLng());
-        POINT_EDIT.changed=true;
-      });
-      marker.on('dragend',event=>{
-        try{MAP_RUNTIME.setPanEnabled(true);}catch(_){ }
-        let ll=event.target.getLatLng();
-        try{
-          const snap=snappedLatLng(ll,{event:event.originalEvent||null,excludeFeatureId:r.feature.id});
-          if(snap?.latlng){ll=snap.latlng;event.target.setLatLng(ll);}
-        }catch(_){ }
-        setPointCoordinate(r.feature,index,ll);
-        commitManualGeometry(r.feature);
-        renderAllLight();setDirty(true);gisNotify?.();
-        logOperation('point-moved',{featureId:r.feature.id,pointIndex:index,longitude:ll.lng,latitude:ll.lat});
-        setStatus(`${r.feature.name} moved.`);
+      const marker=MAP_RUNTIME.createDomOverlay({
+        coordinate:[coordinate[0],coordinate[1]],className:'editpolygon-point-edit-icon',html:'<div class="editpolygon-point-edit-handle" aria-hidden="true"></div>',anchor:[9,9],draggable:true,zIndex:3200,
+        title:`Move ${r.feature.name}${pointCoordinates(getDisplayGeometry(r.feature)).length>1?` point ${index+1}`:''}`,
+        onDragStart:()=>{pushHistory([r.feature.id]);POINT_EDIT.changed=false;setStatus('Moving point. Release to save the new location.');},
+        onDrag:event=>{setPointCoordinate(r.feature,index,event.latLng);POINT_EDIT.changed=true;window.__editpolygonLiveGeometryUpdate?.([r.feature.id]);},
+        onDragEnd:event=>{
+          let ll=event.latLng;
+          try{const snap=snappedLatLng(ll,{event:event.originalEvent||null,excludeFeatureId:r.feature.id});if(snap?.latlng){ll=snap.latlng;marker.setCoordinate([ll.lng,ll.lat]);}}catch(_){ }
+          setPointCoordinate(r.feature,index,ll);commitManualGeometry(r.feature);renderAllLight();setDirty(true);gisNotify?.();
+          logOperation('point-moved',{featureId:r.feature.id,pointIndex:index,longitude:ll.lng,latitude:ll.lat});setStatus(`${r.feature.name} moved.`);
+        }
       });
       POINT_EDIT.markers.push(marker);
     });
@@ -22293,26 +22209,30 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       schema:clone(file.gisSchema||null),featureCount:(file.features||[]).length,scopeCount:features.length,geometryTypes:[...new Set((file.features||[]).map(feature=>getDisplayGeometry(feature)?.type).filter(Boolean))],features
     };
   }
-  let geometryHealthIssueMarker=null,geometryHealthProposalLayer=null;
+  const geometryHealthIssueLayer=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1650});
+  const geometryHealthProposalLayer=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1600});
   function clearGeometryHealthOverlay(){
-    try{if(geometryHealthIssueMarker)map.removeLayer(geometryHealthIssueMarker);}catch(_){ }
-    try{if(geometryHealthProposalLayer)map.removeLayer(geometryHealthProposalLayer);}catch(_){ }
-    geometryHealthIssueMarker=null;geometryHealthProposalLayer=null;
+    MAP_RUNTIME.clearVectorOverlayLayer?.(geometryHealthIssueLayer);
+    MAP_RUNTIME.clearVectorOverlayLayer?.(geometryHealthProposalLayer);
   }
   function focusGeometryHealthIssue(fileId,featureId,location){
     try{gisSelectFeatureById(fileId,featureId);}catch(_){ }
     try{gisZoomFeature(fileId,featureId);}catch(_){ }
-    try{if(geometryHealthIssueMarker)map.removeLayer(geometryHealthIssueMarker);}catch(_){ }
-    geometryHealthIssueMarker=null;
+    MAP_RUNTIME.clearVectorOverlayLayer?.(geometryHealthIssueLayer);
     if(Array.isArray(location)&&location.length>=2&&Number.isFinite(Number(location[0]))&&Number.isFinite(Number(location[1]))){
-      try{geometryHealthIssueMarker=L.circleMarker([Number(location[1]),Number(location[0])],{radius:8,color:'#b42318',weight:3,fillColor:'#fff',fillOpacity:.9,interactive:false}).addTo(map);MAP_RUNTIME.panInside([Number(location[0]),Number(location[1])],{padding:[70,70]});}catch(_){ }
+      const coordinate=[Number(location[0]),Number(location[1])];
+      MAP_RUNTIME.setVectorOverlayFeatures?.(geometryHealthIssueLayer,[{id:'geometry-health-issue',geometry:{type:'Point',coordinates:coordinate},style:{radius:8,color:'#b42318',weight:3,fillColor:'#fff',fillOpacity:.9}}]);
+      try{MAP_RUNTIME.panInside(coordinate,{padding:[70,70]});}catch(_){ }
     }
     return true;
   }
   function previewGeometryHealthProposal(value){
-    try{if(geometryHealthProposalLayer)map.removeLayer(geometryHealthProposalLayer);}catch(_){ }geometryHealthProposalLayer=null;
+    MAP_RUNTIME.clearVectorOverlayLayer?.(geometryHealthProposalLayer);
     const features=value?.type==='FeatureCollection'?value:value?.type==='Feature'?[value]:value?.geometry?[{type:'Feature',properties:{},geometry:value.geometry}]:[];if(!features.length)return false;
-    try{geometryHealthProposalLayer=L.geoJSON({type:'FeatureCollection',features:clone(features)},{style:()=>({color:'#7c3aed',weight:4,opacity:.95,dashArray:'7,5',fillColor:'#7c3aed',fillOpacity:.08}),pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{radius:7,color:'#7c3aed',weight:3,fillColor:'#fff',fillOpacity:.95})}).addTo(map);geometryHealthProposalLayer.bringToFront?.();return true;}catch(_){return false;}
+    try{
+      MAP_RUNTIME.setVectorOverlayFeatures?.(geometryHealthProposalLayer,features.map((feature,index)=>({id:`geometry-health-proposal-${index}`,geometry:clone(feature.geometry),style:{color:'#7c3aed',weight:4,opacity:.95,dashArray:'7,5',fillColor:'#7c3aed',fillOpacity:.08,radius:7}})));
+      return true;
+    }catch(_){return false;}
   }
   function createGeometryHealthLayer(sourceFileId,collection,{name,scope='all',report=null,changeLog=[],acceptedRepairs=[],rules={}}={}){
     const source=gisEditableFile(sourceFileId);if(!source)throw Error('Source layer not found.');

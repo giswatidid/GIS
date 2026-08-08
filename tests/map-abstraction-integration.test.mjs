@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.1 loads Leaflet, the conditional OpenLayers parity bootstrap and map adapter before the application',()=>{
+test('v1.55.1.3 loads both map engines and the map adapter before the application',()=>{
   const leaflet=html.indexOf('leaflet@1.9.4/dist/leaflet.js');
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
@@ -53,11 +53,11 @@ test('main map event subscriptions use normalised adapter events',()=>{
   assert.match(adapter,/originalEvent:/);
 });
 
-test('OpenLayers is available behind an explicit parity switch while Leaflet remains the safe default and compatibility overlay',()=>{
-  assert.match(html,/mapEngine/);
+test('OpenLayers is available behind an explicit parity switch while Leaflet remains the safe default and reduced compatibility overlay',()=>{
+  assert.match(adapter,/requestedEngine/);
   assert.match(adapter,/createOpenLayersRuntime/);
   assert.match(adapter,/engine:'openlayers'/);
-  assert.match(adapter,/parityBridge:'leaflet-overlays'/);
+  assert.match(adapter,/parityBridge:'leaflet-reference-image-overlays'/);
   assert.match(adapter,/createEditableVectorLayer/);
   assert.match(app,/MAP_RUNTIME\.engine==='openlayers'/);
   assert.match(app,/getLegacyMap/);

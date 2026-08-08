@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.2');
+  assert.equal(runtime.version,'1.55.1.3');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -179,7 +179,7 @@ function fakeOpenLayers(){
     getEventPixel(e){return [e.clientX??0,e.clientY??0];}getViewport(){return this.viewport;}updateSize(){this.updated=true;}render(){this.rendered=(this.rendered||0)+1;}
   }
   class Source{constructor(opts={}){this.opts=opts;}}
-  class VectorSource extends Source{constructor(opts={}){super(opts);this.features=[];this.changedCount=0;}addFeatures(f){this.features.push(...f);}getFeatureById(id){return this.features.find(f=>f.id===id)||null;}changed(){this.changedCount++;}}
+  class VectorSource extends Source{constructor(opts={}){super(opts);this.features=[];this.changedCount=0;}addFeatures(f){this.features.push(...f);}clear(){this.features=[];}getFeatureById(id){return this.features.find(f=>f.id===id)||null;}changed(){this.changedCount++;}}
   class Layer{constructor(opts={}){this.opts=opts;this.visible=opts.visible!==false;this.opacity=opts.opacity??1;this.zIndex=opts.zIndex??0;}setVisible(v){this.visible=!!v;}setOpacity(v){this.opacity=v;}setZIndex(v){this.zIndex=v;}getSource(){return this.opts.source;}}
   class Group extends Layer{constructor(opts={}){super(opts);this.layers=opts.layers||[];}}
   class Feature{constructor(props={}){Object.assign(this,props);}setStyle(v){this.style=v;}setId(v){this.id=v;}setGeometry(v){this.geometry=v;}}
@@ -197,14 +197,16 @@ function fakeOpenLayers(){
 }
 
 function openLayersContext(){
-  const context=load();
-  const target={clientWidth:1000,clientHeight:700,children:[],appendChild(n){this.children.push(n);},classList:classList()};
+  const context=load(),globalHandlers={};
+  context.addEventListener=(t,h)=>{globalHandlers[t]=h;};context.removeEventListener=t=>{delete globalHandlers[t];};
+  function element(){return {className:'',dataset:{},classList:classList(),style:{},handlers:{},parentNode:null,addEventListener(t,h){this.handlers[t]=h;},removeEventListener(t){delete this.handlers[t];},remove(){if(this.parentNode?.children)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);this.parentNode=null;},setPointerCapture(){}};}
+  const target={clientWidth:1000,clientHeight:700,children:[],appendChild(n){this.children.push(n);n.parentNode=this;},getBoundingClientRect(){return{left:0,top:0};},classList:classList()};
   context.document.getElementById=id=>id==='map'?target:null;
-  context.document.createElement=()=>({className:'',dataset:{},classList:classList(),style:{}});
+  context.document.createElement=()=>element();
   context.requestAnimationFrame=fn=>{fn();return 1;};
   context.ol=fakeOpenLayers();
   context.L.map=()=>new FakeMap();
-  return {context,target};
+  return {context,target,globalHandlers};
 }
 
 test('map engine selection is explicit and defaults safely to Leaflet',()=>{
@@ -221,7 +223,7 @@ test('OpenLayers runtime preserves the same canonical lon/lat contract and compa
   assert.equal(runtime.engine,'openlayers');
   assert.equal(runtime.requestedEngine,'openlayers');
   assert.equal(runtime.nativeVersion,'10.9.0');
-  assert.equal(runtime.parityBridge,'leaflet-overlays');
+  assert.equal(runtime.parityBridge,'leaflet-reference-image-overlays');
   assert.equal(target.children[0].style.position,'absolute');
   assert.equal(target.children[0].style.pointerEvents,'none');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
@@ -267,4 +269,22 @@ test('OpenLayers request falls back to Leaflet without breaking the editor if OL
   assert.equal(runtime.engine,'leaflet');
   assert.equal(runtime.requestedEngine,'openlayers');
   assert.match(runtime.fallbackReason,/OpenLayers failed to load/);
+});
+
+
+test('OpenLayers transient vector overlays and DOM handles are native map-runtime primitives',()=>{
+  const {context,target,globalHandlers}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol,L:context.L});
+  const overlay=runtime.createVectorOverlayLayer({zIndex:1700});
+  assert.equal(overlay.__editpolygonEngine,'openlayers');
+  runtime.setVectorOverlayFeatures(overlay,[{id:'issue',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#b42318',fillColor:'#fff',radius:8}}]);
+  assert.equal(overlay.getSource().features.length,1);
+  runtime.clearVectorOverlayLayer(overlay);assert.equal(overlay.getSource().features.length,0);
+  let dragged=null,ended=null;
+  const handle=runtime.createDomOverlay({coordinate:[153,-27],className:'test-handle',anchor:[9,9],draggable:true,onDrag:e=>{dragged=e.lonLat;},onDragEnd:e=>{ended=e.lonLat;}});
+  const el=handle.getElement();assert.equal(el.className,'test-handle');assert.equal(target.children.includes(el),true);
+  el.handlers.pointerdown({button:0,clientX:15300,clientY:-2700,preventDefault(){},stopPropagation(){}});
+  globalHandlers.pointermove({clientX:15400,clientY:-2800});globalHandlers.pointerup({clientX:15400,clientY:-2800,type:'pointerup'});
+  assert.deepEqual([...dragged],[154,-28]);assert.deepEqual([...ended],[154,-28]);assert.deepEqual([...handle.getCoordinate()],[154,-28]);
+  handle.remove();assert.equal(target.children.includes(el),false);
 });
