@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-15519-circle-click-capture/);
+  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-155110-circle-render-hit/);
 });
 
 

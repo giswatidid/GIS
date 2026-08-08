@@ -37,16 +37,19 @@ test('overlap picker is geometry neutral',()=>{
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
 
-test('OpenLayers click selection resolves rendered hits directly and tests the visible true-circle footprint in pixels',()=>{
-  const start=app.indexOf('function trueCircleHitAtPixel');
+test('OpenLayers click selection tests true circles against the exact materialised geometry rendered by OpenLayers',()=>{
+  const start=app.indexOf('function parametricCircleHitAtMapPoint');
   const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
   assert.ok(start>=0);
-  assert.match(block,/function trueCircleHitAtPixel\(feature,pixel,latlng=null\)/);
-  assert.match(block,/centerPixel\.distanceTo\(hitPixel\)<=circleScreenRadiusPixels/);
+  assert.match(block,/function parametricCircleHitAtMapPoint\(feature,file,latlng,pixel\)/);
+  assert.match(block,/MAP_RUNTIME\.engine==='openlayers'/);
+  assert.match(block,/const rendered=featJSON\(feature\)\?\.geometry/);
+  assert.match(block,/turf\.booleanPointInPolygon\(pointFeature,renderedFeature\)/);
+  assert.match(block,/polygonBoundaryHitPixel\(rendered\.coordinates/);
   assert.match(block,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
   assert.match(block,/fileOfFeature\(String\(id\)\)/);
-  assert.match(block,/hits\.set\(String\(row\.feature\.id\),row\)/);
-  assert.match(block,/trueCircleHitAtPixel\(row\.feature,hitPixel,latlng\)/);
+  assert.match(block,/featureHitAtMapPoint\(row\.feature,row\.file,latlng,hitPixel\)/);
+  assert.doesNotMatch(block,/trueCircleHitAtPixel/);
   assert.doesNotMatch(block,/if\(isLocked\(row\.file,row\.feature\)\)continue/);
 });
 

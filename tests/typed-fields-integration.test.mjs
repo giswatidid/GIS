@@ -10,7 +10,7 @@ const ui=fs.readFileSync(new URL('../docs/assets/gis-ui-integration.js',import.m
 test('typed schema core loads before the application',()=>{
   assert.ok(html.indexOf('gis-schema-core.js')>html.indexOf('gis-data-core.js'));
   assert.ok(html.indexOf('gis-schema-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-schema-core\.js\?v=20260808-openlayers-parity-15519-circle-click-capture/);
+  assert.match(html,/gis-schema-core\.js\?v=20260808-openlayers-parity-155110-circle-render-hit/);
 });
 
 test('application exposes schema, saved-filter, type-safe calculator and scoped export APIs',()=>{

@@ -3150,9 +3150,40 @@ function polygonBoundaryHitPixel(coords,pixel,tolerance){
   for(const ring of coords||[])if(lineCoordinatesHitPixel(ring,pixel,tolerance))return true;
   return false;
 }
+function parametricCircleHitAtMapPoint(feature,file,latlng,pixel){
+  if(!isParametricCircleFeature(feature)||!latlng)return false;
+  // OpenLayers never renders the canonical centre+radius object directly. It
+  // renders featJSON(feature), which materialises that circle as a polygon.
+  // Click selection must test that exact same geometry; using a separate
+  // centre/radius screen calculation can disagree with both the pixels the user
+  // sees and the geometry used by rectangle/polygon/lasso selection.
+  if(MAP_RUNTIME.engine==='openlayers'){
+    try{
+      const rendered=featJSON(feature)?.geometry;
+      if(rendered?.type==='Polygon'){
+        const pointFeature=turf.point([latlng.lng,latlng.lat]);
+        const renderedFeature={type:'Feature',properties:{},geometry:rendered};
+        if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
+        if(pixel&&polygonBoundaryHitPixel(rendered.coordinates,MAP_ADAPTER.point(pixel),mapHitTolerancePx(feature,file)))return true;
+        return false;
+      }
+      if(rendered?.type==='MultiPolygon'){
+        const pointFeature=turf.point([latlng.lng,latlng.lat]);
+        const renderedFeature={type:'Feature',properties:{},geometry:rendered};
+        if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
+        if(pixel&&(rendered.coordinates||[]).some(poly=>polygonBoundaryHitPixel(poly,MAP_ADAPTER.point(pixel),mapHitTolerancePx(feature,file))))return true;
+        return false;
+      }
+    }catch(_){ }
+  }
+  // Leaflet renders the canonical circle directly, so the canonical circle
+  // containment test remains the correct fallback there (and if OL
+  // materialisation ever fails unexpectedly).
+  try{return circleContainsLatLng(feature.parametricGeometry,latlng);}catch(_){return false;}
+}
 function featureHitAtMapPoint(feature,file,latlng,pixel){
   if(!feature||!latlng||!pixel)return false;
-  if(isParametricCircleFeature(feature))return circleContainsLatLng(feature.parametricGeometry,latlng);
+  if(isParametricCircleFeature(feature))return parametricCircleHitAtMapPoint(feature,file,latlng,pixel);
   const geom=getDisplayGeometry(feature);if(!geom)return false;
   const tolerance=mapHitTolerancePx(feature,file),p=MAP_ADAPTER.point(pixel);
   try{
@@ -3164,18 +3195,6 @@ function featureHitAtMapPoint(feature,file,latlng,pixel){
     if(geom.type==='MultiPolygon')return layerContainsPoint(feature,latlng)||(geom.coordinates||[]).some(poly=>polygonBoundaryHitPixel(poly,p,tolerance));
   }catch(_){ }
   return false;
-}
-function trueCircleHitAtPixel(feature,pixel,latlng=null){
-  if(!isParametricCircleFeature(feature)||!pixel)return false;
-  try{
-    const hitPixel=MAP_ADAPTER.point(pixel),referenceLng=latlng?.lng;
-    const center=circleDisplayCenterLatLng(feature.parametricGeometry,referenceLng),centerPixel=MAP_RUNTIME.latLngToPixel(center);
-    if(polygonMoveBehavior()==='screen'){
-      return centerPixel.distanceTo(hitPixel)<=circleScreenRadiusPixels(feature.parametricGeometry)+mapHitTolerancePx(feature);
-    }
-    const ll=latlng||MAP_RUNTIME.pixelToLatLng(hitPixel);
-    return MAP_RUNTIME.distanceLatLng(center,ll)<=feature.parametricGeometry.radiusMetres;
-  }catch(_){return false;}
 }
 function featuresAtLatLng(latlng,pixel=null){
   const rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng),byId=new Map(rows.map(row=>[String(row.feature.id),row])),hits=new Map();
@@ -3193,9 +3212,6 @@ function featuresAtLatLng(latlng,pixel=null){
   for(const row of rows){
     const id=String(row.feature.id);if(hits.has(id))continue;
     // Locked geometry remains selectable; locking prevents edits, not inspection.
-    // Test true circles in screen space against the exact visible footprint so
-    // ordinary click selection matches rectangle/polygon/lasso selection.
-    if(trueCircleHitAtPixel(row.feature,hitPixel,latlng)){hits.set(id,row);continue;}
     const tolerance=mapHitTolerancePx(row.feature,row.file),nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance)),se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
     const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng)),latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat)),fb=featureBBox(row.feature);
     if(fb&&(latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
