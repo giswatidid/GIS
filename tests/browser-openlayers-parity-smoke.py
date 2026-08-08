@@ -47,8 +47,8 @@ with sync_playwright() as p:
       const liveGeometry=vec.__editpolygonGeometryFeatures.get('p1').geometry;
       const transient=r.createVectorOverlayLayer({zIndex:1700});r.setVectorOverlayFeatures(transient,[{id:'t1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#b42318',radius:7}}]);
       const handle=r.createDomOverlay({coordinate:[153,-27],className:'native-handle',anchor:[4,4]});
-      const handleEngine=!!handle.getElement()?.dataset?.editpolygonMapOverlay;handle.remove();
-      return {engine:r.engine,bridge:r.parityBridge,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,disabled,compat:!!r.getLegacyMap(),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine};
+      const handleEngine=!!handle.getElement()?.dataset?.editpolygonMapOverlay;const handleParent=handle.getElement()?.parentElement?.className||'';const childOrder=[...document.getElementById('map').children].map(el=>el.className||'');handle.remove();
+      return {engine:r.engine,bridge:r.parityBridge,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,disabled,compat:!!r.getLegacyMap(),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder};
     }''')
     assert result['engine']=='openlayers',result
     assert result['bridge']=='leaflet-reference-image-overlays',result
@@ -62,6 +62,8 @@ with sync_playwright() as p:
     assert result['liveCoordinates']==[154,-28],result
     assert result['transientCount']==1,result
     assert result['handleEngine'] is True,result
+    assert result['handleParent']=='editpolygon-openlayers-dom-overlays',result
+    assert result['childOrder'][-1]=='editpolygon-openlayers-dom-overlays',result
     assert not errors,errors
     browser.close()
 print('OpenLayers parity browser smoke test passed.')

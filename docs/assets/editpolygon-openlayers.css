@@ -16,6 +16,16 @@ body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-pane{poi
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-interactive,
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-marker-icon.leaflet-interactive,
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-popup-pane{pointer-events:auto!important}
+
+body[data-map-engine="openlayers"] .editpolygon-openlayers-dom-overlays{
+  position:absolute!important;
+  inset:0!important;
+  z-index:40!important;
+  background:transparent!important;
+  pointer-events:none!important;
+  overflow:hidden!important;
+}
+body[data-map-engine="openlayers"] .editpolygon-openlayers-dom-overlays>[data-editpolygon-map-overlay="1"]{pointer-events:auto}
 body[data-map-engine="openlayers"] .ol-control button{
   border-radius:0!important;
   font:600 18px/1.4 Arial,sans-serif!important;

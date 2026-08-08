@@ -21328,8 +21328,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
   function renderSignature(file,features,viewKey){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
+    const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `${viewKey}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    return `${viewKey}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
   function buildCachedLayer(file,features){
     const group=L.layerGroup(),models=new Map(features.map(feature=>[feature.id,feature])),collection={type:'FeatureCollection',features:features.map(feature=>{const raw=featJSON(feature);raw.properties={...(raw.properties||{}),__editpolygonId:feature.id};return raw;})};

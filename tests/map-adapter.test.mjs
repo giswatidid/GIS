@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.3');
+  assert.equal(runtime.version,'1.55.1.4');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -199,7 +199,7 @@ function fakeOpenLayers(){
 function openLayersContext(){
   const context=load(),globalHandlers={};
   context.addEventListener=(t,h)=>{globalHandlers[t]=h;};context.removeEventListener=t=>{delete globalHandlers[t];};
-  function element(){return {className:'',dataset:{},classList:classList(),style:{},handlers:{},parentNode:null,addEventListener(t,h){this.handlers[t]=h;},removeEventListener(t){delete this.handlers[t];},remove(){if(this.parentNode?.children)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);this.parentNode=null;},setPointerCapture(){}};}
+  function element(){return {className:'',dataset:{},classList:classList(),style:{},handlers:{},children:[],parentNode:null,appendChild(n){this.children.push(n);n.parentNode=this;},getBoundingClientRect(){return this.parentNode?.getBoundingClientRect?.()||{left:0,top:0};},addEventListener(t,h){this.handlers[t]=h;},removeEventListener(t){delete this.handlers[t];},remove(){if(this.parentNode?.children)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);this.parentNode=null;},setPointerCapture(){}};}
   const target={clientWidth:1000,clientHeight:700,children:[],appendChild(n){this.children.push(n);n.parentNode=this;},getBoundingClientRect(){return{left:0,top:0};},classList:classList()};
   context.document.getElementById=id=>id==='map'?target:null;
   context.document.createElement=()=>element();
@@ -228,7 +228,9 @@ test('OpenLayers runtime preserves the same canonical lon/lat contract and compa
   assert.equal(target.children[0].style.pointerEvents,'none');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   assert.equal(runtime.getZoom(),6);
-  assert.equal(target.children.length,1);
+  assert.equal(target.children.length,2);
+  assert.equal(target.children[1].className,'editpolygon-openlayers-dom-overlays');
+  assert.equal(target.children[1].style.zIndex,'40');
   assert.ok(runtime.getLegacyMap());
   runtime.setView([151,-33],8,{animate:false});
   assert.deepEqual([...runtime.getCenter()],[151,-33]);
@@ -282,9 +284,9 @@ test('OpenLayers transient vector overlays and DOM handles are native map-runtim
   runtime.clearVectorOverlayLayer(overlay);assert.equal(overlay.getSource().features.length,0);
   let dragged=null,ended=null;
   const handle=runtime.createDomOverlay({coordinate:[153,-27],className:'test-handle',anchor:[9,9],draggable:true,onDrag:e=>{dragged=e.lonLat;},onDragEnd:e=>{ended=e.lonLat;}});
-  const el=handle.getElement();assert.equal(el.className,'test-handle');assert.equal(target.children.includes(el),true);
+  const el=handle.getElement();assert.equal(el.className,'test-handle');const pane=target.children.find(child=>child.className==='editpolygon-openlayers-dom-overlays');assert.ok(pane);assert.equal(pane.children.includes(el),true);
   el.handlers.pointerdown({button:0,clientX:15300,clientY:-2700,preventDefault(){},stopPropagation(){}});
   globalHandlers.pointermove({clientX:15400,clientY:-2800});globalHandlers.pointerup({clientX:15400,clientY:-2800,type:'pointerup'});
   assert.deepEqual([...dragged],[154,-28]);assert.deepEqual([...ended],[154,-28]);assert.deepEqual([...handle.getCoordinate()],[154,-28]);
-  handle.remove();assert.equal(target.children.includes(el),false);
+  handle.remove();assert.equal(pane.children.includes(el),false);
 });

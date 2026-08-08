@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.1.3';
+  const VERSION='1.55.1.4';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -177,6 +177,15 @@
     target.appendChild(compatTarget);
     const legacyMap=L.map(compatTarget,{center:[center[1],center[0]],zoom,zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,scrollWheelZoom:false,doubleClickZoom:false,boxZoom:false,keyboard:false,preferCanvas:true,renderer:L.canvas({padding:.5}),zoomSnap:0,zoomDelta:.25,fadeAnimation:false,zoomAnimation:false,markerZoomAnimation:false});
 
+    // DOM handles/labels must sit above both the OpenLayers canvas and the
+    // temporary Leaflet compatibility surface. Keeping this as a dedicated
+    // pane also prevents transient controls from becoming OL render children.
+    const domOverlayPane=global.document.createElement('div');
+    domOverlayPane.className='editpolygon-openlayers-dom-overlays';
+    domOverlayPane.dataset.mapDomOverlays='openlayers';
+    Object.assign(domOverlayPane.style,{position:'absolute',inset:'0',zIndex:'40',background:'transparent',pointerEvents:'none',overflow:'hidden'});
+    target.appendChild(domOverlayPane);
+
     let syncRaf=0;
     function syncLegacy(){
       if(syncRaf)return;
@@ -274,7 +283,7 @@
       for(const item of items||[]){if(!item?.geometry)continue;try{const feature=format.readFeature({type:'Feature',geometry:item.geometry,properties:{...(item.properties||{}),__editpolygonOverlayId:item.id||null}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setId?.(item.id||undefined);feature.__editpolygonOverlayId=item.id||null;feature.setStyle?.(styleFromDescriptor(item.style||{}));if(item.id!=null&&typeof item.onClick==='function')layer.__editpolygonOverlayCallbacks?.set?.(item.id,item.onClick);features.push(feature);}catch(_){ }}
       source.addFeatures?.(features);source.changed?.();nativeMap.render?.();return true;
     }
-    function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
+    function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:domOverlayPane,lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
 
     syncLegacy();
     return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),parityBridge:'leaflet-reference-image-overlays',getNativeMap:()=>nativeMap,getLegacyMap:()=>legacyMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,syncLegacy});

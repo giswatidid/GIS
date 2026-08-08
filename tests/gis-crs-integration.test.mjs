@@ -7,7 +7,7 @@ const tools=fs.readFileSync(new URL('../docs/assets/gis-data-tools.js',import.me
 
 test('CRS core loads before the main application',()=>{
   assert.ok(html.indexOf('gis-crs-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-crs-core\.js\?v=20260808-openlayers-parity-15513-native-overlays/);
+  assert.match(html,/gis-crs-core\.js\?v=20260808-openlayers-parity-15514-overlay-selection-fix/);
 });
 
 test('application exposes assignment, coordinate interpretation and CRS-aware export APIs',()=>{

@@ -51,3 +51,19 @@ test('OpenLayers CDN bootstrap no longer uses parser-blocking document.write',()
   assert.match(html,/cdn\.jsdelivr\.net\/npm\/ol@v10\.9\.0\/ol\.css/);
   assert.doesNotMatch(html,/document\.write\([^\n]*openlayers|document\.write\([^\n]*ol@v10\.9\.0/);
 });
+
+
+test('OpenLayers DOM overlays use a dedicated pane above the OL viewport',()=>{
+  assert.match(adapter,/const domOverlayPane=global\.document\.createElement\('div'\)/);
+  assert.match(adapter,/domOverlayPane\.className='editpolygon-openlayers-dom-overlays'/);
+  assert.match(adapter,/zIndex:'40'/);
+  assert.match(adapter,/createDomOverlayController\(\{\.\.\.spec,container:domOverlayPane/);
+});
+
+test('cached vector signatures include active and picked selection state for immediate redraw',()=>{
+  const signature=app.slice(app.indexOf('function renderSignature'),app.indexOf('function buildCachedLayer',app.indexOf('function renderSignature')));
+  assert.match(signature,/activeSelection/);
+  assert.match(signature,/pickedSelection/);
+  assert.match(signature,/selection:\$\{activeSelection\}/);
+  assert.match(signature,/picked:\$\{pickedSelection\}/);
+});
