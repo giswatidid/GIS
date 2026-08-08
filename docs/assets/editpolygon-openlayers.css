@@ -1,0 +1,24 @@
+/* v1.55.1 OpenLayers parity preview.
+   The OpenLayers viewport owns navigation and primary vector rendering while a
+   transparent Leaflet compatibility surface keeps specialised legacy overlays
+   available during the migration. */
+body[data-map-engine="openlayers"] #map{position:relative;isolation:isolate}
+body[data-map-engine="openlayers"] #map>.ol-viewport{z-index:1}
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat{
+  position:absolute!important;
+  inset:0!important;
+  z-index:20!important;
+  background:transparent!important;
+  pointer-events:none!important;
+}
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-control-container{display:none!important}
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-pane{pointer-events:none!important}
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-interactive,
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-marker-icon.leaflet-interactive,
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-popup-pane{pointer-events:auto!important}
+body[data-map-engine="openlayers"] .ol-control button{
+  border-radius:0!important;
+  font:600 18px/1.4 Arial,sans-serif!important;
+}
+body[data-map-engine="openlayers"] .ol-zoom{top:8px;left:8px}
+body[data-map-engine="openlayers"] .ol-attribution{font-size:10px}

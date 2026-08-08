@@ -185,8 +185,8 @@ function restoreCompleteProjectPayload(raw, opts={}){
   IMAGE.future=[];
   if(payload.ui && payload.ui.basemap && $('basemap') && basemaps[payload.ui.basemap]){
     $('basemap').value=payload.ui.basemap;
-    Object.values(basemaps).forEach(l=>map.hasLayer(l)&&map.removeLayer(l));
-    basemaps[payload.ui.basemap].addTo(map);
+    Object.values(basemaps).forEach(l=>mapLayerHas(l)&&mapLayerRemove(l));
+    mapLayerAdd(basemaps[payload.ui.basemap]);
   }
   if(payload.ui && typeof payload.ui.nightMode==='boolean' && typeof window.setPolygonEditorTheme==='function'){
     window.setPolygonEditorTheme(payload.ui.nightMode?'night':'day');
@@ -2836,28 +2836,60 @@ function initialMapView(){
 }
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
-if(!MAP_ADAPTER||typeof MAP_ADAPTER.createLeafletRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.0: the application now owns a map-engine contract. Leaflet remains the
-// production renderer for this release, but editor/view interactions should go
-// through MAP_RUNTIME rather than depending on Leaflet's map API directly.
-const MAP_RUNTIME=MAP_ADAPTER.createLeafletRuntime({
+if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
+// v1.55.1: Leaflet remains the default engine, while ?mapEngine=openlayers
+// activates the OpenLayers parity runtime. Specialised overlays continue to use
+// a transparent Leaflet compatibility surface during this migration release.
+const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
+  engine:MAP_ADAPTER.requestedEngine(location.search),
   target:'map',
   center:[startingView.center[1],startingView.center[0]],
   zoom:startingView.zoom,
   doubleClickZoom:true,
-  preferCanvas:true
+  preferCanvas:true,
+  L:window.L,
+  ol:window.ol
 });
-const map=MAP_RUNTIME.getNativeMap(); // transitional renderer handle; removed after OpenLayers parity.
+const map=MAP_RUNTIME.getLegacyMap?.()||MAP_RUNTIME.getNativeMap(); // transitional Leaflet-compatible overlay handle.
 try{
   window.EditPolygonMap=MAP_RUNTIME;
-  window.__polygonEditorLeafletMap=map; // compatibility for v1.55.0 renderer extensions only.
+  window.__polygonEditorLeafletMap=map;
+  document.body.dataset.mapEngine=MAP_RUNTIME.engine;
+  document.body.dataset.mapEngineRequested=MAP_RUNTIME.requestedEngine||MAP_RUNTIME.engine;
+  if(MAP_RUNTIME.parityBridge)document.body.dataset.mapParityBridge=MAP_RUNTIME.parityBridge;else delete document.body.dataset.mapParityBridge;
+  if(MAP_RUNTIME.fallbackReason)document.body.dataset.mapEngineFallback='1';else delete document.body.dataset.mapEngineFallback;
 }catch(_){ }
 function __peGetLeafletMap(){
-  const native=MAP_RUNTIME?.engine==='leaflet'?MAP_RUNTIME.getNativeMap():null;
+  const native=MAP_RUNTIME?.getLegacyMap?.();
   if(native&&typeof native.getPane==='function'&&typeof native.createPane==='function')return native;
   return null;
 }
-const basemaps={osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:22}),light:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:22})};basemaps.osm.addTo(map);
+function mapLayerHas(layer){
+  if(MAP_RUNTIME.engine==='openlayers'&&layer?.__editpolygonEngine==='openlayers')return !!MAP_RUNTIME.hasDisplayLayer?.(layer);
+  return !!(layer&&map&&typeof map.hasLayer==='function'&&map.hasLayer(layer));
+}
+function mapLayerAdd(layer){
+  if(!layer)return layer;
+  if(MAP_RUNTIME.engine==='openlayers'&&layer?.__editpolygonEngine==='openlayers')return MAP_RUNTIME.addDisplayLayer?.(layer)||layer;
+  try{if(typeof layer.addTo==='function')layer.addTo(map);else map?.addLayer?.(layer);}catch(_){ }
+  return layer;
+}
+function mapLayerRemove(layer){
+  if(!layer)return layer;
+  if(MAP_RUNTIME.engine==='openlayers'&&layer?.__editpolygonEngine==='openlayers')return MAP_RUNTIME.removeDisplayLayer?.(layer)||layer;
+  try{map?.removeLayer?.(layer);}catch(_){ }
+  return layer;
+}
+function makeBuiltinBasemaps(){
+  if(MAP_RUNTIME.engine==='openlayers')return {
+    osm:MAP_RUNTIME.createTileLayer({url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap contributors',maxZoom:22,zIndex:0}),
+    light:MAP_RUNTIME.createTileLayer({url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22,zIndex:0}),
+    dark:MAP_RUNTIME.createTileLayer({url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22,zIndex:0}),
+    sat:MAP_RUNTIME.createTileLayer({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attribution:'Tiles &copy; Esri',maxZoom:22,zIndex:0})
+  };
+  return {osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:22}),light:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:22})};
+}
+const basemaps=makeBuiltinBasemaps();mapLayerAdd(basemaps.osm);
 const featureGroup=L.featureGroup().addTo(map);const geometryPreviewGroup=L.featureGroup().addTo(map);const locationSearchGroup=L.featureGroup().addTo(map);const measurementGroup=L.featureGroup().addTo(map);let drawLayer=null,drawPoints=[];
 
 
@@ -6978,7 +7010,7 @@ function saveProject(){
 }
 function initResizers(){const ps=$('projectSection'),fs=$('filesSection'),ss=$('selectedSection');document.querySelectorAll('.sidebar-resizer').forEach(r=>r.addEventListener('pointerdown',e=>{e.preventDefault();const kind=r.dataset.resizer,start=e.clientY,ph=ps.getBoundingClientRect().height,fh=fs.getBoundingClientRect().height,sh=ss.getBoundingClientRect().height;r.setPointerCapture(e.pointerId);const move=ev=>{const dy=ev.clientY-start;if(kind==='project-files'){ps.style.flex=`0 0 ${Math.max(110,ph+dy)}px`;fs.style.flex=`1 1 ${Math.max(120,fh-dy)}px`}else{fs.style.flex=`1 1 ${Math.max(120,fh+dy)}px`;ss.style.flex=`0 0 ${Math.max(130,sh-dy)}px`}};const up=()=>{r.removeEventListener('pointermove',move);r.removeEventListener('pointerup',up);r.removeEventListener('pointercancel',up)};r.addEventListener('pointermove',move);r.addEventListener('pointerup',up);r.addEventListener('pointercancel',up)}))}
 $('openBtn').onclick=()=>$('fileInput').click();$('restoreAutosaveBtn').onclick=restoreAutosaveManually;$('fileInput').onchange=e=>{importFiles(e.target.files);e.target.value=''};$('dropzone').onclick=()=>$('fileInput').click();['dragenter','dragover'].forEach(t=>$('dropzone').addEventListener(t,e=>{e.preventDefault();$('dropzone').classList.add('dragover')}));['dragleave','drop'].forEach(t=>$('dropzone').addEventListener(t,e=>{e.preventDefault();$('dropzone').classList.remove('dragover')}));$('dropzone').addEventListener('drop',e=>importFiles(e.dataTransfer.files));
-$('basemap').onchange=e=>{Object.values(basemaps).forEach(l=>map.hasLayer(l)&&map.removeLayer(l));basemaps[e.target.value].addTo(map)}
+$('basemap').onchange=e=>{Object.values(basemaps).forEach(l=>mapLayerHas(l)&&mapLayerRemove(l));mapLayerAdd(basemaps[e.target.value])}
 $('selectBtn').onclick=()=>setMode('select');$('drawBtn').onclick=()=>setMode('draw');$('coordPolygonBtn').onclick=openCoordModal;$('finishDrawBtn').onclick=DFinish;$('undoDrawBtn').onclick=DUndo;$('cancelDrawBtn').onclick=()=>DCancel(false);$('editVerticesBtn').onclick=VStart;$('lassoBtn').onclick=toggleLasso;if($('addVertexModeBtn'))$('addVertexModeBtn').onclick=toggleAddVertexMode;$('clearVerticesBtn').onclick=()=>{V.selected.clear();renderOverlay();renderSelected();updateStatus();updateButtons();setStatus('Vertex selection cleared.')};$('deleteVerticesBtn').onclick=VDelete;$('doneVerticesBtn').onclick=()=>VStop(false);$('deletePolygonBtn').onclick=deletePolygon;$('duplicateBtn').onclick=duplicateFeature;$('runGeometryBtn').onclick=runGeometryAction;$('geometryActionSelect').addEventListener('change',e=>{showGeometryHelp(e.target.value);ensureInlineGeometryPreview(e.target.value);});$('geometryActionSelect').addEventListener('mousemove',e=>showGeometryHelp(e.target.value));$('geometryActionSelect').addEventListener('click',e=>ensureInlineGeometryPreview(e.target.value));$('geometryActionSelect').addEventListener('mouseleave',hideGeometryHelp);$('geometryInfoBtn').addEventListener('mouseenter',()=>showGeometryHelp($('geometryActionSelect').value));$('geometryInfoBtn').addEventListener('mouseleave',hideGeometryHelp);$('geometryInfoBtn').addEventListener('click',()=>showGeometryHelp($('geometryActionSelect').value));$('geometryOpCloseBtn').onclick=closeGeometryOpModal;$('geometryOpCancelBtn').onclick=closeGeometryOpModal;$('geometryOpPreviewBtn').onclick=updateGeometryPreview;$('geometryOpApplyBtn').onclick=applyGeometryOpFromModal;$('geometryPreviewCloseBtn').onclick=closeInlineGeometryPreview;$('geometryPreviewUpdateBtn').onclick=updateInlineGeometryPreview;$('geometryPreviewApplyBtn').onclick=applyGeometryOpFromModal;$('geometryOpModal').addEventListener('click',e=>{if(e.target===$('geometryOpModal'))closeGeometryOpModal();closeInlineGeometryPreview();});$('clearMergeBtn').onclick=()=>{project.mergeIds=[];renderAll()};$('undoBtn').onclick=undo;$('redoBtn').onclick=redo;$('fitAllBtn').onclick=fitAll;$('zoomBtn').onclick=zoomSelected;$('exportBtn').onclick=exportData;$('saveBtn').onclick=saveProject;$('clearBtn').onclick=()=>{if(confirm('Clear project?')){pushHistory();project.files=[];project.selectedFeatureId=null;project.selectedFileId=null;project.mergeIds=[];MEASURE.items=[];MEASURE.selectedId=null;restoreImageState([]);JOURNAL.ops=[];renderAll();setDirty(true);logOperation('project-cleared',{})}}
 $('coordCloseBtn').onclick=closeCoordModal;$('coordClearBtn').onclick=()=>{$('coordText').value='';updateCoordPreview();};$('coordCreateBtn').onclick=createPolygonFromCoords;$('coordText').addEventListener('input',updateCoordPreview);$('coordOrderSelect').addEventListener('change',updateCoordPreview);$('coordModal').addEventListener('click',e=>{if(e.target===$('coordModal'))closeCoordModal();});
 wireConverterControls();
@@ -19657,12 +19689,13 @@ function gisSerializeRefs(){
 }
 function gisRestoreRefs(items){
   const store=gisReferenceStore();
-  for(const layer of store.layers.values())try{map.removeLayer(layer);}catch(_){ }
+  for(const layer of store.layers.values())try{mapLayerRemove(layer);}catch(_){ }
   store.layers.clear();
   store.items=(Array.isArray(items)?items:[]).map(item=>({visible:true,locked:false,opacity:.75,...gisClone(item),id:item.id||uid('ref')}));
   store.selectedId=null;
 }
 function gisEnsurePane(){
+  if(MAP_RUNTIME.engine==='openlayers')return;
   if(!map.getPane('gisServicePane')){
     const pane=map.createPane('gisServicePane');
     pane.style.zIndex='360';
@@ -19672,34 +19705,24 @@ function gisEnsurePane(){
 function gisSourceSignature(source,layer){
   return JSON.stringify({source,role:layer.role,opacity:layer.opacity,minZoom:layer.minZoom,maxZoom:layer.maxZoom});
 }
-function gisBuildLeafletLayer(source,layer){
+function gisBuildServiceLayer(source,layer){
   const opacity=Math.max(0,Math.min(1,Number(layer.opacity??1)));
-  const common={
-    opacity,
-    minZoom:source.minZoom??0,
-    maxZoom:source.maxZoom??22,
-    attribution:source.attribution||'',
-    tileSize:source.tileSize||256
-  };
+  const common={opacity,minZoom:source.minZoom??0,maxZoom:source.maxZoom??22,attribution:source.attribution||'',tileSize:source.tileSize||256,zIndex:layer.role==='basemap'?0:30+Math.round(Number(layer.order)||0)};
+  if(MAP_RUNTIME.engine==='openlayers'){
+    if(source.type==='tms'||source.type==='xyz')return MAP_RUNTIME.createTileLayer({...common,url:source.url,tms:source.type==='tms'});
+    if(source.type==='wms')return MAP_RUNTIME.createWmsLayer({...common,url:source.url,layers:source.wmsLayers,styles:source.wmsStyles||'',format:source.wmsFormat||'image/png',version:source.wmsVersion||'1.3.0',transparent:source.transparent!==false});
+    throw Error(`Unsupported GIS source type: ${source.type}`);
+  }
   if(layer.role!=='basemap')common.pane='gisServicePane';
   if(source.subdomains?.length)common.subdomains=source.subdomains;
   if(source.type==='tms')return L.tileLayer(source.url,{...common,tms:true});
   if(source.type==='xyz')return L.tileLayer(source.url,common);
-  if(source.type==='wms'){
-    return L.tileLayer.wms(source.url,{
-      ...common,
-      layers:source.wmsLayers,
-      styles:source.wmsStyles||'',
-      format:source.wmsFormat||'image/png',
-      version:source.wmsVersion||'1.3.0',
-      transparent:source.transparent!==false
-    });
-  }
+  if(source.type==='wms')return L.tileLayer.wms(source.url,{...common,layers:source.wmsLayers,styles:source.wmsStyles||'',format:source.wmsFormat||'image/png',version:source.wmsVersion||'1.3.0',transparent:source.transparent!==false});
   throw Error(`Unsupported GIS source type: ${source.type}`);
 }
 function gisRemoveRuntimeLayer(layerId){
   const instance=GIS_RUNTIME.layerInstances.get(layerId);
-  if(instance){try{map.removeLayer(instance);}catch(_){ }}
+  if(instance){try{mapLayerRemove(instance);}catch(_){ }}
   GIS_RUNTIME.layerInstances.delete(layerId);
   GIS_RUNTIME.layerSignatures.delete(layerId);
   const key=gisCustomBasemapValue(layerId);
@@ -19709,7 +19732,7 @@ function gisRemoveRuntimeLayer(layerId){
 function gisSyncBasemapOptions(){
   const select=$('basemap');
   if(!select)return;
-  if(!basemaps.none)basemaps.none=L.layerGroup();
+  if(!basemaps.none)basemaps.none=MAP_RUNTIME.engine==='openlayers'?MAP_RUNTIME.createEmptyLayerGroup():L.layerGroup();
   if(!Array.from(select.options).some(option=>option.value==='none')){const option=document.createElement('option');option.value='none';option.textContent='No basemap';select.insertBefore(option,select.firstChild);}
   const state=gisState();
   const wanted=new Map();
@@ -19743,7 +19766,7 @@ function syncGisRuntime(){
     if(!instance||GIS_RUNTIME.layerSignatures.get(layer.id)!==signature){
       gisRemoveRuntimeLayer(layer.id);
       try{
-        instance=gisBuildLeafletLayer(source,layer);
+        instance=gisBuildServiceLayer(source,layer);
         GIS_RUNTIME.layerInstances.set(layer.id,instance);
         GIS_RUNTIME.layerSignatures.set(layer.id,signature);
       }catch(err){console.warn('Could not create GIS layer',layer,err);continue;}
@@ -19755,9 +19778,13 @@ function syncGisRuntime(){
       GIS_RUNTIME.basemapKeys.add(key);
     }else{
       const shouldShow=layer.visible!==false&&gisLayerWithinZoom(layer);
-      if(shouldShow&&!map.hasLayer(instance))try{instance.addTo(map);}catch(_){ }
-      if(!shouldShow&&map.hasLayer(instance))try{map.removeLayer(instance);}catch(_){ }
-      if(typeof instance.setZIndex==='function')try{instance.setZIndex(360+Math.round(Number(layer.order)||0));}catch(_){ }
+      if(MAP_RUNTIME.engine==='openlayers'){
+        try{instance.setVisible?.(shouldShow);if(shouldShow&&!mapLayerHas(instance))mapLayerAdd(instance);}catch(_){ }
+      }else{
+        if(shouldShow&&!mapLayerHas(instance))try{mapLayerAdd(instance);}catch(_){ }
+        if(!shouldShow&&mapLayerHas(instance))try{mapLayerRemove(instance);}catch(_){ }
+      }
+      if(typeof instance.setZIndex==='function')try{instance.setZIndex((MAP_RUNTIME.engine==='openlayers'?30:360)+Math.round(Number(layer.order)||0));}catch(_){ }
     }
   }
   gisSyncBasemapOptions();
@@ -19771,9 +19798,9 @@ function syncGisRuntime(){
     if(select.value!==next){
       select.value=next;
       select.dispatchEvent(new Event('change',{bubbles:true}));
-    }else if(next.startsWith('gis_')&&basemaps[next]&&!map.hasLayer(basemaps[next])){
-      Object.values(basemaps).forEach(layer=>{try{if(map.hasLayer(layer))map.removeLayer(layer);}catch(_){ }});
-      try{basemaps[next].addTo(map);}catch(_){ }
+    }else if(next.startsWith('gis_')&&basemaps[next]&&!mapLayerHas(basemaps[next])){
+      Object.values(basemaps).forEach(layer=>{try{if(mapLayerHas(layer))mapLayerRemove(layer);}catch(_){ }});
+      try{mapLayerAdd(basemaps[next]);}catch(_){ }
     }
   }
 }
@@ -21392,20 +21419,33 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     for(const feature of features){if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){const c=getDisplayGeometry(feature).coordinates;group.addLayer(L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(feature.name,{...(feature.annotationStyle||{}),annotation:true}),interactive:false}));}}
     return group;
   }
+  function buildOpenLayersCachedLayer(file,features){
+    const labels=file.gisLabels;
+    const descriptors=features.map(feature=>{
+      const raw=featJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
+      if(labels?.enabled&&labels.field){const value=feature.properties?.[labels.field];if(value!=null&&value!=='')try{descriptor.label={text:String(value),coordinate:turf.pointOnFeature(raw).geometry.coordinates};}catch(_){ }}
+      if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates};}
+      return descriptor;
+    });
+    return MAP_RUNTIME.createEditableVectorLayer({features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1});
+  }
+  function cachedLayerPresent(layer){return MAP_RUNTIME.engine==='openlayers'?MAP_RUNTIME.hasDisplayLayer(layer):featureGroup.hasLayer(layer);}
+  function addCachedLayer(layer){if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.addDisplayLayer(layer);else layer.addTo(featureGroup);}
+  function removeCachedLayer(layer){if(!layer)return;if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.removeDisplayLayer(layer);else try{featureGroup.removeLayer(layer);}catch(_){ }}
   function cachedRenderMap(){
     const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){featureGroup.clearLayers();ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
       if(isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
-      if(cached?.signature===signature){if(!featureGroup.hasLayer(cached.group))cached.group.addTo(featureGroup);continue;}
-      if(cached)try{featureGroup.removeLayer(cached.group);}catch(_){ }
-      const group=buildCachedLayer(file,features);group.addTo(featureGroup);ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
+      if(cached?.signature===signature){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
+      if(cached)removeCachedLayer(cached.group);
+      const group=MAP_RUNTIME.engine==='openlayers'?buildOpenLayersCachedLayer(file,features):buildCachedLayer(file,features);addCachedLayer(group);ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
     }
-    for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
+    for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
     if(typeof gisRenderMapLegends==='function')gisRenderMapLegends();
   }
   renderMap=cachedRenderMap;window.renderMap=renderMap;
   function invalidateRenderCache(fileId){
-    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())try{featureGroup.removeLayer(cached.group);}catch(_){ }ANALYSIS_RUNTIME.vectorCache.clear();}
+    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();}
   }
   const v148BaseUndo=undo,v148BaseRedo=redo;
   undo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseUndo();};redo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseRedo();};
@@ -21503,7 +21543,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(V149.resizeRaf)return;
     V149.resizeRaf=requestAnimationFrame(()=>{
       V149.resizeRaf=0;
-      try{map?.invalidateSize?.({pan:false,animate:false});}catch(_){ }
+      try{MAP_RUNTIME?.resize?.({pan:false,animate:false});}catch(_){ }
     });
   }
   function v149SetWidth(value,{persist=false}={}){

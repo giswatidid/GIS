@@ -103,4 +103,4 @@ A complete locally served EditPolygon page could not be opened by the available 
 
 ## Next release
 
-**v1.55.1 — OpenLayers parity build** should implement an OpenLayers-backed runtime against this contract while keeping Leaflet temporarily available through an internal engine switch. User-facing parity, not new GIS features, is the goal of that release.
+**v1.55.1 — OpenLayers parity build** implements the next stage described here. See `GIS_OPENLAYERS_PARITY_RELEASE_NOTES.md` for the dual-engine runtime, current OpenLayers-owned renderer paths and the remaining compatibility-overlay boundary.

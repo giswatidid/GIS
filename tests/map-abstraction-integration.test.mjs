@@ -6,16 +6,18 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.0 map adapter loads after Leaflet and before the application',()=>{
+test('v1.55.1 loads Leaflet, the conditional OpenLayers parity bootstrap and map adapter before the application',()=>{
   const leaflet=html.indexOf('leaflet@1.9.4/dist/leaflet.js');
+  const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
   const application=html.indexOf('editpolygon-app.js');
-  assert.ok(leaflet>=0&&mapAdapter>leaflet&&application>mapAdapter,{leaflet,mapAdapter,application});
+  assert.ok(leaflet>=0&&openlayers>leaflet&&mapAdapter>openlayers&&application>mapAdapter,{leaflet,openlayers,mapAdapter,application});
 });
 
 test('application creates and publishes the map runtime instead of instantiating Leaflet directly',()=>{
   assert.match(app,/EditPolygonMapAdapter/);
-  assert.match(app,/createLeafletRuntime\(/);
+  assert.match(app,/createRuntime\(/);
+  assert.match(app,/requestedEngine\(location\.search\)/);
   assert.match(app,/window\.EditPolygonMap=MAP_RUNTIME/);
   assert.doesNotMatch(app,/const map=L\.map\(/);
 });
@@ -51,9 +53,20 @@ test('main map event subscriptions use normalised adapter events',()=>{
   assert.match(adapter,/originalEvent:/);
 });
 
-test('Leaflet remains an explicit transitional renderer rather than the project model',()=>{
-  assert.match(app,/transitional renderer handle/);
-  assert.match(app,/__peGetLeafletMap/);
-  assert.match(adapter,/engine:'leaflet'/);
-  assert.match(adapter,/getNativeMap/);
+test('OpenLayers is available behind an explicit parity switch while Leaflet remains the safe default and compatibility overlay',()=>{
+  assert.match(html,/mapEngine/);
+  assert.match(adapter,/createOpenLayersRuntime/);
+  assert.match(adapter,/engine:'openlayers'/);
+  assert.match(adapter,/parityBridge:'leaflet-overlays'/);
+  assert.match(adapter,/createEditableVectorLayer/);
+  assert.match(app,/MAP_RUNTIME\.engine==='openlayers'/);
+  assert.match(app,/getLegacyMap/);
+});
+
+test('built-in basemaps, GIS tile services and cached editable vectors have OpenLayers paths',()=>{
+  assert.match(app,/makeBuiltinBasemaps/);
+  assert.match(app,/MAP_RUNTIME\.createTileLayer/);
+  assert.match(app,/MAP_RUNTIME\.createWmsLayer/);
+  assert.match(app,/buildOpenLayersCachedLayer/);
+  assert.match(app,/MAP_RUNTIME\.createEditableVectorLayer/);
 });

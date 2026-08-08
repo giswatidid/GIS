@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.55.0
+**Current application baseline:** v1.55.1
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55.0 **Map abstraction** release begins the staged move from Leaflet to OpenLayers without changing the production renderer yet. Map creation, canonical WGS84 ↔ screen coordinate conversion, view/extent control, normalised map events, pan/double-click interaction state and the legacy Leaflet drag-recovery workaround now sit behind `EditPolygonMapAdapter`. The rest of the editor consumes `window.EditPolygonMap` instead of directly depending on those Leaflet APIs. Leaflet remains the actual layer renderer in v1.55.0 so map-engine changes can be tested independently from user-facing editing changes.
+The v1.55 map-engine work is a staged migration from Leaflet to OpenLayers. v1.55.0 introduced the engine-neutral `EditPolygonMapAdapter` contract without changing the renderer. v1.55.1 adds the first real **OpenLayers parity runtime** behind `?mapEngine=openlayers`: OpenLayers owns the map view, navigation, built-in basemaps, editable vector display, and XYZ/TMS/WMS GIS service layers while Leaflet remains the normal default and temporarily provides a synchronised transparent compatibility surface for specialised overlays that have not yet been ported. Project geometry remains canonical WGS84 GeoJSON and there are no project-format, history, schema, CRS or analysis-model changes.
 
 ## What EditPolygon is for
 
@@ -408,12 +408,12 @@ npm run check
 
 This runs repository integration checks and the JavaScript test suite.
 
-At the v1.55.0 baseline used for this README:
+At the v1.55.1 baseline used for this README:
 
 - Repository integration checks pass
-- All 149 automated tests pass
-- Map-adapter, CRS, ArcGIS remote-source, typed-data, join/summary and Geometry Health browser smoke tests pass
-- Map-abstraction regression coverage checks canonical longitude/latitude view state, pixel/layer-pixel conversions, extent fitting, normalised events, pan/double-click controls, Leaflet drag-state recovery containment, adapter load ordering and guards against direct active-editor viewport calls
+- All 155 automated tests pass
+- Leaflet map-adapter, OpenLayers parity, CRS, ArcGIS remote-source, typed-data, join/summary and Geometry Health browser smoke tests pass
+- Map-engine regression coverage checks canonical longitude/latitude view state, pixel/layer-pixel conversions, extent fitting, normalised events, pan/double-click controls, Leaflet drag-state recovery containment, OpenLayers engine selection/fallback, OpenLayers tile/WMS/vector primitives, adapter load ordering and guards against direct active-editor viewport calls
 - Geometry Health regression coverage includes point/line/polygon validity, safe cleanup, unclosed rings, self-intersections, invalid holes, MultiPoint duplicates, CRS-range warnings, MultiPolygon boundary-touch versus true overlap, GEOS adapter memory/GeoJSON handling, worker progress, robust validity augmentation, make-valid previews, viewport-safe UI and repaired-layer provenance
 - Existing regression coverage continues to include typed schema inference and conversion, visible active-filter state, compound filters, multi-column sorting, field calculations, joins and summaries, unified styling, selection tools, viewport-safe menus, Layers-panel resizing, mobile drawers and release cache keys
 
@@ -422,6 +422,8 @@ Run the browser smoke tests with:
 ```bash
 npm run test:browser-smoke
 ```
+
+For v1.55.1 live parity testing, the normal URL still uses Leaflet. Add `?mapEngine=openlayers` to the application URL to request OpenLayers. In the browser console, `EditPolygonMap.engine` should report `"openlayers"`. If OpenLayers could not load, the editor deliberately falls back to Leaflet and `EditPolygonMap.fallbackReason` explains why.
 
 The application should also be manually tested in a browser after changes to map interaction, import/export, styling, CRS handling or processing.
 
@@ -439,11 +441,11 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-v1.55.0 starts the staged OpenLayers migration. The planned sequence is:
+v1.55.1 is the live parity stage of the OpenLayers migration. The sequence is now:
 
-1. **v1.55.1 — OpenLayers parity build:** implement an OpenLayers-backed runtime against the same map contract while Leaflet remains available for comparison and fallback during testing.
-2. **v1.55.2 — OpenLayers default:** make OpenLayers the normal renderer after drawing, editing, selection, snapping, labels, basemaps, reference layers and remote-source parity is demonstrated.
-3. **v1.55.3 — Leaflet removal:** remove the fallback adapter, Leaflet dependency, Leaflet-specific CSS/workarounds and transitional native-map bridge after live stabilisation.
+1. **v1.55.1 — OpenLayers parity build (current):** Leaflet remains the safe default. Add `?mapEngine=openlayers` to run the same project/UI through the OpenLayers-backed runtime. OpenLayers currently owns the map view, navigation, built-in basemaps, cached editable vectors and XYZ/TMS/WMS GIS service layers; a synchronised Leaflet compatibility surface temporarily carries specialised legacy overlays while parity is tested.
+2. **v1.55.2 — OpenLayers default:** port or retire the remaining compatibility-overlay paths, demonstrate drawing/editing/selection/snapping/labels/reference-layer parity in live use, then make OpenLayers the normal renderer while Leaflet remains an emergency fallback.
+3. **v1.55.3 — Leaflet removal:** remove the fallback adapter, Leaflet dependency, compatibility surface, Leaflet-specific CSS/workarounds and transitional native-map bridge after live stabilisation.
 4. Build a consolidated processing toolbox and additional geometry-construction tools.
 5. Add virtualised tables and larger-dataset performance architecture.
 6. Expand rule-based styling and professional label placement.

@@ -63,7 +63,7 @@ class FakeMap{
 function load(){
   const body={classList:classList()};
   const documentElement={classList:classList()};
-  const context={console,Math,Number,Object,Array,JSON,Date,document:{body,documentElement}};
+  const context={console,Math,Number,Object,Array,JSON,Date,URLSearchParams,document:{body,documentElement}};
   context.globalThis=context;context.window=context;
   context.L={
     map:()=>new FakeMap(),
@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.0');
+  assert.equal(runtime.version,'1.55.1');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -137,4 +137,119 @@ test('shared point and extent helpers are map-engine neutral',()=>{
   assert.equal(api.point(0,0).distanceTo(api.point(3,4)),5);
   assert.equal(api.bboxIntersects([0,0,2,2],[2,2,4,4]),true);
   assert.equal(api.bboxIntersects([0,0,1,1],[2,2,3,3]),false);
+});
+
+
+function fakeOpenLayers(){
+  class Observable{
+    constructor(){this.handlers=new Map();}
+    on(t,h){if(!this.handlers.has(t))this.handlers.set(t,[]);this.handlers.get(t).push(h);}
+    un(t,h){this.handlers.set(t,(this.handlers.get(t)||[]).filter(x=>x!==h));}
+    fire(t,e={}){for(const h of this.handlers.get(t)||[])h(e);}
+  }
+  class View extends Observable{
+    constructor(opts={}){super();this.center=opts.center||[0,0];this.zoom=opts.zoom??3;}
+    getCenter(){return this.center;} getZoom(){return this.zoom;}
+    setCenter(c){this.center=c;this.fire('change:center',{target:this});}
+    setZoom(z){this.zoom=z;this.fire('change:resolution',{target:this});}
+    animate(o){if(o.center)this.setCenter(o.center);if(o.zoom!=null)this.setZoom(o.zoom);}
+    calculateExtent(){return [this.center[0]-500,this.center[1]-500,this.center[0]+500,this.center[1]+500];}
+    fit(e,o){this.lastFit={e,o};this.center=[(e[0]+e[2])/2,(e[1]+e[3])/2];if(o?.maxZoom!=null)this.zoom=Math.min(this.zoom,o.maxZoom);}
+  }
+  class ActiveInteraction{constructor(){this.active=true;}setActive(v){this.active=!!v;}getActive(){return this.active;}}
+  class DragPan extends ActiveInteraction{} class DoubleClickZoom extends ActiveInteraction{}
+  class Collection{constructor(items=[]){this.items=items;}getArray(){return this.items;}includes(v){return this.items.includes(v);}}
+  class MapCls extends Observable{
+    constructor(opts={}){super();this.view=opts.view;this.layers=new Collection(opts.layers||[]);this.interactions=new Collection([new DragPan(),new DoubleClickZoom()]);this.target=opts.target;this.viewport={handlers:{},addEventListener:(t,h)=>this.viewport.handlers[t]=h,removeEventListener:t=>delete this.viewport.handlers[t]};}
+    getView(){return this.view;}getSize(){return [1000,700];}getInteractions(){return this.interactions;}getLayers(){return this.layers;}
+    addLayer(l){if(!this.layers.items.includes(l))this.layers.items.push(l);}removeLayer(l){this.layers.items=this.layers.items.filter(x=>x!==l);}
+    getPixelFromCoordinate(c){return [c[0]/10,c[1]/10];}getCoordinateFromPixel(p){return [p[0]*10,p[1]*10];}
+    getEventPixel(e){return [e.clientX??0,e.clientY??0];}getViewport(){return this.viewport;}updateSize(){this.updated=true;}
+  }
+  class Source{constructor(opts={}){this.opts=opts;}}
+  class VectorSource extends Source{constructor(opts={}){super(opts);this.features=[];}addFeatures(f){this.features.push(...f);}}
+  class Layer{constructor(opts={}){this.opts=opts;this.visible=opts.visible!==false;this.opacity=opts.opacity??1;this.zIndex=opts.zIndex??0;}setVisible(v){this.visible=!!v;}setOpacity(v){this.opacity=v;}setZIndex(v){this.zIndex=v;}getSource(){return this.opts.source;}}
+  class Group extends Layer{constructor(opts={}){super(opts);this.layers=opts.layers||[];}}
+  class Feature{constructor(props={}){Object.assign(this,props);}setStyle(v){this.style=v;}}
+  class Point{constructor(c){this.coordinates=c;}}
+  class GeoJSON{readFeature(raw){return new Feature({raw});}}
+  class Style{constructor(o){this.options=o;}} class Stroke extends Style{} class Fill extends Style{} class CircleStyle extends Style{} class Text extends Style{}
+  const proj={fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(v=>v*1000)};
+  return {
+    Map:MapCls,View,Feature,geom:{Point},format:{GeoJSON},
+    proj,extent:{containsCoordinate:(e,c)=>c[0]>=e[0]&&c[0]<=e[2]&&c[1]>=e[1]&&c[1]<=e[3]},
+    interaction:{defaults:()=>new Collection(),DragPan,DoubleClickZoom},control:{defaults:()=>new Collection()},
+    layer:{Tile:Layer,Vector:Layer,Group},source:{XYZ:Source,TileWMS:Source,Vector:VectorSource},
+    style:{Style,Stroke,Fill,Circle:CircleStyle,Text}
+  };
+}
+
+function openLayersContext(){
+  const context=load();
+  const target={clientWidth:1000,clientHeight:700,children:[],appendChild(n){this.children.push(n);},classList:classList()};
+  context.document.getElementById=id=>id==='map'?target:null;
+  context.document.createElement=()=>({className:'',dataset:{},classList:classList(),style:{}});
+  context.requestAnimationFrame=fn=>{fn();return 1;};
+  context.ol=fakeOpenLayers();
+  context.L.map=()=>new FakeMap();
+  return {context,target};
+}
+
+test('map engine selection is explicit and defaults safely to Leaflet',()=>{
+  const {context}=openLayersContext();
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=openlayers'),'openlayers');
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=ol'),'openlayers');
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=leaflet'),'leaflet');
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine(''),'leaflet');
+});
+
+test('OpenLayers runtime preserves the same canonical lon/lat contract and compatibility surface',()=>{
+  const {context,target}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol,L:context.L});
+  assert.equal(runtime.engine,'openlayers');
+  assert.equal(runtime.requestedEngine,'openlayers');
+  assert.equal(runtime.nativeVersion,'10.9.0');
+  assert.equal(runtime.parityBridge,'leaflet-overlays');
+  assert.equal(target.children[0].style.position,'absolute');
+  assert.equal(target.children[0].style.pointerEvents,'none');
+  assert.deepEqual([...runtime.getCenter()],[153,-27]);
+  assert.equal(runtime.getZoom(),6);
+  assert.equal(target.children.length,1);
+  assert.ok(runtime.getLegacyMap());
+  runtime.setView([151,-33],8,{animate:false});
+  assert.deepEqual([...runtime.getCenter()],[151,-33]);
+  assert.equal(runtime.getZoom(),8);
+  const px=runtime.lonLatToPixel([151,-33]);
+  assert.equal(px.x,15100);assert.equal(px.y,-3300);
+  assert.deepEqual([...runtime.pixelToLonLat(px)],[151,-33]);
+});
+
+test('OpenLayers runtime owns display layers and GIS tile/WMS/vector primitives',()=>{
+  const {context}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol,L:context.L});
+  const xyz=runtime.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png',tms:true});
+  const wms=runtime.createWmsLayer({url:'https://example.test/wms',layers:'roads'});
+  const vector=runtime.createEditableVectorLayer({features:[{id:'a',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:6},label:{text:'A',coordinate:[153,-27]}}]});
+  runtime.addDisplayLayer(xyz);runtime.addDisplayLayer(wms);runtime.addDisplayLayer(vector);
+  assert.equal(runtime.hasDisplayLayer(xyz),true);
+  assert.equal(vector.__editpolygonFeatureCount,1);
+  runtime.removeDisplayLayer(wms);assert.equal(runtime.hasDisplayLayer(wms),false);
+});
+
+test('OpenLayers interaction toggles are implemented by native OL interactions, not Leaflet state',()=>{
+  const {context}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol,L:context.L});
+  runtime.setPanEnabled(false);assert.equal(runtime.isPanEnabled(),false);
+  runtime.setPanEnabled(true);assert.equal(runtime.isPanEnabled(),true);
+  runtime.setDoubleClickZoomEnabled(false);assert.equal(runtime.isDoubleClickZoomEnabled(),false);
+  assert.equal(runtime.nativePanLooksActive(),false);
+});
+
+test('OpenLayers request falls back to Leaflet without breaking the editor if OL failed to load',()=>{
+  const context=load(),native=new FakeMap();
+  context.L.map=()=>native;
+  const runtime=context.EditPolygonMapAdapter.createRuntime({engine:'openlayers',L:context.L,ol:null,map:native});
+  assert.equal(runtime.engine,'leaflet');
+  assert.equal(runtime.requestedEngine,'openlayers');
+  assert.match(runtime.fallbackReason,/OpenLayers failed to load/);
 });
