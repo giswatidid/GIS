@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.8');
+  assert.equal(runtime.version,'1.55.1.9');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -199,8 +199,18 @@ function fakeOpenLayers(){
 function openLayersContext(){
   const context=load(),globalHandlers={};
   context.addEventListener=(t,h)=>{globalHandlers[t]=h;};context.removeEventListener=t=>{delete globalHandlers[t];};
-  function element(){return {className:'',dataset:{},classList:classList(),style:{},handlers:{},children:[],parentNode:null,appendChild(n){this.children.push(n);n.parentNode=this;},getBoundingClientRect(){return this.parentNode?.getBoundingClientRect?.()||{left:0,top:0};},addEventListener(t,h){this.handlers[t]=h;},removeEventListener(t){delete this.handlers[t];},remove(){if(this.parentNode?.children)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);this.parentNode=null;},setPointerCapture(){}};}
-  const target={clientWidth:1000,clientHeight:700,children:[],appendChild(n){this.children.push(n);n.parentNode=this;},getBoundingClientRect(){return{left:0,top:0};},classList:classList()};
+  function matchesClosest(node,selector){
+    for(let current=node;current;current=current.parentNode){
+      if(selector.includes('.editpolygon-leaflet-compat')&&String(current.className||'').split(/\s+/).includes('editpolygon-leaflet-compat'))return current;
+      if(selector.includes('[data-editpolygon-map-overlay="1"]')&&current.dataset?.editpolygonMapOverlay==='1')return current;
+      if(selector.includes('#editOverlay')&&current.id==='editOverlay')return current;
+      if(selector.includes('.gis-spatial-select-overlay')&&String(current.className||'').split(/\s+/).includes('gis-spatial-select-overlay'))return current;
+      if(selector.includes('.leaflet-popup-pane')&&String(current.className||'').split(/\s+/).includes('leaflet-popup-pane'))return current;
+    }
+    return null;
+  }
+  function element(){return {className:'',id:'',dataset:{},classList:classList(),style:{},handlers:{},children:[],parentNode:null,appendChild(n){this.children.push(n);n.parentNode=this;},contains(n){for(let cur=n;cur;cur=cur.parentNode)if(cur===this)return true;return false;},closest(selector){return matchesClosest(this,selector);},getBoundingClientRect(){return this.parentNode?.getBoundingClientRect?.()||{left:0,top:0};},addEventListener(t,h){(this.handlers[t]??=[]).push(h);},removeEventListener(t,h){this.handlers[t]=(this.handlers[t]||[]).filter(fn=>!h||fn!==h);},dispatchEvent(e){e.target=e.target||this;for(const h of this.handlers[e.type]||[])h(e);if(e.bubbles!==false&&this.parentNode)this.parentNode.dispatchEvent?.(e);},remove(){if(this.parentNode?.children)this.parentNode.children=this.parentNode.children.filter(x=>x!==this);this.parentNode=null;},setPointerCapture(){}};}
+  const target={clientWidth:1000,clientHeight:700,children:[],handlers:{},appendChild(n){this.children.push(n);n.parentNode=this;},contains(n){for(let cur=n;cur;cur=cur.parentNode)if(cur===this)return true;return false;},getBoundingClientRect(){return{left:0,top:0};},classList:classList(),addEventListener(t,h){(this.handlers[t]??=[]).push(h);},removeEventListener(t,h){this.handlers[t]=(this.handlers[t]||[]).filter(fn=>!h||fn!==h);},dispatchEvent(e){for(const h of this.handlers[e.type]||[])h(e);}};
   context.document.getElementById=id=>id==='map'?target:null;
   context.document.createElement=()=>element();
   context.requestAnimationFrame=fn=>{fn();return 1;};
@@ -285,10 +295,36 @@ test('OpenLayers transient vector overlays and DOM handles are native map-runtim
   let dragged=null,ended=null;
   const handle=runtime.createDomOverlay({coordinate:[153,-27],className:'test-handle',anchor:[9,9],draggable:true,onDrag:e=>{dragged=e.lonLat;},onDragEnd:e=>{ended=e.lonLat;}});
   const el=handle.getElement();assert.equal(el.className,'test-handle');const pane=target.children.find(child=>child.className==='editpolygon-openlayers-dom-overlays');assert.ok(pane);assert.equal(pane.children.includes(el),true);
-  el.handlers.pointerdown({button:0,clientX:15300,clientY:-2700,preventDefault(){},stopPropagation(){}});
+  el.handlers.pointerdown[0]({button:0,clientX:15300,clientY:-2700,preventDefault(){},stopPropagation(){}});
   globalHandlers.pointermove({clientX:15400,clientY:-2800});globalHandlers.pointerup({clientX:15400,clientY:-2800,type:'pointerup'});
   assert.deepEqual([...dragged],[154,-28]);assert.deepEqual([...ended],[154,-28]);assert.deepEqual([...handle.getCoordinate()],[154,-28]);
   handle.remove();assert.equal(pane.children.includes(el),false);
+});
+
+
+
+test('OpenLayers click fallback survives an overlaid legacy Leaflet circle swallowing the viewport click',async()=>{
+  const {context,target}=openLayersContext();
+  context.queueMicrotask=fn=>Promise.resolve().then(fn);
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol,L:context.L});
+  let received=null;
+  runtime.on('click',event=>{received=event;});
+  const compat=target.children.find(child=>child.className==='editpolygon-leaflet-compat');
+  assert.ok(compat);
+  const legacyCircle=context.document.createElement('div');
+  legacyCircle.className='leaflet-interactive legacy-circle';
+  compat.appendChild(legacyCircle);
+  // Simulate the browser click targeting the compatibility child rather than
+  // the OL viewport. The target-level capture listener must still deliver a
+  // canonical map click after the event has had a chance to be claimed by an
+  // overlay-specific handler.
+  const event={type:'click',bubbles:true,target:legacyCircle,clientX:320,clientY:210,shiftKey:false};
+  for(const handler of target.handlers.click||[])handler(event);
+  await Promise.resolve();
+  assert.ok(received);
+  assert.equal(received.pixel.x,320);
+  assert.equal(received.pixel.y,210);
+  assert.deepEqual([...received.lonLat],[3.2,2.1]);
 });
 
 test('OpenLayers runtime exposes editable rendered-feature hit testing',()=>{

@@ -38,7 +38,7 @@ with sync_playwright() as p:
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.set_content('<!doctype html><html><body><div id="map" style="width:800px;height:500px"></div><script>'+FAKE_OL+'</script></body></html>')
     page.add_script_tag(path=str(ROOT/'docs/assets/editpolygon-map-adapter.js'))
-    result=page.evaluate('''()=>{
+    result=page.evaluate('''async()=>{
       const r=EditPolygonMapAdapter.createRuntime({engine:'openlayers',target:'map',center:[153,-27],zoom:6,ol,L});
       const base=r.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png'});r.addDisplayLayer(base);
       const vec=r.createEditableVectorLayer({features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
@@ -48,7 +48,10 @@ with sync_playwright() as p:
       const transient=r.createVectorOverlayLayer({zIndex:1700});r.setVectorOverlayFeatures(transient,[{id:'t1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#b42318',radius:7}}]);
       const handle=r.createDomOverlay({coordinate:[153,-27],className:'native-handle',anchor:[4,4]});
       const handleEngine=!!handle.getElement()?.dataset?.editpolygonMapOverlay;const handleParent=handle.getElement()?.parentElement?.className||'';const childOrder=[...document.getElementById('map').children].map(el=>el.className||'');handle.remove();
-      return {engine:r.engine,bridge:r.parityBridge,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,disabled,compat:!!r.getLegacyMap(),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder};
+      let compatClick=null;r.on('click',event=>{compatClick={pixel:[event.pixel.x,event.pixel.y],lonLat:event.lonLat};});
+      const compat=document.querySelector('.editpolygon-leaflet-compat'),blocker=document.createElement('div');blocker.className='leaflet-interactive legacy-circle';blocker.style.position='absolute';blocker.style.inset='0';blocker.style.pointerEvents='auto';compat.appendChild(blocker);
+      const rect=document.getElementById('map').getBoundingClientRect(),expectedCompatPixel=[320-rect.left,210-rect.top];blocker.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:320,clientY:210}));await Promise.resolve();blocker.remove();
+      return {engine:r.engine,bridge:r.parityBridge,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,disabled,compat:!!r.getLegacyMap(),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,compatClick,expectedCompatPixel};
     }''')
     assert result['engine']=='openlayers',result
     assert result['bridge']=='leaflet-reference-image-overlays',result
@@ -64,6 +67,9 @@ with sync_playwright() as p:
     assert result['handleEngine'] is True,result
     assert result['handleParent']=='editpolygon-openlayers-dom-overlays',result
     assert result['childOrder'][-1]=='editpolygon-openlayers-dom-overlays',result
+    assert result['compatClick'] is not None,result
+    assert result['compatClick']['pixel']==result['expectedCompatPixel'],result
+    assert result['compatClick']['lonLat']==[result['expectedCompatPixel'][0]/100,result['expectedCompatPixel'][1]/100],result
     assert not errors,errors
     browser.close()
 print('OpenLayers parity browser smoke test passed.')

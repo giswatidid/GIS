@@ -13,8 +13,12 @@ body[data-map-engine="openlayers"] .editpolygon-leaflet-compat{
 }
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-control-container{display:none!important}
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-pane{pointer-events:none!important}
+/* The compatibility surface is display-only during OpenLayers parity.
+   Do not globally re-enable .leaflet-interactive: old editable-circle layers
+   use that class and can otherwise sit above the OL viewport and swallow the
+   ordinary click-selection event. Popups remain explicitly interactive. */
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-interactive,
-body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-marker-icon.leaflet-interactive,
+body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-marker-icon.leaflet-interactive{pointer-events:none!important}
 body[data-map-engine="openlayers"] .editpolygon-leaflet-compat .leaflet-popup-pane{pointer-events:auto!important}
 
 body[data-map-engine="openlayers"] .editpolygon-openlayers-dom-overlays{

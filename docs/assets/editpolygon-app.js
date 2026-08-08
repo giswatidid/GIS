@@ -17396,21 +17396,27 @@ showAutosaveRecoveryIfAvailable();
     if(isParametricCircleFeature(f)){
       const c=normaliseParametricCircle(f.parametricGeometry);
       const center=circleDisplayCenterLatLng(c);
+      // This legacy Leaflet feature layer is only an active hit target when
+      // Leaflet itself is the map engine. In OpenLayers parity mode editable
+      // vectors are rendered and selected by OpenLayers; allowing the old
+      // Leaflet circle to remain interactive on the compatibility surface can
+      // intercept the DOM click before OL receives it.
+      const legacyCircleInteractive=MAP_RUNTIME.engine!=='openlayers';
       const circle=polygonMoveBehavior()==='screen'
         ?L.circleMarker(center,{
           ...styleObject,
           radius:circleScreenRadiusPixels(f.parametricGeometry),
-          interactive:true,
+          interactive:legacyCircleInteractive,
           bubblingMouseEvents:false
         })
         :L.circle(center,{
           ...styleObject,
           radius:c.radiusMetres,
-          interactive:true,
+          interactive:legacyCircleInteractive,
           bubblingMouseEvents:false
         });
       circle.featureId=f.id;
-      circle.on('click',event=>{
+      if(legacyCircleInteractive)circle.on('click',event=>{
         if(D.active||V.active||MEASURE.active||MOVE.active||window.__editPolygonCircleEditState?.active)return;
         const original=event.originalEvent;
         if(original){

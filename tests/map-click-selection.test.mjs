@@ -49,3 +49,12 @@ test('OpenLayers click selection resolves rendered hits directly and tests the v
   assert.match(block,/trueCircleHitAtPixel\(row\.feature,hitPixel,latlng\)/);
   assert.doesNotMatch(block,/if\(isLocked\(row\.file,row\.feature\)\)continue/);
 });
+
+
+test('OpenLayers click delivery has a compatibility-surface fallback instead of relying only on the OL viewport',()=>{
+  const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
+  assert.match(adapter,/if\(type==='click'\)/);
+  assert.match(adapter,/\.editpolygon-leaflet-compat/);
+  assert.match(adapter,/nativeMap\.getViewport/);
+  assert.match(adapter,/queueMicrotask/);
+});

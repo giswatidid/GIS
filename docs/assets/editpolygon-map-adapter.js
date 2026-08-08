@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.1.8';
+  const VERSION='1.55.1.9';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -230,6 +230,35 @@
     function normalizeOlEvent(type,event){let pixel=event?.pixel?point(event.pixel):null,coord=event?.coordinate?ol.proj.toLonLat(event.coordinate):null;if(!pixel&&event?.originalEvent)try{pixel=point(nativeMap.getEventPixel(event.originalEvent));}catch(_){ }if(!coord&&pixel)try{const c=nativeMap.getCoordinateFromPixel([pixel.x,pixel.y]);if(c)coord=ol.proj.toLonLat(c);}catch(_){ }const ll=coord?{lat:coord[1],lng:coord[0]}:null;return {type,lonLat:coord||null,latLng:ll,pixel,originalEvent:event?.originalEvent||event||null,nativeEvent:event||null};}
     function bindOne(type,handler,native){
       let targetObj=nativeMap,eventType=type,wrapped;
+      if(type==='click'){
+        // Keep OpenLayers' native MapBrowserEvent click for normal map clicks so
+        // drag suppression and OL interaction semantics remain authoritative.
+        // During parity, however, the synchronised Leaflet compatibility surface
+        // is a sibling above the OL viewport. A legacy child can therefore become
+        // the DOM click target and prevent the OL viewport from ever seeing the
+        // event. Install a narrowly-scoped container capture fallback for clicks
+        // originating outside the OL viewport. This is deliberately deferred until
+        // the DOM event finishes so specialised overlay handlers can mark the click
+        // as handled first.
+        wrapped=native?handler:(e=>handler(normalizeOlEvent(type,e)));
+        nativeMap.on(eventType,wrapped);
+        records.push({targetObj:nativeMap,eventType,handler,wrapped,dom:false,type});
+        const viewport=nativeMap.getViewport?.();
+        const fallbackWrapped=e=>{
+          if(viewport?.contains?.(e.target))return;
+          if(e.target?.closest?.('[data-editpolygon-map-overlay="1"],.gis-spatial-select-overlay,#editOverlay,.leaflet-popup-pane'))return;
+          if(!e.target?.closest?.('.editpolygon-leaflet-compat'))return;
+          const rect=target.getBoundingClientRect?.()||{left:0,top:0};
+          const p=point(finite(e.clientX)-finite(rect.left),finite(e.clientY)-finite(rect.top));
+          let coordinate=null;try{coordinate=nativeMap.getCoordinateFromPixel?.([p.x,p.y])||null;}catch(_){ }
+          const payload=normalizeOlEvent(type,{originalEvent:e,pixel:[p.x,p.y],coordinate});
+          const deliver=()=>{if(e.__editpolygonOverlaySelectionHandled)return;handler(payload);};
+          if(typeof global.queueMicrotask==='function')global.queueMicrotask(deliver);else (global.setTimeout||setTimeout)(deliver,0);
+        };
+        target.addEventListener?.('click',fallbackWrapped,true);
+        records.push({targetObj:target,eventType:'click',handler,wrapped:fallbackWrapped,dom:true,type});
+        return;
+      }
       if(type==='mousemove'){eventType='pointermove';wrapped=native?handler:(e=>handler(normalizeOlEvent(type,e)));}
       else if(type==='mouseout'||type==='contextmenu'){
         targetObj=nativeMap.getViewport?.()||target;eventType=type;wrapped=e=>{if(type==='contextmenu')e.preventDefault?.();handler(native?e:normalizeOlEvent(type,{originalEvent:e,pixel:nativeMap.getEventPixel?.(e),coordinate:nativeMap.getCoordinateFromPixel?.(nativeMap.getEventPixel?.(e))}));};targetObj.addEventListener(eventType,wrapped);records.push({targetObj,eventType,handler,wrapped,dom:true});return;

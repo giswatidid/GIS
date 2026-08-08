@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
+const olCss=fs.readFileSync(new URL('../docs/assets/editpolygon-openlayers.css',import.meta.url),'utf8');
 
 test('map runtime owns transient vector overlays and draggable DOM map handles',()=>{
   assert.match(adapter,/createVectorOverlayLayer/);
@@ -75,4 +76,14 @@ test('saved measurement clicks select without immediately re-entering edit mode'
   assert.match(measurement,/open=event=>selectMeasurementItem\(item\.id,event\)/);
   assert.doesNotMatch(measurement,/open=.*startEditMeasure/);
   assert.match(app,/if\(e\?\.originalEvent\?\.__editpolygonOverlaySelectionHandled\)return/);
+});
+
+
+test('OpenLayers compatibility surface cannot make legacy editable vectors click-active above the native map',()=>{
+  assert.match(olCss,/\.editpolygon-leaflet-compat \.leaflet-interactive[\s\S]*pointer-events:none!important/);
+  assert.doesNotMatch(olCss,/\.editpolygon-leaflet-compat \.leaflet-interactive[^}]*pointer-events:auto!important/);
+  const legacyCircle=app.slice(app.indexOf('function v130BuildFeatureLayer'),app.indexOf('function v130BringLayerForward'));
+  assert.match(legacyCircle,/const legacyCircleInteractive=MAP_RUNTIME\.engine!=='openlayers'/);
+  assert.match(legacyCircle,/interactive:legacyCircleInteractive/);
+  assert.match(legacyCircle,/if\(legacyCircleInteractive\)circle\.on\('click'/);
 });
