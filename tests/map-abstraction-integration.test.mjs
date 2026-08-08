@@ -70,3 +70,12 @@ test('built-in basemaps, GIS tile services and cached editable vectors have Open
   assert.match(app,/buildOpenLayersCachedLayer/);
   assert.match(app,/MAP_RUNTIME\.createEditableVectorLayer/);
 });
+
+
+test('vertex dragging live-updates cached geometry without committing history on every pointermove',()=>{
+  assert.match(adapter,/updateEditableFeatureGeometry/);
+  assert.match(app,/__editpolygonLiveGeometryUpdate/);
+  assert.match(app,/scheduleVertexDragVisualUpdate/);
+  assert.match(app,/12000/);
+  assert.match(app,/linkedBaseGeometries/);
+});

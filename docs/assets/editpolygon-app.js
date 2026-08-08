@@ -3637,16 +3637,18 @@ function applyVertexDragPosition(e,drag=V.drag){
   return snapped;
 }
 function scheduleVertexDragVisualUpdate(drag=V.drag){
-  // Small/normal polygons should visibly reshape while dragging. For very large
-  // imported polygons, keep the drag handle responsive and redraw the full map
-  // only at commit time.
-  if(!drag||Number(drag.originalVertexCount||0)>1200)return;
+  // Live geometry follows the dragged handle. The cached renderer updates only
+  // the affected feature(s), so ordinary edits remain smooth without rebuilding
+  // the whole visible layer every pointermove. Extremely dense features retain
+  // the previous handle-only fallback to protect interaction responsiveness.
+  if(!drag||Number(drag.originalVertexCount||0)>12000)return;
   if(PERF.vertexDragMapRaf)return;
   PERF.vertexDragMapRaf=requestAnimationFrame(()=>{
     PERF.vertexDragMapRaf=0;
     if(V.active&&V.drag){
-      renderMap();
-      renderSelected();
+      const ids=[drag.feature.id,...new Set((drag.linked||[]).map(item=>item.feature?.id).filter(Boolean))];
+      const live=window.__editpolygonLiveGeometryUpdate?.(ids);
+      if(!live?.updated)renderMap();
     }
   });
 }
@@ -3666,6 +3668,8 @@ function finishVertexDrag(e,{cancel=false,fromFallback=false}={}){
 
   if(cancel){
     drag.feature.geometry=clone(drag.baseGeometry);
+    for(const [id,geometry] of Object.entries(drag.linkedBaseGeometries||{})){const linkedFeature=ref(id)?.feature;if(linkedFeature)linkedFeature.geometry=clone(geometry);}
+    window.__editpolygonLiveGeometryUpdate?.([drag.feature.id,...Object.keys(drag.linkedBaseGeometries||{})]);
     V.drag=null;
     overlay().classList.remove('vertex-dragging');
     document.body.classList.remove('vertex-drag-active');
@@ -21432,6 +21436,16 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function cachedLayerPresent(layer){return MAP_RUNTIME.engine==='openlayers'?MAP_RUNTIME.hasDisplayLayer(layer):featureGroup.hasLayer(layer);}
   function addCachedLayer(layer){if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.addDisplayLayer(layer);else layer.addTo(featureGroup);}
   function removeCachedLayer(layer){if(!layer)return;if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.removeDisplayLayer(layer);else try{featureGroup.removeLayer(layer);}catch(_){ }}
+  function liveGeometryUpdate(featureIds=[]){
+    const ids=[...new Set((featureIds||[]).filter(Boolean))];let updated=0;const fallbackFiles=new Set();
+    for(const id of ids){
+      const r=featureFile(id);if(!r)continue;const cached=ANALYSIS_RUNTIME.vectorCache.get(r.file.id);
+      if(cached?.group&&MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.group,id,getDisplayGeometry(r.feature)))updated++;else fallbackFiles.add(r.file.id);
+    }
+    if(fallbackFiles.size){for(const fileId of fallbackFiles)invalidateRenderCache(fileId);cachedRenderMap();}
+    return {updated,requested:ids.length,fallbackFiles:[...fallbackFiles]};
+  }
+  window.__editpolygonLiveGeometryUpdate=liveGeometryUpdate;
   function cachedRenderMap(){
     const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){featureGroup.clearLayers();ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){

@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.1');
+  assert.equal(runtime.version,'1.55.1.2');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -132,6 +132,18 @@ test('Leaflet private drag recovery is contained inside the adapter',()=>{
   assert.equal(native._drag._moving,false);
 });
 
+
+
+test('Leaflet runtime can live-update cached editable geometry without rebuilding a layer',()=>{
+  const context=load(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:new FakeMap()});
+  let latlngs=null,redraws=0;
+  const child={featureId:'poly-1',setLatLngs:value=>{latlngs=value;},redraw:()=>{redraws++;}};
+  const group={eachLayer:fn=>fn(child)};
+  assert.equal(runtime.updateEditableFeatureGeometry(group,'poly-1',{type:'Polygon',coordinates:[[[153,-27],[154,-27],[154,-28],[153,-27]]]}),true);
+  assert.equal(latlngs[0][1].lat,-27);
+  assert.equal(latlngs[0][1].lng,154);
+  assert.equal(redraws,1);
+});
 test('shared point and extent helpers are map-engine neutral',()=>{
   const context=load(),api=context.EditPolygonMapAdapter;
   assert.equal(api.point(0,0).distanceTo(api.point(3,4)),5);
@@ -164,15 +176,15 @@ function fakeOpenLayers(){
     getView(){return this.view;}getSize(){return [1000,700];}getInteractions(){return this.interactions;}getLayers(){return this.layers;}
     addLayer(l){if(!this.layers.items.includes(l))this.layers.items.push(l);}removeLayer(l){this.layers.items=this.layers.items.filter(x=>x!==l);}
     getPixelFromCoordinate(c){return [c[0]/10,c[1]/10];}getCoordinateFromPixel(p){return [p[0]*10,p[1]*10];}
-    getEventPixel(e){return [e.clientX??0,e.clientY??0];}getViewport(){return this.viewport;}updateSize(){this.updated=true;}
+    getEventPixel(e){return [e.clientX??0,e.clientY??0];}getViewport(){return this.viewport;}updateSize(){this.updated=true;}render(){this.rendered=(this.rendered||0)+1;}
   }
   class Source{constructor(opts={}){this.opts=opts;}}
-  class VectorSource extends Source{constructor(opts={}){super(opts);this.features=[];}addFeatures(f){this.features.push(...f);}}
+  class VectorSource extends Source{constructor(opts={}){super(opts);this.features=[];this.changedCount=0;}addFeatures(f){this.features.push(...f);}getFeatureById(id){return this.features.find(f=>f.id===id)||null;}changed(){this.changedCount++;}}
   class Layer{constructor(opts={}){this.opts=opts;this.visible=opts.visible!==false;this.opacity=opts.opacity??1;this.zIndex=opts.zIndex??0;}setVisible(v){this.visible=!!v;}setOpacity(v){this.opacity=v;}setZIndex(v){this.zIndex=v;}getSource(){return this.opts.source;}}
   class Group extends Layer{constructor(opts={}){super(opts);this.layers=opts.layers||[];}}
-  class Feature{constructor(props={}){Object.assign(this,props);}setStyle(v){this.style=v;}}
+  class Feature{constructor(props={}){Object.assign(this,props);}setStyle(v){this.style=v;}setId(v){this.id=v;}setGeometry(v){this.geometry=v;}}
   class Point{constructor(c){this.coordinates=c;}}
-  class GeoJSON{readFeature(raw){return new Feature({raw});}}
+  class GeoJSON{readFeature(raw){return new Feature({raw,geometry:{type:raw.geometry?.type,coordinates:raw.geometry?.coordinates}});}readGeometry(raw){return {type:raw.type,coordinates:raw.coordinates,projected:true};}}
   class Style{constructor(o){this.options=o;}} class Stroke extends Style{} class Fill extends Style{} class CircleStyle extends Style{} class Text extends Style{}
   const proj={fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(v=>v*1000)};
   return {
@@ -233,6 +245,9 @@ test('OpenLayers runtime owns display layers and GIS tile/WMS/vector primitives'
   runtime.addDisplayLayer(xyz);runtime.addDisplayLayer(wms);runtime.addDisplayLayer(vector);
   assert.equal(runtime.hasDisplayLayer(xyz),true);
   assert.equal(vector.__editpolygonFeatureCount,1);
+  assert.equal(runtime.updateEditableFeatureGeometry(vector,'a',{type:'Point',coordinates:[154,-28]}),true);
+  assert.equal(vector.__editpolygonGeometryFeatures.get('a').geometry.coordinates[0],154);
+  assert.equal(vector.getSource().changedCount,1);
   runtime.removeDisplayLayer(wms);assert.equal(runtime.hasDisplayLayer(wms),false);
 });
 
