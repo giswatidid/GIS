@@ -37,7 +37,13 @@ test('overlap picker is geometry neutral',()=>{
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
 
-test('OpenLayers map selection prefers native rendered-feature hit detection for true circles',()=>{
-  assert.match(app,/MAP_RUNTIME\.engine==='openlayers'&&typeof MAP_RUNTIME\.editableFeatureIdsAtPixel==='function'/);
-  assert.match(app,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
+test('OpenLayers click selection combines renderer hit detection with canonical true-circle hit testing',()=>{
+  const block=app.slice(app.indexOf('function featuresAtLatLng'),app.indexOf('function mapSelectionHooks'));
+  assert.match(block,/nativeHitIds=new Set/);
+  assert.match(block,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
+  assert.match(block,/canonicalCircleHit=isParametricCircleFeature/);
+  assert.match(block,/if\(canonicalCircleHit\)\{out\.push\(row\);continue;\}/);
+  assert.match(block,/nativeHit\|\|featureHitAtMapPoint/);
+  assert.doesNotMatch(block,/if\(nativeRows\.length\)return nativeRows/);
+  assert.match(app,/isParametricCircleFeature\(feature\).*circleContainsLatLng/s);
 });

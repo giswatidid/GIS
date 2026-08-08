@@ -1833,7 +1833,7 @@ function measureMapClick(e){
   return true;
 }
 function measureMouseMove(e){
-  if(!MEASURE.active)return;
+  if(!MEASURE.active||MEASURE.editingId)return;
   MEASURE.cursor=[e.latLng.lng,e.latLng.lat];
   renderMeasurementPreview();
 }
@@ -1892,7 +1892,7 @@ function startEditMeasure(id){
   document.body.classList.add('measure-active');
   MAP_RUNTIME.setDoubleClickZoomEnabled(false);
   updateMeasureToolbarForType(item.type,true);
-  setNotice(measureToolFamily(item.type)==='annotation'?'Editing saved annotation. Update the label or style, then click Save annotation.':'Editing saved measurement. Update the label or style, then click Save measurement.');
+  setNotice(measureToolFamily(item.type)==='annotation'?'Editing saved annotation. Update the label or style, then click Save annotation.':(['area','distance'].includes(item.type)?'Editing saved measurement. Drag existing vertices to move them, click midpoint handles to insert vertices, click the map to append a point, then Save measurement.':'Editing saved measurement. Update it, then click Save measurement.'));
   renderMeasurementPreview();
   renderSelected();
   updateMeasureButtons();
@@ -1916,6 +1916,39 @@ function makeMeasureLabelIcon(text,style={}){
   });
 }
 function clearMeasurementDomOverlays(){while(measurementDomOverlays.length){try{measurementDomOverlays.pop()?.remove?.();}catch(_){ }}}
+function clearMeasurementEditHandles(){while(measurementEditHandleOverlays.length){try{measurementEditHandleOverlays.pop()?.remove?.();}catch(_){ }}}
+function measurementEditHandleHtml(kind){return `<span class="measurement-edit-handle measurement-edit-${kind}" aria-hidden="true"></span>`;}
+function measurementEditVectorItems(){
+  const style=measureStyleFromControls(),pts=clone(MEASURE.points),items=[];
+  for(const item of MEASURE.items){if(MEASURE.editingId===item.id)continue;renderMeasureItem(item,items,{labels:false});}
+  if(MEASURE.type==='distance'&&pts.length>=2)items.push({id:'measure-preview-line',geometry:{type:'LineString',coordinates:pts},style:{color:style.color,weight:3,dashArray:'6,4',fillOpacity:0}});
+  else if(MEASURE.type==='area'&&pts.length>=2){
+    if(pts.length>=3)items.push({id:'measure-preview-area',geometry:{type:'Polygon',coordinates:[closeRing(clone(pts))]},style:{color:style.color,weight:2,fillColor:style.color,fillOpacity:.12,dashArray:'6,4'}});
+    else items.push({id:'measure-preview-area-line',geometry:{type:'LineString',coordinates:pts},style:{color:style.color,weight:3,dashArray:'6,4',fillOpacity:0}});
+  }
+  for(let i=0;i<pts.length;i++)items.push({id:`measure-preview-vertex-${i}`,geometry:{type:'Point',coordinates:pts[i]},style:{radius:5,color:'#fff',weight:2,fillColor:style.color,fillOpacity:1}});
+  return items;
+}
+function updateMeasurementEditVectors(){MAP_RUNTIME.setVectorOverlayFeatures?.(measurementGroup,measurementEditVectorItems());}
+function renderMeasurementEditHandles(){
+  clearMeasurementEditHandles();
+  if(!MEASURE.active||!MEASURE.editingId||!['distance','area'].includes(MEASURE.type))return;
+  const points=MEASURE.points||[];
+  points.forEach((coord,index)=>{
+    const overlay=MAP_RUNTIME.createDomOverlay({coordinate:coord,className:'measurement-edit-overlay measurement-edit-vertex-overlay',html:measurementEditHandleHtml('vertex'),anchor:[10,10],zIndex:3300,interactive:true,draggable:true,title:'Drag measurement vertex',
+      onDragStart:()=>setStatus('Moving measurement vertex…'),
+      onDrag:event=>{MEASURE.points[index]=event.lonLat.slice();MEASURE.cursor=null;updateMeasurementEditVectors();},
+      onDragEnd:event=>{MEASURE.points[index]=event.lonLat.slice();MEASURE.cursor=null;renderMeasurementPreview();updateMeasureButtons();setStatus('Measurement vertex moved. Save measurement to keep the edit.');}
+    });
+    const el=overlay.getElement();el?.addEventListener?.('click',event=>{event.preventDefault?.();event.stopPropagation?.();});measurementEditHandleOverlays.push(overlay);
+  });
+  const edgeCount=MEASURE.type==='area'?points.length:Math.max(0,points.length-1);
+  for(let index=0;index<edgeCount;index++){
+    const next=(index+1)%points.length;if(!points[index]||!points[next])continue;const midpoint=midCoord(points[index],points[next]);
+    const overlay=MAP_RUNTIME.createDomOverlay({coordinate:midpoint,className:'measurement-edit-overlay measurement-edit-midpoint-overlay',html:measurementEditHandleHtml('midpoint'),anchor:[8,8],zIndex:3290,interactive:true,title:'Click to add measurement vertex'});
+    const el=overlay.getElement();el?.addEventListener?.('pointerdown',event=>{event.preventDefault?.();event.stopPropagation?.();});el?.addEventListener?.('click',event=>{event.preventDefault?.();event.stopPropagation?.();MEASURE.points.splice(index+1,0,midpoint);MEASURE.cursor=null;renderMeasurementPreview();updateMeasureButtons();setStatus('Measurement vertex added. Save measurement to keep the edit.');});measurementEditHandleOverlays.push(overlay);
+  }
+}
 function measureLabelHtml(text,style={}){
   const color=style.color||'#1664d6',size=style.size||14,font=style.font||'Arial',weight=style.bold?'700':'400',ital=style.italic?'italic':'normal';
   return `<div class="measure-label-inner" style="color:${esc(color)};font-size:${size}px;font-family:${esc(font)};font-weight:${weight};font-style:${ital};">${esc(text)}</div>`;
@@ -1932,11 +1965,11 @@ function addMeasurementPointMarker(coordinate,style={},onClick=null){
   measurementDomOverlays.push(overlay);return overlay;
 }
 function renderMeasurementPreview(){
-  MAP_RUNTIME.clearVectorOverlayLayer?.(measurementGroup);clearMeasurementDomOverlays();
+  MAP_RUNTIME.clearVectorOverlayLayer?.(measurementGroup);clearMeasurementDomOverlays();clearMeasurementEditHandles();
   const vectorItems=[];
   for(const item of MEASURE.items){if(MEASURE.active&&MEASURE.editingId===item.id)continue;renderMeasureItem(item,vectorItems);}
   if(MEASURE.active){
-    const style=measureStyleFromControls(),pts=clone(MEASURE.points);if(MEASURE.cursor&&(MEASURE.type==='distance'||MEASURE.type==='area'))pts.push(MEASURE.cursor);
+    const style=measureStyleFromControls(),pts=clone(MEASURE.points);if(!MEASURE.editingId&&MEASURE.cursor&&(MEASURE.type==='distance'||MEASURE.type==='area'))pts.push(MEASURE.cursor);
     if(MEASURE.type==='distance'&&pts.length>=2){
       vectorItems.push({id:'measure-preview-line',geometry:{type:'LineString',coordinates:pts},style:{color:style.color,weight:3,dashArray:'6,4',fillOpacity:0}});addMeasureLineLabels(pts,style,true);
     }else if(MEASURE.type==='area'&&pts.length>=2){
@@ -1952,6 +1985,7 @@ function renderMeasurementPreview(){
     }
   }
   MAP_RUNTIME.setVectorOverlayFeatures?.(measurementGroup,vectorItems);
+  renderMeasurementEditHandles();
 }
 function midCoord(a,b){return [(a[0]+b[0])/2,(a[1]+b[1])/2]}
 function addMeasureLineLabels(coords,style,preview=false){
@@ -1980,16 +2014,16 @@ function selectMeasurementItem(id,event=null){
   setStatus(`Selected ${item.label||measureDisplayName(item.type)}.`);
   return true;
 }
-function renderMeasureItem(item,vectorItems=[]){
-  const style=item.style||{},coords=item.coordinates||[],open=event=>selectMeasurementItem(item.id,event);
+function renderMeasureItem(item,vectorItems=[],options={}){
+  const style=item.style||{},coords=item.coordinates||[],open=event=>selectMeasurementItem(item.id,event),labels=options.labels!==false;
   if(item.type==='distance'&&coords.length>=2){
-    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'LineString',coordinates:coords},style:{color:style.color||'#1664d6',weight:3,fillOpacity:0},interactive:true,onClick:open});addMeasureLineLabels(coords,style);
+    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'LineString',coordinates:coords},style:{color:style.color||'#1664d6',weight:3,fillOpacity:0},interactive:true,onClick:open});if(labels)addMeasureLineLabels(coords,style);
   }else if(item.type==='area'&&coords.length>=3){
-    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]},style:{color:style.color||'#1664d6',weight:2,fillColor:style.color||'#1664d6',fillOpacity:.12},interactive:true,onClick:open});addMeasureAreaLabel(coords,style);
+    vectorItems.push({id:`measure-${item.id}`,geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]},style:{color:style.color||'#1664d6',weight:2,fillColor:style.color||'#1664d6',fillOpacity:.12},interactive:true,onClick:open});if(labels)addMeasureAreaLabel(coords,style);
   }else if(item.type==='point'){
-    const c=coords[0];if(!c)return;addMeasurementPointMarker(c,style,open);if(item.label)addMeasurementLabel(c,item.label,{...style,annotation:true});
+    const c=coords[0];if(!c)return;if(labels){addMeasurementPointMarker(c,style,open);if(item.label)addMeasurementLabel(c,item.label,{...style,annotation:true});}
   }else if(item.type==='annotation'){
-    const c=coords[0];if(!c)return;addMeasurementLabel(c,item.label||'Annotation',{...style,annotation:true},open);
+    const c=coords[0];if(!c)return;if(labels)addMeasurementLabel(c,item.label||'Annotation',{...style,annotation:true},open);
   }
 }
 function measurePopupHtml(item){
@@ -2006,6 +2040,7 @@ function saveMeasureOverlay(){
   if(MEASURE.editingId){
     const item=MEASURE.items.find(x=>x.id===MEASURE.editingId);
     if(item){
+      pushMeasurementHistory();
       item.type=MEASURE.type;
       item.label=label;
       item.coordinates=clone(MEASURE.points);
@@ -2019,6 +2054,7 @@ function saveMeasureOverlay(){
     return;
   }
   const item={id:uid('measure'),type:MEASURE.type,label,coordinates:clone(MEASURE.points),style,createdAt:new Date().toISOString()};
+  pushMeasurementHistory();
   MEASURE.items.push(item);
   cancelMeasure(true);
   renderMeasurementPreview();
@@ -2075,6 +2111,7 @@ function deleteMeasure(id=MEASURE.editingId||MEASURE.selectedId){
     setStatus('Measurement was already removed.');
     return;
   }
+  pushMeasurementHistory();
   MEASURE.items.splice(idx,1);
   MEASURE.editingId=null;
   MEASURE.selectedId=null;
@@ -2643,8 +2680,8 @@ function toggleTopology(){
   setStatus(SNAP.topology?'Topology mode enabled. Exact matching vertices in other selected polygons move together.':'Topology mode disabled.');
 }
 
-function snapshot(){return JSON.stringify({files:project.files,selectedFileId:project.selectedFileId,selectedFeatureId:project.selectedFeatureId,mergeIds:project.mergeIds})}
-function restore(s){VStop(true);const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];renderAll();setDirty(true)}
+function snapshot(){return JSON.stringify({files:project.files,selectedFileId:project.selectedFileId,selectedFeatureId:project.selectedFeatureId,mergeIds:project.mergeIds,measurements:MEASURE.items})}
+function restore(s){VStop(true);const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];if(Array.isArray(d.measurements))MEASURE.items=d.measurements;MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);renderAll();setDirty(true)}
 
 /* v125: scalable undo history.
    Earlier builds discarded every undo state when the complete project JSON was
@@ -2660,6 +2697,7 @@ function historyEntryBytes(entry){
   if(Number.isFinite(entry.bytes))return entry.bytes;
   if(entry.kind==='full')return String(entry.state||'').length;
   if(entry.kind==='features')return (entry.targets||[]).reduce((n,t)=>n+String(t.feature||'').length,0)+512;
+  if(entry.kind==='measurements')return Number(entry.bytes)||String(entry.state||'').length+256;
   return 0;
 }
 function trimHistoryStack(stack){
@@ -2672,6 +2710,18 @@ function trimHistoryStack(stack){
 function fullHistoryEntry(){
   const state=snapshot();
   return {kind:'full',state,bytes:state.length};
+}
+function measurementHistoryEntry(){
+  const state=JSON.stringify({items:MEASURE.items||[],selectedId:MEASURE.selectedId||null});
+  return {kind:'measurements',state,bytes:state.length+256};
+}
+function pushMeasurementHistory(){
+  try{project.history.push(measurementHistoryEntry());trimHistoryStack(project.history);project.future=[];updateUndo();return true;}
+  catch(err){console.warn('Measurement history snapshot skipped:',err);return false;}
+}
+function restoreMeasurementHistoryEntry(entry){
+  if(MEASURE.active)cancelMeasure(true);
+  const saved=JSON.parse(entry.state||'{}');MEASURE.items=clone(saved.items||[]);MEASURE.selectedId=saved.selectedId&&MEASURE.items.some(item=>item.id===saved.selectedId)?saved.selectedId:null;MEASURE.editingId=null;MEASURE.active=false;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);renderAll();setDirty(true);
 }
 function featureHistoryEntry(featureIds){
   const ids=[...new Set((featureIds||[]).filter(Boolean))];
@@ -2717,11 +2767,13 @@ function restoreFeatureHistoryEntry(entry){
 function restoreHistoryEntry(entry){
   if(typeof entry==='string'){restore(entry);return;}
   if(entry?.kind==='features'){restoreFeatureHistoryEntry(entry);return;}
+  if(entry?.kind==='measurements'){restoreMeasurementHistoryEntry(entry);return;}
   if(entry?.kind==='full'){restore(entry.state);return;}
   throw Error('Unsupported undo history entry.');
 }
 function inverseHistoryEntry(entry){
   if(entry?.kind==='features')return featureHistoryEntry((entry.targets||[]).map(t=>t.featureId));
+  if(entry?.kind==='measurements')return measurementHistoryEntry();
   return fullHistoryEntry();
 }
 function pushHistory(featureIds=null){
@@ -2880,7 +2932,7 @@ function makeBuiltinBasemaps(){
   return {osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:22}),light:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:22})};
 }
 const basemaps=makeBuiltinBasemaps();mapLayerAdd(basemaps.osm);
-const featureGroup=L.featureGroup().addTo(map);const geometryPreviewGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:850});const locationSearchOverlays=[];const measurementGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1250,interactive:true});const measurementDomOverlays=[];let drawLayer=null,drawPoints=[];
+const featureGroup=L.featureGroup().addTo(map);const geometryPreviewGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:850});const locationSearchOverlays=[];const measurementGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1250,interactive:true});const measurementDomOverlays=[],measurementEditHandleOverlays=[];let drawLayer=null,drawPoints=[];
 
 
 function parseLatLngSearch(q){
@@ -3114,28 +3166,33 @@ function featureHitAtMapPoint(feature,file,latlng,pixel){
   return false;
 }
 function featuresAtLatLng(latlng,pixel=null){
-  const out=[],rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng);
-  // In OpenLayers mode, prefer the renderer's own hit detection. This keeps
-  // selection aligned with what is actually painted on screen, including
-  // materialised true-circle display geometry and styled line/point tolerance.
+  const out=[],rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng),nativeHitIds=new Set();
+  // OpenLayers hit detection is useful, but it is an additional signal rather
+  // than an exclusive fast-path.  True circles are canonical centre+radius
+  // objects while the renderer paints a materialised display polygon, so the
+  // manual circle test must always be allowed to participate as well.
   if(MAP_RUNTIME.engine==='openlayers'&&typeof MAP_RUNTIME.editableFeatureIdsAtPixel==='function'){
-    const nativeIds=MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10});
-    if(nativeIds.length){
-      const byId=new Map(rows.map(row=>[String(row.feature.id),row]));
-      const nativeRows=nativeIds.map(id=>byId.get(String(id))).filter(row=>row&&!isLocked(row.file,row.feature));
-      if(nativeRows.length)return nativeRows;
-    }
+    for(const id of MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10})||[])nativeHitIds.add(String(id));
   }
   for(const row of rows){
     if(isLocked(row.file,row.feature))continue;
+    const nativeHit=nativeHitIds.has(String(row.feature.id));
+    // A true circle's visible screen footprint is defined by its canonical
+    // centre/radius plus the current move/display behaviour. Test that footprint
+    // before bbox pruning so click selection cannot miss a circle that every
+    // other selection mode can already select.
+    const canonicalCircleHit=isParametricCircleFeature(row.feature)&&circleContainsLatLng(row.feature.parametricGeometry,latlng);
+    if(canonicalCircleHit){out.push(row);continue;}
     const tolerance=mapHitTolerancePx(row.feature,row.file);
-    const nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance));
-    const se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
-    const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng));
-    const latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat));
-    const fb=featureBBox(row.feature);
-    if(fb && (latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
-    if(featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))out.push(row);
+    if(!nativeHit){
+      const nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance));
+      const se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
+      const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng));
+      const latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat));
+      const fb=featureBBox(row.feature);
+      if(fb && (latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
+    }
+    if(nativeHit||featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))out.push(row);
   }
   // Top-most first: last rendered is on top.
   return out.reverse();
@@ -17102,7 +17159,8 @@ showAutosaveRecoveryIfAvailable();
       files:v130CompactFiles(),
       selectedFileId:project.selectedFileId,
       selectedFeatureId:project.selectedFeatureId,
-      mergeIds:project.mergeIds
+      mergeIds:project.mergeIds,
+      measurements:MEASURE.items
     });
   };
   restore=function(s){
@@ -17112,6 +17170,8 @@ showAutosaveRecoveryIfAvailable();
     project.selectedFileId=d.selectedFileId||null;
     project.selectedFeatureId=d.selectedFeatureId||null;
     project.mergeIds=d.mergeIds||[];
+    if(Array.isArray(d.measurements))MEASURE.items=d.measurements;
+    MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);
     renderAll();
     setDirty(true);
   };

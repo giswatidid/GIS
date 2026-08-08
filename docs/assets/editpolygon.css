@@ -5249,3 +5249,11 @@ body.night-mode .v1533-menu-state strong{color:#f1f5f9}
 body.night-mode .v1533-menu-select-row select{background:#111318;color:#e5e7eb;border-color:#414a57}
 body.night-mode .layer-menu .v1533-menu-remove{color:#ff8a90!important}
 body.night-mode .layer-menu .v1533-menu-remove:hover:not(:disabled){background:#3a2024!important;color:#ffb1b5!important}
+
+/* v1.55.1.7 — measurement geometry edit handles */
+.measurement-edit-overlay{pointer-events:auto!important}
+.measurement-edit-handle{display:block;border-radius:50%;box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 4px rgba(0,0,0,.35)}
+.measurement-edit-vertex{width:18px;height:18px;background:#b42318;border:3px solid #fff;cursor:grab}
+.measurement-edit-vertex:active{cursor:grabbing}
+.measurement-edit-midpoint{width:14px;height:14px;background:#16a34a;border:2px solid #fff;cursor:pointer}
+.measurement-edit-vertex:hover,.measurement-edit-midpoint:hover{filter:brightness(1.08)}
