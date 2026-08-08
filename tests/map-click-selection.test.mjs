@@ -36,3 +36,8 @@ test('overlap picker is geometry neutral',()=>{
   assert.match(app,/Select overlapping feature/);
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
+
+test('OpenLayers map selection prefers native rendered-feature hit detection for true circles',()=>{
+  assert.match(app,/MAP_RUNTIME\.engine==='openlayers'&&typeof MAP_RUNTIME\.editableFeatureIdsAtPixel==='function'/);
+  assert.match(app,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
+});

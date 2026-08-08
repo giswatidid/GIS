@@ -80,7 +80,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.1.5');
+  assert.equal(runtime.version,'1.55.1.6');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -289,4 +289,10 @@ test('OpenLayers transient vector overlays and DOM handles are native map-runtim
   globalHandlers.pointermove({clientX:15400,clientY:-2800});globalHandlers.pointerup({clientX:15400,clientY:-2800,type:'pointerup'});
   assert.deepEqual([...dragged],[154,-28]);assert.deepEqual([...ended],[154,-28]);assert.deepEqual([...handle.getCoordinate()],[154,-28]);
   handle.remove();assert.equal(pane.children.includes(el),false);
+});
+
+test('OpenLayers runtime exposes editable rendered-feature hit testing',()=>{
+  assert.match(source,/function editableFeatureIdsAtPixel\(pixelValue,options=\{\}\)/);
+  assert.match(source,/layer\.__editpolygonEditable=true/);
+  assert.match(source,/hitTolerance/);
 });

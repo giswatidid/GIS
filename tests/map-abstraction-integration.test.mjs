@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.1.5 loads both map engines and the map adapter before the application',()=>{
+test('v1.55.1.6 loads both map engines and the map adapter before the application',()=>{
   const leaflet=html.indexOf('leaflet@1.9.4/dist/leaflet.js');
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');

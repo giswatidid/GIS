@@ -67,3 +67,12 @@ test('cached vector signatures include active and picked selection state for imm
   assert.match(signature,/selection:\$\{activeSelection\}/);
   assert.match(signature,/picked:\$\{pickedSelection\}/);
 });
+
+test('saved measurement clicks select without immediately re-entering edit mode',()=>{
+  const measurement=app.slice(app.indexOf('function markOverlayMapClickHandled'),app.indexOf('function measurePopupHtml'));
+  assert.match(measurement,/function selectMeasurementItem\(id,event=null\)/);
+  assert.match(measurement,/MEASURE\.selectedId=id;MEASURE\.editingId=null;MEASURE\.active=false/);
+  assert.match(measurement,/open=event=>selectMeasurementItem\(item\.id,event\)/);
+  assert.doesNotMatch(measurement,/open=.*startEditMeasure/);
+  assert.match(app,/if\(e\?\.originalEvent\?\.__editpolygonOverlaySelectionHandled\)return/);
+});

@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.1.5';
+  const VERSION='1.55.1.6';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -267,13 +267,28 @@
         if(item.label?.coordinate&&item.label?.text!=null){try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat(item.label.coordinate)),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
         if(item.annotation?.coordinate&&item.annotation?.text){try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat(item.annotation.coordinate)),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
-      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;return layer;
+      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;return layer;
     }
     function updateEditableFeatureGeometry(layer,featureId,geometry){
       if(!layer||!featureId||!geometry)return false;
       const feature=layer.__editpolygonGeometryFeatures?.get?.(featureId)||layer.getSource?.()?.getFeatureById?.(featureId);
       if(!feature||typeof feature.setGeometry!=='function')return false;
       try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometry,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
+    }
+    function editableFeatureIdsAtPixel(pixelValue,options={}){
+      if(typeof nativeMap.forEachFeatureAtPixel!=='function')return [];
+      const p=point(pixelValue),ids=[];
+      const seen=new Set(),hitTolerance=Math.max(0,finite(options.hitTolerance,8));
+      try{
+        nativeMap.forEachFeatureAtPixel([p.x,p.y],(feature,layer)=>{
+          if(!layer?.__editpolygonEditable)return;
+          const kind=feature?.get?.('__editpolygonKind')||feature?.values_?.__editpolygonKind||feature?.__editpolygonKind;
+          if(kind&&kind!=='geometry')return;
+          const id=feature?.getId?.()||feature?.get?.('__editpolygonId')||feature?.values_?.__editpolygonId||feature?.__editpolygonId;
+          if(id!=null&&!seen.has(String(id))){seen.add(String(id));ids.push(String(id));}
+        },{hitTolerance,layerFilter:layer=>!!layer?.__editpolygonEditable});
+      }catch(_){ }
+      return ids;
     }
     function createVectorOverlayLayer(spec={}){const source=new ol.source.Vector();const layer=new ol.layer.Vector({source,zIndex:spec.zIndex??900,visible:spec.visible!==false,opacity:spec.opacity??1,declutter:spec.declutter===true});layer.__editpolygonEngine='openlayers';layer.__editpolygonOverlay=true;layer.__editpolygonOverlayCallbacks=new Map();if(spec.interactive===true&&typeof nativeMap.forEachFeatureAtPixel==='function'){nativeMap.on('click',event=>{try{nativeMap.forEachFeatureAtPixel(event.pixel,(feature,hitLayer)=>{if(hitLayer&&hitLayer!==layer)return;const id=feature?.__editpolygonOverlayId;const cb=id!=null?layer.__editpolygonOverlayCallbacks.get(id):null;if(cb){cb({id,feature,layer,originalEvent:event?.originalEvent||event});return true;}},{layerFilter:hit=>hit===layer});}catch(_){ }});}if(spec.autoAdd!==false)addDisplayLayer(layer);return layer;}
     function clearVectorOverlayLayer(layer){try{layer?.getSource?.()?.clear?.();return true;}catch(_){return false;}}
@@ -286,7 +301,7 @@
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:domOverlayPane,lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
 
     syncLegacy();
-    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),parityBridge:'leaflet-reference-image-overlays',getNativeMap:()=>nativeMap,getLegacyMap:()=>legacyMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,syncLegacy});
+    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),parityBridge:'leaflet-reference-image-overlays',getNativeMap:()=>nativeMap,getLegacyMap:()=>legacyMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableFeatureIdsAtPixel,syncLegacy});
   }
 
   function createRuntime(options={}){

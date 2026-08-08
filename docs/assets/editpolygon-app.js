@@ -1963,8 +1963,25 @@ function addMeasureAreaLabel(coords,style,preview=false){
   if(coords.length<3)return;let c;try{c=turf.centroid({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]}}).geometry.coordinates}catch{c=coords[0]}
   const z=MAP_RUNTIME.getZoom(),txt=z<=8?`${formatAreaM2(polygonAreaM2(coords))}`:`${formatAreaM2(polygonAreaM2(coords))} · ${formatLengthKm(lineLengthKm([...coords,coords[0]]))}`;addMeasurementLabel(c,txt,{...style,total:true});
 }
+function markOverlayMapClickHandled(event){
+  const native=event?.originalEvent||event;
+  try{if(native&&typeof native==='object')native.__editpolygonOverlaySelectionHandled=true;}catch(_){ }
+}
+function selectMeasurementItem(id,event=null){
+  const item=MEASURE.items.find(x=>x.id===id);
+  if(!item||MEASURE.active)return false;
+  markOverlayMapClickHandled(event);
+  MEASURE.selectedId=id;MEASURE.editingId=null;MEASURE.active=false;
+  IMAGE.selectedId=null;
+  try{if(typeof REF!=='undefined'&&REF)REF.selectedId=null;}catch(_){ }
+  project.selectedFeatureId=null;project.selectedFileId=null;project.mergeIds=[];project.mode='select';
+  closeLayerMenu();closePickMenu();clearGeometryPreview();
+  renderMap();renderMeasurementPreview();renderSidebar();renderSelected();renderOverlay();updateStatus();updateButtons();
+  setStatus(`Selected ${item.label||measureDisplayName(item.type)}.`);
+  return true;
+}
 function renderMeasureItem(item,vectorItems=[]){
-  const style=item.style||{},coords=item.coordinates||[],open=()=>{MEASURE.selectedId=item.id;startEditMeasure(item.id);};
+  const style=item.style||{},coords=item.coordinates||[],open=event=>selectMeasurementItem(item.id,event);
   if(item.type==='distance'&&coords.length>=2){
     vectorItems.push({id:`measure-${item.id}`,geometry:{type:'LineString',coordinates:coords},style:{color:style.color||'#1664d6',weight:3,fillOpacity:0},interactive:true,onClick:open});addMeasureLineLabels(coords,style);
   }else if(item.type==='area'&&coords.length>=3){
@@ -3098,6 +3115,17 @@ function featureHitAtMapPoint(feature,file,latlng,pixel){
 }
 function featuresAtLatLng(latlng,pixel=null){
   const out=[],rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng);
+  // In OpenLayers mode, prefer the renderer's own hit detection. This keeps
+  // selection aligned with what is actually painted on screen, including
+  // materialised true-circle display geometry and styled line/point tolerance.
+  if(MAP_RUNTIME.engine==='openlayers'&&typeof MAP_RUNTIME.editableFeatureIdsAtPixel==='function'){
+    const nativeIds=MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10});
+    if(nativeIds.length){
+      const byId=new Map(rows.map(row=>[String(row.feature.id),row]));
+      const nativeRows=nativeIds.map(id=>byId.get(String(id))).filter(row=>row&&!isLocked(row.file,row.feature));
+      if(nativeRows.length)return nativeRows;
+    }
+  }
   for(const row of rows){
     if(isLocked(row.file,row.feature))continue;
     const tolerance=mapHitTolerancePx(row.feature,row.file);
@@ -3289,6 +3317,7 @@ overlay().addEventListener('pointercancel',e=>{if(MOVE.drag&&MOVE.drag.pointerId
 window.addEventListener('blur',()=>{if(MOVE.drag)finishPolygonMoveDrag(false);});
 
 function selectFromMapClick(e){
+  if(e?.originalEvent?.__editpolygonOverlaySelectionHandled)return;
   if(MEASURE.active){measureMapClick(e);return;}
   if(MOVE.active||V.active||D.active)return;
   const modifiers=e.originalEvent||{},candidates=featuresAtLatLng(e.latLng,e.pixel);
@@ -7389,7 +7418,7 @@ renderSidebar=function(){
   if(annotationItems.length){
     root.insertAdjacentHTML('beforeend',`<div class="file-card annotation-layer-card"><div class="file-head"><div class="layer-row-main"><div class="layer-thumb poly">T</div><div class="file-main"><div class="file-name">Annotations</div><div class="file-meta">${annotationItems.length} text/point annotation${annotationItems.length===1?'':'s'}</div></div></div></div>${layerRowsForMeasureItems(annotationItems)}</div>`);
   }
-  root.querySelectorAll('[data-measure-row]').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('button'))return;startEditMeasure(row.dataset.measureRow);}));
+  root.querySelectorAll('[data-measure-row]').forEach(row=>row.addEventListener('click',e=>{if(e.target.closest('button'))return;selectMeasurementItem(row.dataset.measureRow,e);}));
   root.querySelectorAll('[data-measure-menu]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();startEditMeasure(btn.dataset.measureMenu);}));
 };
 
