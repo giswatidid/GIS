@@ -193,7 +193,7 @@ function restoreCompleteProjectPayload(raw, opts={}){
   }
   renderAll();
   if(payload.view && Array.isArray(payload.view.center) && Number.isFinite(payload.view.zoom)){
-    try{map.setView([payload.view.center[1],payload.view.center[0]],payload.view.zoom,{animate:false});}catch{}
+    try{MAP_RUNTIME.setView(payload.view.center,payload.view.zoom,{animate:false});}catch{}
   }else if(opts.fit!==false){
     fitAllProjectElements();
   }
@@ -222,7 +222,7 @@ function fitAllProjectElements(){
   }catch{}
   if(!boxes.length)return;
   const b=boxes.reduce((a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[2],b[2]),Math.max(a[3],b[3])]);
-  try{map.fitBounds(leafletBounds(b),{padding:[40,40]});}catch{}
+  try{MAP_RUNTIME.fitExtent(b,{padding:[40,40]});}catch{}
 }
 function restoreAutosavePayload(payload){
   if(!payload||!payload.data)return false;
@@ -718,7 +718,6 @@ function featJSON(f){ensureFeatureModel(f);return{type:'Feature',properties:{...
 function projectFC({selectedOnly=false,selectedFeatureId=null,visibleOnly=false}={}){const out=[];for(const file of project.files){if(visibleOnly&&file.visible===false)continue;for(const f of file.features){if(selectedOnly&&f.id!==selectedFeatureId)continue;if(visibleOnly&&f.visible===false)continue;out.push(featJSON(f))}}return{type:'FeatureCollection',features:out}}
 function vertexCount(g){if(!g)return 0;if(g.type==='Point')return 1;if(g.type==='MultiPoint'||g.type==='LineString')return g.coordinates.length;if(g.type==='MultiLineString')return g.coordinates.reduce((s,l)=>s+l.length,0);if(g.type==='Polygon')return g.coordinates.reduce((s,r)=>s+ringCount(r),0);if(g.type==='MultiPolygon')return g.coordinates.reduce((s,p)=>s+p.reduce((a,r)=>a+ringCount(r),0),0);return 0}
 function metrics(g){try{const f={type:'Feature',properties:{},geometry:g};if(g.type==='Polygon'||g.type==='MultiPolygon')return{area:turf.area(f),perim:turf.length(turf.polygonToLine(f),{units:'kilometers'})*1000,bbox:turf.bbox(f)};if(g.type==='LineString'||g.type==='MultiLineString')return{area:null,perim:turf.length(f,{units:'kilometers'})*1000,bbox:turf.bbox(f)};return{area:null,perim:null,bbox:turf.bbox(f)}}catch{return{area:null,perim:null,bbox:null}}}
-function leafletBounds(b){return[[b[1],b[0]],[b[3],b[2]]]}
 
 function featureBBox(f){
   ensureFeatureModel(f);
@@ -758,40 +757,39 @@ function displayLatLng(latlng){
 
 function imageOverlayById(id){return IMAGE.overlays.find(o=>o.id===id)||null}
 function imageOverlayDefaultRect(){
-  const c=map.getCenter();
-  const center=[c.lng,c.lat];
-  const p=map.latLngToContainerPoint(c);
-  const w=Math.min(420,Math.max(240,map.getSize().x*.34));
-  const h=Math.min(300,Math.max(160,map.getSize().y*.26));
-  const right=map.containerPointToLatLng(L.point(p.x+w,p.y));
-  const down=map.containerPointToLatLng(L.point(p.x,p.y+h));
-  return {center,widthLng:Math.abs(right.lng-c.lng),heightLat:Math.abs(c.lat-down.lat),rotation:0};
+  const center=MAP_RUNTIME.getCenter();
+  const p=MAP_RUNTIME.lonLatToPixel(center);
+  const w=Math.min(420,Math.max(240,MAP_RUNTIME.getSize().x*.34));
+  const h=Math.min(300,Math.max(160,MAP_RUNTIME.getSize().y*.26));
+  const right=MAP_RUNTIME.pixelToLonLat(MAP_ADAPTER.point(p.x+w,p.y));
+  const down=MAP_RUNTIME.pixelToLonLat(MAP_ADAPTER.point(p.x,p.y+h));
+  return {center,widthLng:Math.abs(right[0]-center[0]),heightLat:Math.abs(center[1]-down[1]),rotation:0};
 }
 function imageRectCorners(overlay){
   if(((overlay.perspective||overlay.mode==='perspective'||overlay.warp)||overlay.screenShape)&&overlay.corners?.length===4)return overlay.corners;
-  const c=overlay.center||overlay.corners?.[0]||[map.getCenter().lng,map.getCenter().lat];
-  const cp=map.latLngToContainerPoint([c[1],c[0]]);
-  const rightLL=map.latLngToContainerPoint([c[1],c[0]+(overlay.widthLng||1)]);
-  const downLL=map.latLngToContainerPoint([c[1]-(overlay.heightLat||1),c[0]]);
+  const c=overlay.center||overlay.corners?.[0]||MAP_RUNTIME.getCenter();
+  const cp=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);
+  const rightLL=MAP_RUNTIME.latLngToPixel([c[1],c[0]+(overlay.widthLng||1)]);
+  const downLL=MAP_RUNTIME.latLngToPixel([c[1]-(overlay.heightLat||1),c[0]]);
   const w=Math.max(40,Math.abs(rightLL.x-cp.x));
   const h=Math.max(40,Math.abs(downLL.y-cp.y));
   const a=(overlay.rotation||0)*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
   const local=[[-w/2,-h/2],[w/2,-h/2],[w/2,h/2],[-w/2,h/2]];
   return local.map(([x,y])=>{
-    const p=L.point(cp.x+x*ca-y*sa, cp.y+x*sa+y*ca);
-    const ll=map.containerPointToLatLng(p);
+    const p=MAP_ADAPTER.point(cp.x+x*ca-y*sa, cp.y+x*sa+y*ca);
+    const ll=MAP_RUNTIME.pixelToLatLng(p);
     return [ll.lng,ll.lat];
   });
 }
 function updateRectMetricsFromCorners(overlay,corners){
-  const pts=corners.map(c=>map.latLngToContainerPoint([c[1],c[0]]));
+  const pts=corners.map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
   const cx=(pts[0].x+pts[2].x)/2, cy=(pts[0].y+pts[2].y)/2;
-  const centerLL=map.containerPointToLatLng([cx,cy]);
+  const centerLL=MAP_RUNTIME.pixelToLatLng([cx,cy]);
   const w=(pts[0].distanceTo(pts[1])+pts[2].distanceTo(pts[3]))/2;
   const h=(pts[1].distanceTo(pts[2])+pts[3].distanceTo(pts[0]))/2;
   const angle=Math.atan2(pts[1].y-pts[0].y,pts[1].x-pts[0].x)*180/Math.PI;
-  const rightLL=map.containerPointToLatLng([cx+w,cy]);
-  const downLL=map.containerPointToLatLng([cx,cy+h]);
+  const rightLL=MAP_RUNTIME.pixelToLatLng([cx+w,cy]);
+  const downLL=MAP_RUNTIME.pixelToLatLng([cx,cy+h]);
   overlay.center=[centerLL.lng,centerLL.lat];
   overlay.widthLng=Math.abs(rightLL.lng-centerLL.lng);
   overlay.heightLat=Math.abs(centerLL.lat-downLL.lat);
@@ -914,10 +912,10 @@ function imageRedo(){
 }
 function latLngCornerPoints(overlay){
   normaliseImageOverlay(overlay);
-  return imageRectCorners(overlay).map(c=>map.latLngToContainerPoint([c[1],c[0]]));
+  return imageRectCorners(overlay).map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
 }
 function pointToLngLat(p){
-  const ll=map.containerPointToLatLng(p);
+  const ll=MAP_RUNTIME.pixelToLatLng(p);
   return [ll.lng,ll.lat];
 }
 function imageMoveBehavior(overlay){
@@ -1047,15 +1045,15 @@ function drawImageToQuad(ctx,img,pts,opacity=1){
   ctx.imageSmoothingQuality='high';
   // Two affine triangles. This is stable for perspective/georeference mode and
   // keeps normal rectangle rendering out of the canvas path.
-  drawImageTriangle(ctx,img,[L.point(0,0),L.point(w,0),L.point(w,h)],[pts[0],pts[1],pts[2]]);
-  drawImageTriangle(ctx,img,[L.point(0,0),L.point(w,h),L.point(0,h)],[pts[0],pts[2],pts[3]]);
+  drawImageTriangle(ctx,img,[MAP_ADAPTER.point(0,0),MAP_ADAPTER.point(w,0),MAP_ADAPTER.point(w,h)],[pts[0],pts[1],pts[2]]);
+  drawImageTriangle(ctx,img,[MAP_ADAPTER.point(0,0),MAP_ADAPTER.point(w,h),MAP_ADAPTER.point(0,h)],[pts[0],pts[2],pts[3]]);
   ctx.restore();
 }
 
 function solveAffineCssFromImageToScreen(w,h,pts){
   // Map image source points (0,0), (w,0), (0,h) to TL, TR, BL.
   const [a,b,c,d,e,f]=solveAffineFromTriangles(
-    [L.point(0,0),L.point(w,0),L.point(0,h)],
+    [MAP_ADAPTER.point(0,0),MAP_ADAPTER.point(w,0),MAP_ADAPTER.point(0,h)],
     [pts[0],pts[1],pts[3]]
   );
   return `matrix(${a} ${b} ${c} ${d} ${e} ${f})`;
@@ -1109,7 +1107,7 @@ function renderImageOverlays(){
     normaliseImageOverlay(overlay);
     if(overlay.visible===false||IMAGE.tempHide)continue;
     const img=getImageBitmapForOverlay(overlay);
-    const pts=imageRectCorners(overlay).map(c=>map.latLngToContainerPoint([c[1],c[0]]));
+    const pts=imageRectCorners(overlay).map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
     // Always use the stable DOM renderer. This prevents image disappearance.
     if(img)drawImageDom(dom,overlay,pts);
     if(IMAGE.selectedId===overlay.id)drawImageFrame(layer,overlay,pts);
@@ -1208,7 +1206,7 @@ function drawImageDom(dom,overlay,pts){
   dom.appendChild(el);
 }
 function drawImageFrame(layer,overlay,pts){
-  const cp=L.point((pts[0].x+pts[2].x)/2,(pts[0].y+pts[2].y)/2);
+  const cp=MAP_ADAPTER.point((pts[0].x+pts[2].x)/2,(pts[0].y+pts[2].y)/2);
 
   if(overlay.mode==='perspective'||overlay.perspective){
     for(let i=0;i<4;i++){
@@ -1253,7 +1251,7 @@ function drawImageFrame(layer,overlay,pts){
     if(overlay.mode==='rotate'){
       const rect=bestRectFromPts(pts);
       const a=(rect.angle-90)*Math.PI/180;
-      const rot=L.point(cp.x+Math.cos(a)*(rect.h/2+48),cp.y+Math.sin(a)*(rect.h/2+48));
+      const rot=MAP_ADAPTER.point(cp.x+Math.cos(a)*(rect.h/2+48),cp.y+Math.sin(a)*(rect.h/2+48));
       const arm=document.createElement('div');
       arm.className='trace-rotate-arm';
       arm.style.left=cp.x+'px';
@@ -1286,7 +1284,7 @@ function topImageOverlayAtPoint(p){
   for(let i=IMAGE.overlays.length-1;i>=0;i--){
     const o=normaliseImageOverlay(IMAGE.overlays[i]);
     if(!o||o.visible===false||o.locked)return null;
-    const pts=imageRectCorners(o).map(c=>map.latLngToContainerPoint([c[1],c[0]]));
+    const pts=imageRectCorners(o).map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
     if(pointInQuad(p,pts))return o;
   }
   return null;
@@ -1294,9 +1292,9 @@ function topImageOverlayAtPoint(p){
 function imageTraceHitPointerDown(e){
   if(!IMAGE.overlays.length)return;
   const rect=$('imageTraceHitLayer').getBoundingClientRect();
-  const p=L.point(e.clientX-rect.left,e.clientY-rect.top);
+  const p=MAP_ADAPTER.point(e.clientX-rect.left,e.clientY-rect.top);
   let overlay=imageOverlayById(IMAGE.selectedId);
-  const selectedHit=overlay&&!overlay.locked&&overlay.visible!==false&&pointInQuad(p,imageRectCorners(overlay).map(c=>map.latLngToContainerPoint([c[1],c[0]])));
+  const selectedHit=overlay&&!overlay.locked&&overlay.visible!==false&&pointInQuad(p,imageRectCorners(overlay).map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]])));
   if(!selectedHit)overlay=topImageOverlayAtPoint(p);
   if(!overlay)return;
   imageOverlayPointerDown(e,overlay.id,'move');
@@ -1325,8 +1323,8 @@ function clearImageOverlaySelection(){
   updateButtons();
 }
 function imagePointerContainerPoint(e){
-  const r=map.getContainer().getBoundingClientRect();
-  return L.point(e.clientX-r.left,e.clientY-r.top);
+  const r=MAP_RUNTIME.getContainer().getBoundingClientRect();
+  return MAP_ADAPTER.point(e.clientX-r.left,e.clientY-r.top);
 }
 function imageOverlayPointerDown(e,id,mode,cornerIndex=null){
   const overlay=imageOverlayById(id);
@@ -1334,11 +1332,11 @@ function imageOverlayPointerDown(e,id,mode,cornerIndex=null){
   e.preventDefault();e.stopPropagation();
   selectImageOverlay(id);
   pushImageHistory();
-  const start=L.point(e.clientX,e.clientY);
+  const start=MAP_ADAPTER.point(e.clientX,e.clientY);
   const startContainer=imagePointerContainerPoint(e);
   const dragCorners=imageRectCorners(overlay);
-  IMAGE.drag={id,mode,cornerIndex,start,startContainer,overlay:clone(overlay),corners:dragCorners,lastValidPts:dragCorners.map(c=>map.latLngToContainerPoint([c[1],c[0]])),perspectiveLimitNotified:false};
-  map.dragging.disable();
+  IMAGE.drag={id,mode,cornerIndex,start,startContainer,overlay:clone(overlay),corners:dragCorners,lastValidPts:dragCorners.map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]])),perspectiveLimitNotified:false};
+  MAP_RUNTIME.setPanEnabled(false);
   window.addEventListener('pointermove',imageOverlayPointerMove);
   window.addEventListener('pointerup',imageOverlayPointerUp,{once:true});
 }
@@ -1346,12 +1344,12 @@ function imageOverlayPointerMove(e){
   if(!IMAGE.drag)return;
   const overlay=imageOverlayById(IMAGE.drag.id);
   if(!overlay)return;
-  const now=L.point(e.clientX,e.clientY);
+  const now=MAP_ADAPTER.point(e.clientX,e.clientY);
   const nowContainer=imagePointerContainerPoint(e);
   const dx=now.x-IMAGE.drag.start.x,dy=now.y-IMAGE.drag.start.y;
-  const startPts=IMAGE.drag.corners.map(c=>map.latLngToContainerPoint([c[1],c[0]]));
+  const startPts=IMAGE.drag.corners.map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
   if(IMAGE.drag.mode==='move'){
-    const pts=startPts.map(p=>L.point(p.x+dx,p.y+dy));
+    const pts=startPts.map(p=>MAP_ADAPTER.point(p.x+dx,p.y+dy));
     if(imageMoveBehavior(overlay)==='screen'){
       overlay.corners=pts.map(pointToLngLat);
       overlay.screenShape=true;
@@ -1369,7 +1367,7 @@ function imageOverlayPointerMove(e){
         overlay.corners=(IMAGE.drag.corners||imageRectCorners(IMAGE.drag.overlay)).map(c=>[c[0]+gd.dlng,Math.max(-90,Math.min(90,c[1]+gd.dlat))]);
         overlay.screenShape=false;
       }else{
-        const baseCenter=IMAGE.drag.overlay.center||[map.getCenter().lng,map.getCenter().lat];
+        const baseCenter=IMAGE.drag.overlay.center||MAP_RUNTIME.getCenter();
         overlay.center=[baseCenter[0]+gd.dlng,Math.max(-90,Math.min(90,baseCenter[1]+gd.dlat))];
         overlay.screenShape=false;
       }
@@ -1378,7 +1376,7 @@ function imageOverlayPointerMove(e){
     const idx=IMAGE.drag.cornerIndex;
     const opp=(idx+2)%4;
     const oppPt=startPts[opp];
-    const dragPt=L.point(startPts[idx].x+dx,startPts[idx].y+dy);
+    const dragPt=MAP_ADAPTER.point(startPts[idx].x+dx,startPts[idx].y+dy);
     const base=IMAGE.drag.overlay;
 
     if(base.perspective||base.warp||(base.corners?.length===4&&!base.screenShape)){
@@ -1394,24 +1392,24 @@ function imageOverlayPointerMove(e){
       if(IMAGE.drag.mode==='resize-corner'){
         sx=sy=Math.max(.05,len1/len0);
       }else{
-        const ux=L.point(vx0/len0,vy0/len0);
-        const uy=L.point(-ux.y,ux.x);
+        const ux=MAP_ADAPTER.point(vx0/len0,vy0/len0);
+        const uy=MAP_ADAPTER.point(-ux.y,ux.x);
         const proj0x=vx0*ux.x+vy0*ux.y, proj0y=vx0*uy.x+vy0*uy.y;
         const proj1x=vx1*ux.x+vy1*ux.y, proj1y=vx1*uy.x+vy1*uy.y;
         sx=Math.max(.05,Math.abs(proj1x)/Math.max(1,Math.abs(proj0x)));
         sy=Math.max(.05,Math.abs(proj1y)/Math.max(1,Math.abs(proj0y)));
       }
-      const pts=startPts.map(p=>L.point(oppPt.x+(p.x-oppPt.x)*sx,oppPt.y+(p.y-oppPt.y)*sy));
+      const pts=startPts.map(p=>MAP_ADAPTER.point(oppPt.x+(p.x-oppPt.x)*sx,oppPt.y+(p.y-oppPt.y)*sy));
       overlay.corners=pts.map(pointToLngLat);
       overlay.perspective=true;
       overlay.warp=false;
       overlay.screenShape=false;
       overlay.stretch=(IMAGE.drag.mode==='stretch-corner');
     }else{
-      const center=L.point((oppPt.x+dragPt.x)/2,(oppPt.y+dragPt.y)/2);
+      const center=MAP_ADAPTER.point((oppPt.x+dragPt.x)/2,(oppPt.y+dragPt.y)/2);
       const angle=(base.rotation||0)*Math.PI/180;
-      const ux=L.point(Math.cos(angle),Math.sin(angle));
-      const uy=L.point(-Math.sin(angle),Math.cos(angle));
+      const ux=MAP_ADAPTER.point(Math.cos(angle),Math.sin(angle));
+      const uy=MAP_ADAPTER.point(-Math.sin(angle),Math.cos(angle));
       const vx=dragPt.x-oppPt.x, vy=dragPt.y-oppPt.y;
       let w=Math.max(30,Math.abs(vx*ux.x+vy*ux.y));
       let h=Math.max(30,Math.abs(vx*uy.x+vy*uy.y));
@@ -1423,9 +1421,9 @@ function imageOverlayPointerMove(e){
         w=Math.max(30,startW*scale);
         h=Math.max(30,w/aspect);
       }
-      const rightLL=map.containerPointToLatLng([center.x+w,center.y]);
-      const downLL=map.containerPointToLatLng([center.x,center.y+h]);
-      const centerLL=map.containerPointToLatLng(center);
+      const rightLL=MAP_RUNTIME.pixelToLatLng([center.x+w,center.y]);
+      const downLL=MAP_RUNTIME.pixelToLatLng([center.x,center.y+h]);
+      const centerLL=MAP_RUNTIME.pixelToLatLng(center);
       overlay.center=[centerLL.lng,centerLL.lat];
       overlay.widthLng=Math.abs(rightLL.lng-centerLL.lng);
       overlay.heightLat=Math.abs(centerLL.lat-downLL.lat);
@@ -1438,8 +1436,8 @@ function imageOverlayPointerMove(e){
     }
   }else if(IMAGE.drag.mode==='rotate'){
     const base=IMAGE.drag.overlay;
-    const basePts=IMAGE.drag.corners.map(c=>map.latLngToContainerPoint([c[1],c[0]]));
-    const center=L.point(
+    const basePts=IMAGE.drag.corners.map(c=>MAP_RUNTIME.latLngToPixel([c[1],c[0]]));
+    const center=MAP_ADAPTER.point(
       basePts.reduce((sum,p)=>sum+p.x,0)/basePts.length,
       basePts.reduce((sum,p)=>sum+p.y,0)/basePts.length
     );
@@ -1448,8 +1446,8 @@ function imageOverlayPointerMove(e){
     // coordinates, which made rotation accurate only when the pointer was far
     // from the centre. This keeps the angle locked to the cursor at any radius.
     const startAt=IMAGE.drag.startContainer||IMAGE.drag.start;
-    const startVec=L.point(startAt.x-center.x,startAt.y-center.y);
-    const nowVec=L.point(nowContainer.x-center.x,nowContainer.y-center.y);
+    const startVec=MAP_ADAPTER.point(startAt.x-center.x,startAt.y-center.y);
+    const nowVec=MAP_ADAPTER.point(nowContainer.x-center.x,nowContainer.y-center.y);
     if(Math.sqrt(nowVec.x*nowVec.x+nowVec.y*nowVec.y)<1)return;
     let delta=Math.atan2(nowVec.y,nowVec.x)-Math.atan2(startVec.y,startVec.x);
     if(e.shiftKey)delta=Math.round((delta*180/Math.PI)/5)*5*Math.PI/180;
@@ -1458,7 +1456,7 @@ function imageOverlayPointerMove(e){
       const ca=Math.cos(delta), sa=Math.sin(delta);
       const pts=basePts.map(p=>{
         const x=p.x-center.x, y=p.y-center.y;
-        return L.point(center.x+x*ca-y*sa,center.y+x*sa+y*ca);
+        return MAP_ADAPTER.point(center.x+x*ca-y*sa,center.y+x*sa+y*ca);
       });
       overlay.corners=pts.map(pointToLngLat);
       overlay.perspective=true;
@@ -1473,7 +1471,7 @@ function imageOverlayPointerMove(e){
     }
   }else if(IMAGE.drag.mode==='perspective-corner'){
     const pts=startPts.slice();
-    pts[IMAGE.drag.cornerIndex]=L.point(pts[IMAGE.drag.cornerIndex].x+dx,pts[IMAGE.drag.cornerIndex].y+dy);
+    pts[IMAGE.drag.cornerIndex]=MAP_ADAPTER.point(pts[IMAGE.drag.cornerIndex].x+dx,pts[IMAGE.drag.cornerIndex].y+dy);
     if(isSafePerspectiveQuad(pts,startPts)){
       overlay.perspective=true;
       overlay.warp=false;
@@ -1497,7 +1495,7 @@ function imageOverlayPointerMove(e){
 }
 function imageOverlayPointerUp(){
   window.removeEventListener('pointermove',imageOverlayPointerMove);
-  map.dragging.enable();
+  MAP_RUNTIME.setPanEnabled(true);
   if(IMAGE.drag){
     IMAGE.drag=null;
     setDirty(true);
@@ -1614,8 +1612,11 @@ function zoomImageOverlay(id=IMAGE.selectedId){
   const o=imageOverlayById(id);
   if(!o)return;
   try{
-    const pts=imageRectCorners(o).map(c=>[c[1],c[0]]);
-    map.fitBounds(L.latLngBounds(pts),{padding:[30,30]});
+    const pts=imageRectCorners(o);
+    if(pts.length){
+      const xs=pts.map(c=>c[0]),ys=pts.map(c=>c[1]);
+      MAP_RUNTIME.fitExtent([Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)],{padding:[30,30]});
+    }
   }catch{}
 }
 function imageOverlaysSidebarHtml(){
@@ -1781,7 +1782,7 @@ function startMeasure(type){
   if($('measureLabelInput'))$('measureLabelInput').value='';
   $('measureStylePanel')?.classList.remove('active');
   project.mode='measure';
-  if(map.doubleClickZoom)map.doubleClickZoom.disable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(false);
   document.body.classList.add('measure-active');
   const names={distance:'Measure distance',area:'Measure area',point:'Draw point marker',annotation:'Add text annotation'};
   updateMeasureToolbarForType(type,false);
@@ -1794,7 +1795,7 @@ function cancelMeasure(silent=false){
   const family=measureToolFamily(MEASURE.type);
   MEASURE.active=false; MEASURE.type=null; MEASURE.points=[]; MEASURE.cursor=null; MEASURE.editingId=null; MEASURE.selectedId=null; $('measureStylePanel')?.classList.remove('active');
   document.body.classList.remove('measure-active');
-  if(map.doubleClickZoom)map.doubleClickZoom.enable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(true);
   project.mode='select';
   renderMeasurementPreview();
   renderSelected();
@@ -1806,14 +1807,14 @@ function cancelMeasure(silent=false){
 function measureClickedFirstPoint(latlng){
   if(!MEASURE.active||MEASURE.type!=='area'||MEASURE.points.length<3)return false;
   const first=MEASURE.points[0];
-  const fp=map.latLngToContainerPoint([first[1],first[0]]);
-  const cp=map.latLngToContainerPoint(latlng);
+  const fp=MAP_RUNTIME.latLngToPixel([first[1],first[0]]);
+  const cp=MAP_RUNTIME.latLngToPixel(latlng);
   return fp.distanceTo(cp)<=14;
 }
 
 function measureMapClick(e){
   if(!MEASURE.active)return false;
-  const ll=e.latlng;
+  const ll=e.latLng;
   if(measureClickedFirstPoint(ll)){
     finishMeasure();
     return true;
@@ -1833,7 +1834,7 @@ function measureMapClick(e){
 }
 function measureMouseMove(e){
   if(!MEASURE.active)return;
-  MEASURE.cursor=[e.latlng.lng,e.latlng.lat];
+  MEASURE.cursor=[e.latLng.lng,e.latLng.lat];
   renderMeasurementPreview();
 }
 function measureUndo(){
@@ -1855,7 +1856,7 @@ function measureSummary(type,points){
 }
 
 function measureLabelScaleClass(){
-  const z=map.getZoom();
+  const z=MAP_RUNTIME.getZoom();
   if(z<=7)return ' measure-label-tiny';
   if(z<=10)return ' measure-label-small';
   return '';
@@ -1889,7 +1890,7 @@ function startEditMeasure(id){
   setMeasureStyleControls(st);
   if($('measureLabelInput'))$('measureLabelInput').value=item.label||'';
   document.body.classList.add('measure-active');
-  if(map.doubleClickZoom)map.doubleClickZoom.disable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(false);
   updateMeasureToolbarForType(item.type,true);
   setNotice(measureToolFamily(item.type)==='annotation'?'Editing saved annotation. Update the label or style, then click Save annotation.':'Editing saved measurement. Update the label or style, then click Save measurement.');
   renderMeasurementPreview();
@@ -1953,7 +1954,7 @@ function renderMeasurementPreview(){
 function midCoord(a,b){return [(a[0]+b[0])/2,(a[1]+b[1])/2]}
 function addMeasureLineLabels(coords,style,preview=false){
   if(coords.length<2)return;
-  const z=map.getZoom();
+  const z=MAP_RUNTIME.getZoom();
   const stride=z<=8?Infinity:z<=10?3:z<=12?2:1;
   if(Number.isFinite(stride)){
     for(let i=0;i<coords.length-1;i++){
@@ -1972,7 +1973,7 @@ function addMeasureAreaLabel(coords,style,preview=false){
   if(coords.length<3)return;
   let c;
   try{c=turf.centroid({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[closeRing(clone(coords))]}}).geometry.coordinates}catch{c=coords[0]}
-  const z=map.getZoom();
+  const z=MAP_RUNTIME.getZoom();
   const txt=z<=8?`${formatAreaM2(polygonAreaM2(coords))}`:`${formatAreaM2(polygonAreaM2(coords))} · ${formatLengthKm(lineLengthKm([...coords,coords[0]]))}`;
   L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(txt,{...style,total:true}),interactive:false}).addTo(measurementGroup);
 }
@@ -2093,7 +2094,7 @@ function deleteMeasure(id=MEASURE.editingId||MEASURE.selectedId){
   MEASURE.cursor=null;
   document.body.classList.remove('measure-active');
   $('measureStylePanel')?.classList.remove('active');
-  if(map.doubleClickZoom)map.doubleClickZoom.enable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(true);
   project.mode='select';
   renderMeasurementPreview();
   renderAll();
@@ -2209,7 +2210,7 @@ function bindMidpointAdd(m,addFn){
     }
     e.preventDefault();
     e.stopPropagation();
-    V.midpointPointer={id:e.pointerId,target:m,start:L.point(e.clientX,e.clientY),time:performance.now()};
+    V.midpointPointer={id:e.pointerId,target:m,start:MAP_ADAPTER.point(e.clientX,e.clientY),time:performance.now()};
     try{m.setPointerCapture(e.pointerId)}catch(_){ }
   });
   m.addEventListener('pointermove',e=>{
@@ -2228,7 +2229,7 @@ function bindMidpointAdd(m,addFn){
     if(!p||p.id!==e.pointerId||p.target!==m)return;
     e.preventDefault();
     e.stopPropagation();
-    const moved=L.point(e.clientX,e.clientY).distanceTo(p.start)>4;
+    const moved=MAP_ADAPTER.point(e.clientX,e.clientY).distanceTo(p.start)>4;
     V.midpointPointer=null;
     if(!V.addMode||moved||midpointInputBlocked())return;
     addFn(e);
@@ -2275,7 +2276,7 @@ function selectedIdsForVertexEdit(){
 }
 
 function paddedPixelBounds(pad=PERF.viewportPadding){
-  const size=map.getSize();
+  const size=MAP_RUNTIME.getSize();
   return {
     minX:-pad,
     minY:-pad,
@@ -2286,14 +2287,14 @@ function paddedPixelBounds(pad=PERF.viewportPadding){
 function pointInPixelBounds(p,b){
   return p.x>=b.minX&&p.x<=b.maxX&&p.y>=b.minY&&p.y<=b.maxY;
 }
-function midpointStride(totalVertices, zoom=map.getZoom()){
+function midpointStride(totalVertices, zoom=MAP_RUNTIME.getZoom()){
   if(totalVertices<=500)return 1;
   if(totalVertices<=1500)return zoom>=12?1:2;
   if(totalVertices<=5000)return zoom>=13?2:5;
   if(totalVertices<=15000)return zoom>=14?3:10;
   return zoom>=15?5:20;
 }
-function vertexStride(totalVertices, zoom=map.getZoom()){
+function vertexStride(totalVertices, zoom=MAP_RUNTIME.getZoom()){
   if(totalVertices<=PERF.maxVisibleVertices)return 1;
   if(totalVertices<=5000)return zoom>=13?2:4;
   if(totalVertices<=15000)return zoom>=14?4:8;
@@ -2437,8 +2438,8 @@ function snapTolerance(){
 function snappingActive(e=null){
   return SNAP.enabled && !(SNAP.altDown || (e && e.altKey));
 }
-function coordToPt(coord){return map.latLngToContainerPoint([coord[1],coord[0]])}
-function ptToCoord(pt){const ll=map.containerPointToLatLng(pt);return [ll.lng,ll.lat]}
+function coordToPt(coord){return MAP_RUNTIME.latLngToPixel([coord[1],coord[0]])}
+function ptToCoord(pt){const ll=MAP_RUNTIME.pixelToLatLng(pt);return [ll.lng,ll.lat]}
 function distPx(a,b){const dx=a.x-b.x,dy=a.y-b.y;return Math.sqrt(dx*dx+dy*dy)}
 function closestPointOnSeg(p,a,b){
   const vx=b.x-a.x, vy=b.y-a.y;
@@ -2446,7 +2447,7 @@ function closestPointOnSeg(p,a,b){
   const len2=vx*vx+vy*vy;
   if(!len2)return {point:a,t:0};
   const t=Math.max(0,Math.min(1,(wx*vx+wy*vy)/len2));
-  return {point:L.point(a.x+t*vx,a.y+t*vy),t};
+  return {point:MAP_ADAPTER.point(a.x+t*vx,a.y+t*vy),t};
 }
 function sameVertexPath(a,b){
   if(!a||!b)return false;
@@ -2459,7 +2460,7 @@ function findSnapTarget(latlng, opts={}){
   if(!snappingActive(opts.event))return null;
   const tolerance=opts.tolerancePx||snapTolerance();
   const edgeTolerance=opts.edgeTolerancePx||Math.max(3,Math.round(tolerance*0.55));
-  const p=map.latLngToContainerPoint(latlng);
+  const p=MAP_RUNTIME.latLngToPixel(latlng);
   const bounds=paddedPixelBounds(Math.max(PERF.viewportPadding,tolerance+40));
   let bestVertex=null;
   let bestEdge=null;
@@ -2522,7 +2523,7 @@ function snappedLatLng(latlng, opts={}){
   const target=findSnapTarget(latlng,opts);
   SNAP.last=target;
   if(target){
-    return {latlng:L.latLng(target.coord[1],target.coord[0]),coord:target.coord,target};
+    return {latlng:MAP_ADAPTER.latLng(target.coord),coord:target.coord,target};
   }
   return {latlng,coord:[latlng.lng,latlng.lat],target:null};
 }
@@ -2834,12 +2835,26 @@ function initialMapView(){
   return {center:[20,0],zoom:3};
 }
 const startingView=initialMapView();
-const map=L.map('map',{center:startingView.center,zoom:startingView.zoom,doubleClickZoom:true,preferCanvas:true,renderer:L.canvas({padding:0.5})});
-try{window.__polygonEditorLeafletMap=map;}catch(_){ }
+const MAP_ADAPTER=window.EditPolygonMapAdapter;
+if(!MAP_ADAPTER||typeof MAP_ADAPTER.createLeafletRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
+// v1.55.0: the application now owns a map-engine contract. Leaflet remains the
+// production renderer for this release, but editor/view interactions should go
+// through MAP_RUNTIME rather than depending on Leaflet's map API directly.
+const MAP_RUNTIME=MAP_ADAPTER.createLeafletRuntime({
+  target:'map',
+  center:[startingView.center[1],startingView.center[0]],
+  zoom:startingView.zoom,
+  doubleClickZoom:true,
+  preferCanvas:true
+});
+const map=MAP_RUNTIME.getNativeMap(); // transitional renderer handle; removed after OpenLayers parity.
+try{
+  window.EditPolygonMap=MAP_RUNTIME;
+  window.__polygonEditorLeafletMap=map; // compatibility for v1.55.0 renderer extensions only.
+}catch(_){ }
 function __peGetLeafletMap(){
-  if(typeof map!=='undefined'&&map&&typeof map.getPane==='function'&&typeof map.createPane==='function')return map;
-  if(typeof window!=='undefined'&&window.__polygonEditorLeafletMap&&typeof window.__polygonEditorLeafletMap.getPane==='function'&&typeof window.__polygonEditorLeafletMap.createPane==='function')return window.__polygonEditorLeafletMap;
-  if(typeof window!=='undefined'&&window.map&&typeof window.map.getPane==='function'&&typeof window.map.createPane==='function')return window.map;
+  const native=MAP_RUNTIME?.engine==='leaflet'?MAP_RUNTIME.getNativeMap():null;
+  if(native&&typeof native.getPane==='function'&&typeof native.createPane==='function')return native;
   return null;
 }
 const basemaps={osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors',maxZoom:22}),light:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22}),sat:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles &copy; Esri',maxZoom:22})};basemaps.osm.addTo(map);
@@ -2875,7 +2890,7 @@ async function searchLocation(){
   const parsed=parseLatLngSearch(q);
   if(parsed){
     setLocationMarker(parsed.lat,parsed.lng,parsed.label);
-    map.setView([parsed.lat,parsed.lng], Math.max(map.getZoom(), 14));
+    MAP_RUNTIME.setView([parsed.lng,parsed.lat],Math.max(MAP_RUNTIME.getZoom(),14));
     setStatus(`Located ${parsed.label}.`);
     return;
   }
@@ -2900,12 +2915,12 @@ async function searchLocation(){
     if(r.boundingbox&&r.boundingbox.length===4){
       const bb=r.boundingbox.map(Number);
       if(bb.every(Number.isFinite)){
-        map.fitBounds([[bb[0],bb[2]],[bb[1],bb[3]]],{padding:[30,30],maxZoom:15});
+        MAP_RUNTIME.fitExtent([bb[2],bb[0],bb[3],bb[1]],{padding:[30,30],maxZoom:15});
       }else{
-        map.setView([lat,lng],13);
+        MAP_RUNTIME.setView([lng,lat],13);
       }
     }else{
-      map.setView([lat,lng],13);
+      MAP_RUNTIME.setView([lng,lat],13);
     }
     setStatus(`Located ${label}.`);
   }catch(err){
@@ -3069,8 +3084,8 @@ function showPickMenu(point,candidates,additive=false){
     </button>`;
   }).join('');
   m.innerHTML=`<div class="pick-title">Select overlapping polygon</div>${rows}`;
-  m.style.left=Math.min(point.x+10,map.getSize().x-370)+'px';
-  m.style.top=Math.min(point.y+10,map.getSize().y-220)+'px';
+  m.style.left=Math.min(point.x+10,MAP_RUNTIME.getSize().x-370)+'px';
+  m.style.top=Math.min(point.y+10,MAP_RUNTIME.getSize().y-220)+'px';
   m.classList.add('active');
   m.querySelectorAll('[data-i]').forEach(btn=>btn.onclick=e=>{
     e.preventDefault();
@@ -3101,7 +3116,7 @@ function startPolygonMoveMode(){
   MOVE.drag=null;
   document.body.classList.add('polygon-move-active');
   overlay().classList.add('polygon-move-ready');
-  try{map.dragging.disable();}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(false);}catch(_){ }
   clearGeometryPreview();
   setNotice(`Move ${circle?'circle':'polygon'}: drag inside the selected ${circle?'circle':'polygon'} to move the whole shape. Hold Shift while dragging to constrain movement to 0°, 45°, or 90°. Press Esc or click Select when done.`);
   renderOverlay();renderSelected();updateStatus();updateButtons();
@@ -3113,7 +3128,7 @@ function stopPolygonMoveMode(silent=false){
   MOVE.drag=null;
   document.body.classList.remove('polygon-move-active','polygon-move-dragging');
   overlay().classList.remove('polygon-move-ready','polygon-move-dragging');
-  try{map.dragging.enable();}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(true);}catch(_){ }
   if(project.mode==='movePolygon')project.mode='select';
   setNotice('Select a polygon, then click <strong>Edit polygon</strong>.');
   renderOverlay();updateStatus();updateButtons();
@@ -3124,7 +3139,7 @@ function handlePolygonMovePointerDown(e){
   const r=ref(project.selectedFeatureId);
   if(!r||isLocked(r.file,r.feature))return;
   const p=overlayPoint(e);
-  const ll=map.containerPointToLatLng(p);
+  const ll=MAP_RUNTIME.pixelToLatLng(p);
   if(!layerContainsPoint(r.feature,ll)){
     setStatus('Drag from inside the selected polygon to move it.','error');
     return;
@@ -3142,7 +3157,7 @@ function handlePolygonMovePointerDown(e){
     isCircle:circle,
     baseGeometry:circle?null:clone(getDisplayGeometry(r.feature)),
     baseParametricGeometry:baseCircle,
-    baseCenterPoint:circle?map.latLngToContainerPoint(baseCenter):null,
+    baseCenterPoint:circle?MAP_RUNTIME.latLngToPixel(baseCenter):null,
     basePixelRadius:circle?circleScreenRadiusPixels(baseCircle):null,
     behavior:polygonMoveBehavior(),
     changed:false,
@@ -3163,8 +3178,8 @@ function updatePolygonMoveDrag(e){
   if(Math.hypot(dx,dy)>1&&!d.history){pushHistory([d.featureId]);d.history=true;}
   if(!d.history)return;
   if(d.isCircle){
-    const centerPoint=L.point(d.baseCenterPoint.x+dx,d.baseCenterPoint.y+dy);
-    const centerLatLng=map.containerPointToLatLng(centerPoint);
+    const centerPoint=MAP_ADAPTER.point(d.baseCenterPoint.x+dx,d.baseCenterPoint.y+dy);
+    const centerLatLng=MAP_RUNTIME.pixelToLatLng(centerPoint);
     const center=[centerLatLng.lng,Math.max(-90,Math.min(90,centerLatLng.lat))];
     const radiusMetres=d.behavior==='screen'
       ?circleMetresForScreenRadius(center,d.basePixelRadius)
@@ -3214,7 +3229,7 @@ window.addEventListener('blur',()=>{if(MOVE.drag)finishPolygonMoveDrag(false);})
 function selectFromMapClick(e){
   if(MEASURE.active){measureMapClick(e);return;}
   if(MOVE.active||V.active||D.active)return;
-  const candidates=featuresAtLatLng(e.latlng);
+  const candidates=featuresAtLatLng(e.latLng);
   if(!candidates.length){clearSelection();return;}
   const additive=!!(e.originalEvent&&(e.originalEvent.shiftKey||e.originalEvent.ctrlKey||e.originalEvent.metaKey));
   if(e.originalEvent?.altKey){
@@ -3230,7 +3245,7 @@ function selectFromMapClick(e){
   if(candidates.length===1){
     selectFeatureMulti(candidates[0].feature.id,additive);
   }else{
-    showPickMenu(e.containerPoint,candidates,additive);
+    showPickMenu(e.pixel,candidates,additive);
   }
 }
 function moveArrayItem(arr,from,to){
@@ -3296,15 +3311,13 @@ function setFeatureOpacity(featureId,value){
 
 function renderMap(){
   featureGroup.clearLayers();
-  const b=map.getBounds().pad(0.35);
+  const b=MAP_RUNTIME.getExtent(0.35);
   for(const file of project.files){
     if(isFileSleeping(file))continue;
     for(const f of file.features){
       if(isFeatureSleeping(file,f))continue;
       let fb=featureBBox(f);
-      if(fb){
-        try{if(!b.intersects(L.latLngBounds([[fb[1],fb[0]],[fb[3],fb[2]]])))continue;}catch{}
-      }
+      if(fb&&!MAP_ADAPTER.bboxIntersects(b,fb))continue;
       let gj=featJSON(f);
       L.geoJSON(gj,{style:styleWithOpacity(f,file),smoothFactor:V.active?2.5:1.2,interactive:false,pointToLayer:(feature,latlng)=>{const st=styleWithOpacity(f,file);return L.circleMarker(latlng,{radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),color:st.color,fillColor:st.color,fillOpacity:st.opacity??1,weight:2})}}).eachLayer(layer=>{
         layer.featureId=f.id;
@@ -3321,8 +3334,8 @@ function renderAll(){recomputeAllFeatures();renderMap();renderSidebar();renderSe
 function selectFeature(fid){IMAGE.selectedId=null;closeLayerMenu();closePickMenu();if(V.active)VStop(true);const r=selectOrWakeFeature(fid);if(!r)return;project.selectedFeatureId=fid;project.selectedFileId=r.file.id;clearGeometryPreview();renderAll();setStatus('Selected '+r.feature.name+'.')}
 function selectFeatureMulti(fid,additive){if(V.active)return;const r=selectOrWakeFeature(fid);if(!r)return;if(additive){if(project.selectedFeatureId&&project.selectedFeatureId!==fid&&!project.mergeIds.includes(project.selectedFeatureId))project.mergeIds.push(project.selectedFeatureId);project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);project.selectedFeatureId=fid;project.selectedFileId=r.file.id;renderAll();setStatus(`${project.mergeIds.length} polygons selected for merge.`)}else selectFeature(fid)}
 function clearSelection(){closeLayerMenu();closePickMenu();if(MOVE.active||V.active||D.active||project.mode==='draw'||project.mode==='movePolygon')return;project.selectedFeatureId=null;project.selectedFileId=null;renderAll()}
-map.on('click',selectFromMapClick);
-map.on('contextmenu',e=>{if(V.active||D.active)return;const c=featuresAtLatLng(e.latlng);if(c.length){L.DomEvent.stop(e);showPickMenu(e.containerPoint,c,false)}});
+MAP_RUNTIME.on('click',selectFromMapClick);
+MAP_RUNTIME.on('contextmenu',e=>{if(V.active||D.active)return;const c=featuresAtLatLng(e.latLng);if(c.length){MAP_RUNTIME.stopNativeEvent(e);showPickMenu(e.pixel,c,false)}});
 let overlayRaf = 0;
 let zoomHideTimer = null;
 function scheduleOverlayRender(){
@@ -3341,8 +3354,8 @@ function showOverlayAfterZoom(){
   renderOverlay();
   overlay().classList.remove('zooming');
 }
-map.on('zoomstart',hideOverlayForZoom);
-map.on('zoomend viewreset',showOverlayAfterZoom);
+MAP_RUNTIME.on('zoomstart',hideOverlayForZoom);
+MAP_RUNTIME.on('zoomend viewreset',showOverlayAfterZoom);
 let imageOverlayMoveRaf=0;
 function hasVisibleImageOverlays(){
   return Array.isArray(IMAGE?.overlays)&&IMAGE.overlays.some(item=>item&&item.visible!==false);
@@ -3354,77 +3367,44 @@ function scheduleImageOverlayMoveRender(){
     if(hasVisibleImageOverlays())renderImageOverlays();
   });
 }
-map.on('move resize',()=>{
+MAP_RUNTIME.on('move resize',()=>{
   scheduleOverlayRender();
   // Image overlays need to follow the map, but an empty image subsystem must do
   // no work while the user pans a normal vector project.
   scheduleImageOverlayMoveRender();
 });
-map.on('zoomend',()=>{
+MAP_RUNTIME.on('zoomend',()=>{
   renderMeasurementPreview();
   if(hasVisibleImageOverlays())renderImageOverlays();
 });
-map.on('moveend resize',()=>{scheduleOverlayRender();scheduleMapRender();});
+MAP_RUNTIME.on('moveend resize',()=>{scheduleOverlayRender();scheduleMapRender();});
 
-map.on('mousemove',e=>{
-  const p=displayLatLng(e.latlng);
+MAP_RUNTIME.on('mousemove',e=>{
+  if(!e.latLng)return;
+  const p=displayLatLng(e.latLng);
   $('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}`;
 });
-map.on('mouseout',()=>{
+MAP_RUNTIME.on('mouseout',()=>{
   $('mouseCoords').textContent='Lat: — · Lng: —';
 });
 
 
-// v31 map-pan release guard
-// Leaflet can very occasionally miss the native mouseup/pointerup that ends a
-// map pan, especially when transparent editor overlays are being redrawn above
-// the map. When that happens the map remains in Leaflet's internal dragging
-// state until the next click. This guard watches document-level release events
-// and performs a conservative hard reset only when Leaflet still appears to be
-// dragging after the button/finger has been released.
+// Map-pan release guard. v1.55.0 keeps the recovery behaviour but the
+// application no longer reaches into Leaflet's private Draggable fields. Any
+// engine-specific recovery is contained by the map adapter.
 const MAP_PAN_GUARD={timer:0,lastResetAt:0,dragging:false};
 function customPointerDragActive(){
   return !!(V?.drag || V?.edgeDrag || IMAGE?.drag || (MEASURE?.active && MEASURE?.drawing) || D?.active || (V?.active && V?.lassoDrawing));
 }
-function leafletPanLooksActive(){
-  const d=map?.dragging?._draggable;
-  const c=map?.getContainer?.();
-  return !!(
-    d && (d._moving || d._moved || d._lastTarget) ||
-    document.body.classList.contains('leaflet-dragging') ||
-    document.documentElement.classList.contains('leaflet-dragging') ||
-    (c && (c.classList.contains('leaflet-drag-target') || c.classList.contains('leaflet-dragging')))
-  );
+function mapPanLooksActive(){
+  return !!MAP_RUNTIME.nativePanLooksActive?.();
 }
 function hardResetMapPan(e,reason='release guard'){
-  if(!map||!map.dragging||customPointerDragActive())return;
+  if(customPointerDragActive())return;
   const now=performance.now();
   if(now-MAP_PAN_GUARD.lastResetAt<80)return;
   MAP_PAN_GUARD.lastResetAt=now;
-  const d=map.dragging._draggable;
-  try{ if(d && typeof d._onUp==='function') d._onUp(e||{}); }catch(_){ }
-  try{
-    if(d){
-      d._moving=false;
-      d._moved=false;
-      d._lastTarget=null;
-      d._newPos=null;
-      d._startPos=null;
-      d._startPoint=null;
-    }
-  }catch(_){ }
-  document.body.classList.remove('leaflet-dragging');
-  document.documentElement.classList.remove('leaflet-dragging');
-  const c=map.getContainer&&map.getContainer();
-  if(c)c.classList.remove('leaflet-drag-target','leaflet-dragging');
-  try{
-    if(map.dragging.enabled()){
-      // Disable/enable is the cleanest way to force Leaflet to drop stale
-      // document listeners/cached drag state without changing the map view.
-      map.dragging.disable();
-      map.dragging.enable();
-    }
-  }catch(_){ }
+  try{MAP_RUNTIME.recoverNativePan?.(e||{});}catch(_){ }
   MAP_PAN_GUARD.dragging=false;
 }
 function scheduleMapPanReleaseCheck(e,reason='release'){
@@ -3432,21 +3412,18 @@ function scheduleMapPanReleaseCheck(e,reason='release'){
   const evt=e;
   MAP_PAN_GUARD.timer=setTimeout(()=>{
     MAP_PAN_GUARD.timer=0;
-    if(!customPointerDragActive() && leafletPanLooksActive())hardResetMapPan(evt,reason);
+    if(!customPointerDragActive() && mapPanLooksActive())hardResetMapPan(evt,reason);
   },35);
 }
-map.on('dragstart',()=>{MAP_PAN_GUARD.dragging=true;});
-map.on('dragend',()=>{MAP_PAN_GUARD.dragging=false;scheduleMapPanReleaseCheck(null,'leaflet dragend');});
+MAP_RUNTIME.on('dragstart',()=>{MAP_PAN_GUARD.dragging=true;});
+MAP_RUNTIME.on('dragend',()=>{MAP_PAN_GUARD.dragging=false;scheduleMapPanReleaseCheck(null,'map dragend');});
 document.addEventListener('pointerup',e=>scheduleMapPanReleaseCheck(e,'document pointerup'),true);
 document.addEventListener('pointercancel',e=>scheduleMapPanReleaseCheck(e,'document pointercancel'),true);
 document.addEventListener('mouseup',e=>scheduleMapPanReleaseCheck(e,'document mouseup'),true);
 document.addEventListener('touchend',e=>scheduleMapPanReleaseCheck(e,'document touchend'),true);
 document.addEventListener('touchcancel',e=>scheduleMapPanReleaseCheck(e,'document touchcancel'),true);
 document.addEventListener('pointermove',e=>{
-  // If the browser missed pointerup, the next mouse move after release reports
-  // buttons=0. End the stale Leaflet drag immediately instead of waiting for
-  // the user's next click.
-  if(e.pointerType==='mouse' && typeof e.buttons==='number' && e.buttons===0 && leafletPanLooksActive()){
+  if(e.pointerType==='mouse' && typeof e.buttons==='number' && e.buttons===0 && mapPanLooksActive()){
     scheduleMapPanReleaseCheck(e,'buttons zero pointermove');
   }
 },true);
@@ -3459,7 +3436,7 @@ function updateButtons(){const selectedRef=ref();const has=!!selectedRef;const s
 function setNotice(txt){$('modeNotice').innerHTML=txt}
 
 function overlay(){return $('editOverlay')}
-function overlayPoint(e){const r=map.getContainer().getBoundingClientRect();return L.point(e.clientX-r.left,e.clientY-r.top)}
+function overlayPoint(e){const r=MAP_RUNTIME.getContainer().getBoundingClientRect();return MAP_ADAPTER.point(e.clientX-r.left,e.clientY-r.top)}
 function renderOverlay(){
   const ov=overlay();
 
@@ -3495,7 +3472,7 @@ function renderOverlay(){
   const totalVertices=geoms.reduce((s,x)=>s+x.count,0);
   const mode=totalVertices>=PERF.hugeFeatureVertexThreshold?'huge':totalVertices>=PERF.largeFeatureVertexThreshold?'large':'normal';
   const bounds=paddedPixelBounds();
-  const z=map.getZoom();
+  const z=MAP_RUNTIME.getZoom();
   const vStride=vertexStride(totalVertices,z);
   const mStride=midpointStride(totalVertices,z);
   let visibleVertices=0, renderedVertices=0, visibleMidpoints=0, renderedMidpoints=0;
@@ -3504,7 +3481,7 @@ function renderOverlay(){
     const f=item.r.feature;
     const geom=item.geom;
     eachVertex(geom,v=>{
-      const p=map.latLngToContainerPoint([v.coord[1],v.coord[0]]);
+      const p=MAP_RUNTIME.latLngToPixel([v.coord[1],v.coord[0]]);
       if(!pointInPixelBounds(p,bounds))return;
       visibleVertices++;
       const path={featureId:f.id,polygonIndex:v.polygonIndex,ringIndex:v.ringIndex,coordIndex:v.coordIndex};
@@ -3528,14 +3505,14 @@ function renderOverlay(){
         const n=ringCount(ring);
         for(let i=0;i<n;i++){
           if(i%mStride!==0)continue;
-          const a=ring[i],b=ring[(i+1)%n],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2],p=map.latLngToContainerPoint([mid[1],mid[0]]);
+          const a=ring[i],b=ring[(i+1)%n],mid=[(a[0]+b[0])/2,(a[1]+b[1])/2],p=MAP_RUNTIME.latLngToPixel([mid[1],mid[0]]);
           if(!pointInPixelBounds(p,bounds))continue;
           // If the segment is short on screen, the green midpoint control sits
           // almost on top of a red vertex handle. In that case the midpoint can
           // steal the pointerdown intended for a vertex drag, which looks like
           // dragging created an extra vertex. Hide insert controls on short
           // segments; users can zoom in to deliberately add a vertex there.
-          const ap=map.latLngToContainerPoint([a[1],a[0]]),bp=map.latLngToContainerPoint([b[1],b[0]]);
+          const ap=MAP_RUNTIME.latLngToPixel([a[1],a[0]]),bp=MAP_RUNTIME.latLngToPixel([b[1],b[0]]);
           if(Math.min(distPx(p,ap),distPx(p,bp))<20)continue;
           visibleMidpoints++;
           if(renderedMidpoints>=PERF.maxVisibleMidpoints)continue;
@@ -3605,7 +3582,7 @@ function releaseVertexPointerCapture(drag,e){
 function applyVertexDragPosition(e,drag=V.drag){
   if(!drag||!e||typeof e.clientX!=='number'||typeof e.clientY!=='number')return null;
   const pt=overlayPoint(e);
-  const rawLL=map.containerPointToLatLng(pt);
+  const rawLL=MAP_RUNTIME.pixelToLatLng(pt);
   const snapped=snappedLatLng(rawLL,{event:e,excludePath:drag.path,excludeFeatureId:drag.feature.id});
 
   // Move-only by construction: every move is applied to the immutable geometry
@@ -3617,7 +3594,7 @@ function applyVertexDragPosition(e,drag=V.drag){
     applyLinkedMoveOnly(drag.linked,drag.linkedBaseGeometries,snapped.coord);
   }
 
-  const drawPt=map.latLngToContainerPoint(snapped.latlng);
+  const drawPt=MAP_RUNTIME.latLngToPixel(snapped.latlng);
   const key=vkey(drag.path);
   const el=[...overlay().querySelectorAll('.vtx')].find(node=>node.__vkey===key);
   if(el){
@@ -3653,7 +3630,7 @@ function finishVertexDrag(e,{cancel=false,fromFallback=false}={}){
 
   unbindVertexDragEvents();
   releaseVertexPointerCapture(drag,e);
-  try{map.dragging.enable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(true)}catch(_){ }
 
   if(cancel){
     drag.feature.geometry=clone(drag.baseGeometry);
@@ -3744,7 +3721,7 @@ function vertexDown(e,path){
   const r=ref(path.featureId);
   const f=r?.feature;
   if(!f)return;
-  const start=L.point(e.clientX,e.clientY);
+  const start=MAP_ADAPTER.point(e.clientX,e.clientY);
   const ring=getRing(f.geometry,path.polygonIndex,path.ringIndex);
   const originalCoord=ring?clone(ring[path.coordIndex]):null;
   const linked=findSharedEditVertices(originalCoord,path);
@@ -3769,7 +3746,7 @@ function vertexDown(e,path){
   try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){ }
   hideVertexMidpointsForDrag();
   suppressVertexMidpointClicks(700);
-  try{map.dragging.disable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(false)}catch(_){ }
   bindVertexDragEvents();
 }
 function vertexMove(e){
@@ -3782,7 +3759,7 @@ function vertexMove(e){
   }
   e.preventDefault();
   e.stopPropagation();
-  const now=L.point(e.clientX,e.clientY);
+  const now=MAP_ADAPTER.point(e.clientX,e.clientY);
   if(now.distanceTo(V.drag.start)>3)V.drag.moved=true;
   applyVertexDragPosition(e,V.drag);
   if(!PERF.dragRenderRaf){
@@ -4021,9 +3998,9 @@ function toggleAddVertexMode(){
   renderOverlay();renderSelected();updateStatus();updateButtons();
 }
 function toggleLasso(){if(!V.active)return;V.lasso=!V.lasso;V.selected.clear();renderOverlay();renderSelected();updateStatus();updateButtons();setNotice(V.lasso?'Lasso: drag around vertices to select them.':'Vertex editor: drag red vertices to move them. Click green midpoints to insert new vertices.');setStatus(V.lasso?'Lasso select active.':'Lasso off.')}
-overlay().addEventListener('pointerdown',e=>{if(!V.active||!V.lasso)return;e.preventDefault();e.stopPropagation();V.lassoDrawing=true;V.lassoPts=[];V.lassoLL=[];const p=overlayPoint(e);V.lassoPts.push(p);V.lassoLL.push(map.containerPointToLatLng(p));overlay().setPointerCapture(e.pointerId)})
-overlay().addEventListener('pointermove',e=>{if(!V.lassoDrawing)return;const p=overlayPoint(e),last=V.lassoPts[V.lassoPts.length-1];if(last&&last.distanceTo(p)<4)return;V.lassoPts.push(p);V.lassoLL.push(map.containerPointToLatLng(p));drawLasso();e.preventDefault();e.stopPropagation()})
-overlay().addEventListener('pointerup',e=>{if(!V.lassoDrawing)return;V.lassoDrawing=false;const p=overlayPoint(e);V.lassoPts.push(p);V.lassoLL.push(map.containerPointToLatLng(p));drawLasso();selectLasso();$('lassoPath').setAttribute('d','');e.preventDefault();e.stopPropagation()})
+overlay().addEventListener('pointerdown',e=>{if(!V.active||!V.lasso)return;e.preventDefault();e.stopPropagation();V.lassoDrawing=true;V.lassoPts=[];V.lassoLL=[];const p=overlayPoint(e);V.lassoPts.push(p);V.lassoLL.push(MAP_RUNTIME.pixelToLatLng(p));overlay().setPointerCapture(e.pointerId)})
+overlay().addEventListener('pointermove',e=>{if(!V.lassoDrawing)return;const p=overlayPoint(e),last=V.lassoPts[V.lassoPts.length-1];if(last&&last.distanceTo(p)<4)return;V.lassoPts.push(p);V.lassoLL.push(MAP_RUNTIME.pixelToLatLng(p));drawLasso();e.preventDefault();e.stopPropagation()})
+overlay().addEventListener('pointerup',e=>{if(!V.lassoDrawing)return;V.lassoDrawing=false;const p=overlayPoint(e);V.lassoPts.push(p);V.lassoLL.push(MAP_RUNTIME.pixelToLatLng(p));drawLasso();selectLasso();$('lassoPath').setAttribute('d','');e.preventDefault();e.stopPropagation()})
 function drawLasso(){let d='';if(V.lassoPts.length){d=`M ${V.lassoPts[0].x} ${V.lassoPts[0].y}`;for(let i=1;i<V.lassoPts.length;i++)d+=` L ${V.lassoPts[i].x} ${V.lassoPts[i].y}`;if(V.lassoPts.length>2)d+=' Z'}$('lassoPath').setAttribute('d',d)}
 function selectLasso(){const f=ref(V.featureId)?.feature;if(!f||V.lassoLL.length<3){setStatus('Lasso too small.','error');return}const coords=V.lassoLL.map(ll=>[ll.lng,ll.lat]);coords.push(coords[0]);const poly=turf.polygon([coords]);let c=0;eachVertex(f.geometry,v=>{if(turf.booleanPointInPolygon(turf.point([v.coord[0],v.coord[1]]),poly)){V.selected.add(vkey({featureId:f.id,polygonIndex:v.polygonIndex,ringIndex:v.ringIndex,coordIndex:v.coordIndex}));c++}});renderOverlay();renderSelected();updateStatus();updateButtons();setStatus(c?`Selected ${c} vertices.`:'No vertices in lasso.')}
 
@@ -4209,27 +4186,27 @@ function maybeAddFinalDoubleClickPoint(e){
     D.points.push(c);
     return;
   }
-  const pLast=map.latLngToContainerPoint([last[1],last[0]]);
-  const pNow=map.latLngToContainerPoint([c[1],c[0]]);
+  const pLast=MAP_RUNTIME.latLngToPixel([last[1],last[0]]);
+  const pNow=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);
   // Browsers usually fire a click before dblclick. If that already added this
   // point, this does nothing; otherwise it adds the double-click location.
   if(pLast.distanceTo(pNow)>4)D.points.push(c);
 }
 
-function DStart(){if(MOVE.active)stopPolygonMoveMode(true);overlay().classList.remove('shift-pan');if(V.active)VStop(true);project.mode='draw';if(D.kind!=='hole'&&D.kind!=='split'){project.selectedFeatureId=null;project.selectedFileId=null;}D.active=true;D.points=[];D.cursor=null;if(map.doubleClickZoom)map.doubleClickZoom.disable();if(!D.kind)D.kind='polygon';setNotice('Draw polygon: click to add points. Double-click, click the green first point, or press Enter to finish. Backspace/right-click removes last point. Shift-drag pans. Esc cancels.');setStatus('Drawing polygon. Click map to add first point.');renderAll()}
-function DCancel(silent=false){overlay().classList.remove('shift-pan');D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;if(map.doubleClickZoom)map.doubleClickZoom.enable();clearDrawSvg();renderAll();if(!silent)setStatus('Drawing cancelled.')}
+function DStart(){if(MOVE.active)stopPolygonMoveMode(true);overlay().classList.remove('shift-pan');if(V.active)VStop(true);project.mode='draw';if(D.kind!=='hole'&&D.kind!=='split'){project.selectedFeatureId=null;project.selectedFileId=null;}D.active=true;D.points=[];D.cursor=null;MAP_RUNTIME.setDoubleClickZoomEnabled(false);if(!D.kind)D.kind='polygon';setNotice('Draw polygon: click to add points. Double-click, click the green first point, or press Enter to finish. Backspace/right-click removes last point. Shift-drag pans. Esc cancels.');setStatus('Drawing polygon. Click map to add first point.');renderAll()}
+function DCancel(silent=false){overlay().classList.remove('shift-pan');D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;MAP_RUNTIME.setDoubleClickZoomEnabled(true);clearDrawSvg();renderAll();if(!silent)setStatus('Drawing cancelled.')}
 function DUndo(){if(!D.active||!D.points.length)return;D.points.pop();renderOverlay();updateDrawStatus();updateButtons()}
 function DAddPoint(latlng,ev=null){if(!D.active)return;const snapped=snappedLatLng(latlng,{event:ev});D.points.push(snapped.coord);D.cursor=null;renderOverlay();updateDrawStatus();updateButtons()}
-function DFinish(){if(!D.active)return;if(D.kind==='hole')return finishHole();if(D.kind==='split')return finishSplitLine();if(D.points.length<3){setStatus('Need at least 3 points to finish polygon.','error');return}pushHistory();const ring=clone(D.points);closeRing(ring);const file=ensureScratch();const f={id:uid('feat'),name:`Polygon ${file.features.length+1}`,properties:{},sourceGeometry:{type:'Polygon',coordinates:[ring]},renderedGeometry:{type:'Polygon',coordinates:[ring]},geometry:{type:'Polygon',coordinates:[ring]},editStack:[],visible:true,style:{color:file.color,fillColor:file.color,weight:2,fillOpacity:.18}};f.properties.name=f.name;file.features.push(f);D.active=false;D.points=[];D.cursor=null;D.kind='polygon';if(map.doubleClickZoom)map.doubleClickZoom.enable();project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;clearDrawSvg();renderAll();setDirty(true);logOperation('polygon-created',{featureId:project.selectedFeatureId});setStatus('Polygon created.')}
+function DFinish(){if(!D.active)return;if(D.kind==='hole')return finishHole();if(D.kind==='split')return finishSplitLine();if(D.points.length<3){setStatus('Need at least 3 points to finish polygon.','error');return}pushHistory();const ring=clone(D.points);closeRing(ring);const file=ensureScratch();const f={id:uid('feat'),name:`Polygon ${file.features.length+1}`,properties:{},sourceGeometry:{type:'Polygon',coordinates:[ring]},renderedGeometry:{type:'Polygon',coordinates:[ring]},geometry:{type:'Polygon',coordinates:[ring]},editStack:[],visible:true,style:{color:file.color,fillColor:file.color,weight:2,fillOpacity:.18}};f.properties.name=f.name;file.features.push(f);D.active=false;D.points=[];D.cursor=null;D.kind='polygon';MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;clearDrawSvg();renderAll();setDirty(true);logOperation('polygon-created',{featureId:project.selectedFeatureId});setStatus('Polygon created.')}
 function clearDrawSvg(){['drawFillPath','drawLinePath','drawPreviewPath'].forEach(id=>{const el=$(id);if(el)el.setAttribute('d','')});const ov=(typeof overlay==='function'?overlay():null);if(ov)ov.querySelectorAll('.draw-dot,.draw-hint,.draw-shape-guide').forEach(n=>n.remove());}
-function lngLatToPoint(c){return map.latLngToContainerPoint([c[1],c[0]])}
+function lngLatToPoint(c){return MAP_RUNTIME.latLngToPixel([c[1],c[0]])}
 function drawPathFromPoints(points,close=false){if(!points.length)return'';const pts=points.map(lngLatToPoint);let d=`M ${pts[0].x} ${pts[0].y}`;for(let i=1;i<pts.length;i++)d+=` L ${pts[i].x} ${pts[i].y}`;if(close&&pts.length>2)d+=' Z';return d}
 function renderDrawOverlay(){clearDrawSvg();if(!D.active)return;const ov=overlay();const pts=D.points.slice();$('drawLinePath').setAttribute('d',drawPathFromPoints(pts,false));if(D.kind!=='split'&&pts.length>2)$('drawFillPath').setAttribute('d',drawPathFromPoints(pts.concat([D.cursor].filter(Boolean)),true));if(D.cursor&&pts.length){$('drawPreviewPath').setAttribute('d',drawPathFromPoints([pts[pts.length-1],D.cursor],false))}pts.forEach((c,i)=>{const p=lngLatToPoint(c);const dot=document.createElement('div');dot.className='draw-dot'+(i===0?' first':'');dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.title=i===0&&pts.length>=3?'Click to finish polygon':'Draw point';dot.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(i===0&&D.points.length>=3)DFinish()});ov.appendChild(dot);if(i===0&&pts.length>=3){const h=document.createElement('div');h.className='draw-hint';h.style.left=p.x+'px';h.style.top=p.y+'px';h.textContent='Click to finish';ov.appendChild(h)}})}
 function drawMetrics(){if(!D.active)return{area:null,perim:null};const pts=D.cursor?D.points.concat([D.cursor]):D.points;if(pts.length<2)return{area:null,perim:null};let perim=0;for(let i=1;i<pts.length;i++)perim+=turf.distance(turf.point(pts[i-1]),turf.point(pts[i]),{units:'kilometers'})*1000;if(pts.length>=3){perim+=turf.distance(turf.point(pts[pts.length-1]),turf.point(pts[0]),{units:'kilometers'})*1000;try{const ring=clone(pts);closeRing(ring);return{area:turf.area(turf.polygon([ring])),perim}}catch{}}return{area:null,perim}}
 function updateDrawStatus(){if(!D.active)return;const m=drawMetrics();const parts=[`Drawing · ${D.points.length} point${D.points.length===1?'':'s'}`];if(m.area!=null)parts.push(areaLabel(m.area));if(m.perim!=null)parts.push(lenLabel(m.perim)+' perimeter');setStatus(parts.join(' · '))}
 function drawOverlayLatLng(e){
   const pt=overlayPoint(e);
-  return map.containerPointToLatLng(pt);
+  return MAP_RUNTIME.pixelToLatLng(pt);
 }
 overlay().addEventListener('click',e=>{
   if(!D.active)return;
@@ -4787,7 +4764,7 @@ function finishHole(){
   const ring=clone(D.points);closeRing(ring);
   pushHistory();
   addEdit(r.feature,'drawHole',{ring});
-  D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;if(map.doubleClickZoom)map.doubleClickZoom.enable();
+  D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;MAP_RUNTIME.setDoubleClickZoomEnabled(true);
   renderAll();setDirty(true);logOperation('draw-hole',{featureId:r.feature.id});
   setStatus('Added non-destructive Draw hole edit.');
 }
@@ -4824,7 +4801,7 @@ function finishSplitLine(){
     }else{
       addEdit(r.feature,'splitLine',{line:clone(D.points),widthMetres:metres});
     }
-    D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;if(map.doubleClickZoom)map.doubleClickZoom.enable();
+    D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;MAP_RUNTIME.setDoubleClickZoomEnabled(true);
     renderAll();setDirty(true);logOperation('split-line',{featureId:r.feature.id,metres,output:GEOMETRY_OP.splitOutput||'one'});
     setStatus((GEOMETRY_OP.splitOutput||'one')==='separate'?'Split into separate polygon features.':'Added non-destructive Split line edit.');
   }catch(err){console.error(err);alert('Split failed: '+(err.message||err));}
@@ -4853,8 +4830,8 @@ function drawGeometryPreview(preview){
 function featureGeom(f){return clone(getDisplayGeometry(f));}
 
 function transformCoordByScreenDelta(coord,dx,dy){
-  const p=map.latLngToContainerPoint([coord[1],coord[0]]);
-  const ll=map.containerPointToLatLng(L.point(p.x+dx,p.y+dy));
+  const p=MAP_RUNTIME.latLngToPixel([coord[1],coord[0]]);
+  const ll=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(p.x+dx,p.y+dy));
   // Do not wrap longitude here. The base map repeats horizontally, and
   // users expect dragged geometries to move freely into adjacent world copies
   // instead of snapping back across the dateline. Display readouts may wrap,
@@ -4878,8 +4855,8 @@ function polygonMoveBehavior(){
   return project.polygonMoveBehavior==='geographic'?'geographic':'screen';
 }
 function geographicDeltaFromScreenDrag(startPoint,dx,dy){
-  const a=map.containerPointToLatLng(startPoint);
-  const b=map.containerPointToLatLng(L.point(startPoint.x+dx,startPoint.y+dy));
+  const a=MAP_RUNTIME.pixelToLatLng(startPoint);
+  const b=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(startPoint.x+dx,startPoint.y+dy));
   return {dlng:b.lng-a.lng,dlat:b.lat-a.lat};
 }
 function transformCoordByGeographicDelta(coord,dlng,dlat){
@@ -4930,7 +4907,7 @@ function polygonAreaMoveCoords(geom,out=[]){
 }
 function polygonAreaMoveOrigin(geom){
   const coords=polygonAreaMoveCoords(geom,[]);
-  if(!coords.length)return [map.getCenter().lng,map.getCenter().lat];
+  if(!coords.length)return MAP_RUNTIME.getCenter();
   let sx=0,sy=0;
   for(const c of coords){sx+=c[0];sy+=c[1];}
   return [sx/coords.length,polygonAreaMoveClampLat(sy/coords.length)];
@@ -4942,8 +4919,8 @@ function transformGeometryByAreaPreservingDrag(geom,startPoint,dx,dy){
   // polygon north/south adjusts longitude span as needed so the real-world area
   // stays meaningfully stable instead of shrinking/growing with Web Mercator scale.
   const origin0=polygonAreaMoveOrigin(geom);
-  const startLL=map.containerPointToLatLng(startPoint);
-  const endLL=map.containerPointToLatLng(L.point(startPoint.x+dx,startPoint.y+dy));
+  const startLL=MAP_RUNTIME.pixelToLatLng(startPoint);
+  const endLL=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(startPoint.x+dx,startPoint.y+dy));
   const deg=Math.PI/180;
   const inv=180/Math.PI;
   const cos0=polygonAreaMoveCos(origin0[1]);
@@ -5562,11 +5539,11 @@ function cutSelectedFromActive(){
 function zoomFeature(fid){
   const r=ref(fid);
   if(!r)return;
-  try{map.fitBounds(leafletBounds(turf.bbox(featJSON(r.feature))),{padding:[24,24]})}catch{}
+  try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(r.feature)),{padding:[24,24]})}catch{}
 }
-function zoomSelected(){const f=selectedFeature();if(!f)return;try{map.fitBounds(leafletBounds(turf.bbox(featJSON(f))),{padding:[24,24]})}catch{}}
-function zoomFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;try{map.fitBounds(leafletBounds(turf.bbox({type:'FeatureCollection',features:file.features.map(featJSON)})),{padding:[24,24]})}catch{}}
-function fitAll(){const p=projectFC({visibleOnly:true});if(!p.features.length)return;try{map.fitBounds(leafletBounds(turf.bbox(p)),{padding:[24,24]})}catch{}}
+function zoomSelected(){const f=selectedFeature();if(!f)return;try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(f)),{padding:[24,24]})}catch{}}
+function zoomFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features:file.features.map(featJSON)}),{padding:[24,24]})}catch{}}
+function fitAll(){const p=projectFC({visibleOnly:true});if(!p.features.length)return;try{MAP_RUNTIME.fitExtent(turf.bbox(p),{padding:[24,24]})}catch{}}
 function removeFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;if(!confirm(`Remove "${file.name}"?`))return;pushHistory();project.files=project.files.filter(f=>f.id!==fid);sidebarState.collapsedFiles.delete(fid);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true)}
 function setImportLoading(active,message='',progress=null){
   const overlay=$('importOverlay');
@@ -6955,7 +6932,7 @@ function wireValidatorControls(){
 }
 
 function createSaveProjectPayload(){
-  const center=map.getCenter();
+  const center=MAP_RUNTIME.getCenter();
   return {
     kind:'polygon-editor-project',
     version:2,
@@ -6972,7 +6949,7 @@ function createSaveProjectPayload(){
     selectedMeasurementId:MEASURE.selectedId||null,
     selectedImageId:IMAGE.selectedId||null,
     mergeIds:clone(project.mergeIds||[]),
-    view:{center:[center.lng,center.lat],zoom:map.getZoom()},
+    view:{center,zoom:MAP_RUNTIME.getZoom()},
     polygonMoveBehavior:project.polygonMoveBehavior||'screen',
     ui:{
       basemap:$('basemap')?.value||null,
@@ -7165,13 +7142,13 @@ function duplicateImageOverlay(id=IMAGE.selectedId){
   try{
     if(n.corners?.length===4){
       n.corners=n.corners.map(c=>{
-        const p=map.latLngToContainerPoint([c[1],c[0]]);
-        const ll=map.containerPointToLatLng([p.x+26,p.y+26]);
+        const p=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);
+        const ll=MAP_RUNTIME.pixelToLatLng([p.x+26,p.y+26]);
         return [ll.lng,ll.lat];
       });
     }else if(n.center){
-      const p=map.latLngToContainerPoint([n.center[1],n.center[0]]);
-      const ll=map.containerPointToLatLng([p.x+26,p.y+26]);
+      const p=MAP_RUNTIME.latLngToPixel([n.center[1],n.center[0]]);
+      const ll=MAP_RUNTIME.pixelToLatLng([p.x+26,p.y+26]);
       n.center=[ll.lng,ll.lat];
     }
   }catch{}
@@ -7603,10 +7580,10 @@ function selectedPolygonToolbarAnchor(r){
   try{
     const bbox=turf.bbox(featJSON(r.feature));
     const corners=[
-      map.latLngToContainerPoint([bbox[1],bbox[0]]),
-      map.latLngToContainerPoint([bbox[1],bbox[2]]),
-      map.latLngToContainerPoint([bbox[3],bbox[0]]),
-      map.latLngToContainerPoint([bbox[3],bbox[2]])
+      MAP_RUNTIME.latLngToPixel([bbox[1],bbox[0]]),
+      MAP_RUNTIME.latLngToPixel([bbox[1],bbox[2]]),
+      MAP_RUNTIME.latLngToPixel([bbox[3],bbox[0]]),
+      MAP_RUNTIME.latLngToPixel([bbox[3],bbox[2]])
     ];
     const minX=Math.min(...corners.map(p=>p.x)), maxX=Math.max(...corners.map(p=>p.x));
     const minY=Math.min(...corners.map(p=>p.y)), maxY=Math.max(...corners.map(p=>p.y));
@@ -7644,11 +7621,11 @@ function geometryScaledFromCenter(geom,factor){
   const centerFeature=turf.centroid({type:'Feature',properties:{},geometry:g});
   const center=centerFeature?.geometry?.coordinates;
   if(!center || !Number.isFinite(center[0]) || !Number.isFinite(center[1]))return g;
-  const cp=map.latLngToLayerPoint([center[1],center[0]]);
+  const cp=MAP_RUNTIME.latLngToLayerPixel([center[1],center[0]]);
   function scaleCoord(c){
-    const p=map.latLngToLayerPoint([c[1],c[0]]);
-    const np=L.point(cp.x+(p.x-cp.x)*factor,cp.y+(p.y-cp.y)*factor);
-    const ll=map.layerPointToLatLng(np);
+    const p=MAP_RUNTIME.latLngToLayerPixel([c[1],c[0]]);
+    const np=MAP_ADAPTER.point(cp.x+(p.x-cp.x)*factor,cp.y+(p.y-cp.y)*factor);
+    const ll=MAP_RUNTIME.layerPixelToLatLng(np);
     return [ll.lng,ll.lat];
   }
   if(g.type==='Polygon'){
@@ -7687,7 +7664,7 @@ function initPolygonScaleControls(){
 }
 const renderAllBeforePolygonContextToolbar=renderAll;
 renderAll=function(){renderAllBeforePolygonContextToolbar();updatePolygonContextToolbarSoon();};
-map.on('move zoom resize zoomend moveend viewreset',updatePolygonContextToolbarSoon);
+MAP_RUNTIME.on('move zoom resize zoomend moveend viewreset',updatePolygonContextToolbarSoon);
 window.addEventListener('resize',updatePolygonContextToolbarSoon);
 initPolygonScaleControls();
 
@@ -7737,15 +7714,15 @@ function restoreEdgeDragGeometry(feature,baseGeometry,pathA,coordA,pathB,coordB)
 }
 function applyEdgeDragPosition(e,drag=V.edgeDrag){
   if(!drag||!e||typeof e.clientX!=='number'||typeof e.clientY!=='number')return null;
-  const now=L.point(e.clientX,e.clientY);
+  const now=MAP_ADAPTER.point(e.clientX,e.clientY);
   const dx=now.x-drag.start.x;
   const dy=now.y-drag.start.y;
   let amount=dx*drag.normal.x+dy*drag.normal.y;
   if(e.shiftKey)amount=Math.round(amount/10)*10;
-  const a2=L.point(drag.aPoint.x+drag.normal.x*amount,drag.aPoint.y+drag.normal.y*amount);
-  const b2=L.point(drag.bPoint.x+drag.normal.x*amount,drag.bPoint.y+drag.normal.y*amount);
-  const aLL=map.containerPointToLatLng(a2);
-  const bLL=map.containerPointToLatLng(b2);
+  const a2=MAP_ADAPTER.point(drag.aPoint.x+drag.normal.x*amount,drag.aPoint.y+drag.normal.y*amount);
+  const b2=MAP_ADAPTER.point(drag.bPoint.x+drag.normal.x*amount,drag.bPoint.y+drag.normal.y*amount);
+  const aLL=MAP_RUNTIME.pixelToLatLng(a2);
+  const bLL=MAP_RUNTIME.pixelToLatLng(b2);
   const coordA=[aLL.lng,aLL.lat];
   const coordB=[bLL.lng,bLL.lat];
   restoreEdgeDragGeometry(drag.feature,drag.baseGeometry,drag.pathA,coordA,drag.pathB,coordB);
@@ -7784,7 +7761,7 @@ function finishEdgeDrag(e,{cancel=false,fromFallback=false}={}){
   if(!cancel && drag.moved)applyEdgeDragPosition(e,drag);
   unbindEdgeDragEvents();
   releaseEdgePointerCapture(drag,e);
-  try{map.dragging.enable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(true)}catch(_){ }
   overlay().classList.remove('edge-dragging','vertex-dragging');
   document.body.classList.remove('vertex-drag-active','edge-drag-active');
 
@@ -7835,8 +7812,8 @@ function edgeDown(e,edge){
   const a=ring[edge.startIndex];
   const b=ring[edge.endIndex];
   if(!a||!b)return;
-  const aPoint=map.latLngToContainerPoint([a[1],a[0]]);
-  const bPoint=map.latLngToContainerPoint([b[1],b[0]]);
+  const aPoint=MAP_RUNTIME.latLngToPixel([a[1],a[0]]);
+  const bPoint=MAP_RUNTIME.latLngToPixel([b[1],b[0]]);
   const vx=bPoint.x-aPoint.x;
   const vy=bPoint.y-aPoint.y;
   const len=Math.sqrt(vx*vx+vy*vy);
@@ -7852,7 +7829,7 @@ function edgeDown(e,edge){
     pointerId:e.pointerId,
     target:e.currentTarget,
     handle:e.currentTarget,
-    start:L.point(e.clientX,e.clientY),
+    start:MAP_ADAPTER.point(e.clientX,e.clientY),
     moved:false,
     pathA,pathB,
     baseGeometry:clone(base),
@@ -7868,7 +7845,7 @@ function edgeDown(e,edge){
   overlay().classList.add('edge-dragging','vertex-dragging');
   document.body.classList.add('edge-drag-active','vertex-drag-active');
   suppressVertexMidpointClicks(600);
-  try{map.dragging.disable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(false)}catch(_){ }
   bindEdgeDragEvents();
   setStatus('Dragging edge. Move perpendicular to slide the edge parallel. Hold Shift to snap movement.');
 }
@@ -7880,7 +7857,7 @@ function edgeMove(e){
   }
   e.preventDefault();
   e.stopPropagation();
-  const now=L.point(e.clientX,e.clientY);
+  const now=MAP_ADAPTER.point(e.clientX,e.clientY);
   if(now.distanceTo(V.edgeDrag.start)>3)V.edgeDrag.moved=true;
   applyEdgeDragPosition(e,V.edgeDrag);
 }
@@ -7903,7 +7880,7 @@ function renderVertexEdgeHandles(){
   const refs=vertexEditRefs();
   if(!refs.length)return;
   const totalVertices=refs.reduce((sum,r)=>sum+vertexCount(getDisplayGeometry(r.feature)),0);
-  const stride=midpointStride(totalVertices,map.getZoom());
+  const stride=midpointStride(totalVertices,MAP_RUNTIME.getZoom());
   const maxEdges=PERF.maxVisibleEdgeHandles||1200;
   const bounds=paddedPixelBounds(60);
   let rendered=0;
@@ -7919,9 +7896,9 @@ function renderVertexEdgeHandles(){
         const j=(i+1)%n;
         const a=ring[i],b=ring[j];
         if(!a||!b)return;
-        const ap=map.latLngToContainerPoint([a[1],a[0]]);
-        const bp=map.latLngToContainerPoint([b[1],b[0]]);
-        const mid=L.point((ap.x+bp.x)/2,(ap.y+bp.y)/2);
+        const ap=MAP_RUNTIME.latLngToPixel([a[1],a[0]]);
+        const bp=MAP_RUNTIME.latLngToPixel([b[1],b[0]]);
+        const mid=MAP_ADAPTER.point((ap.x+bp.x)/2,(ap.y+bp.y)/2);
         if(!pointInPixelBounds(mid,bounds))continue;
         const len=distPx(ap,bp);
         if(len<24)continue;
@@ -7952,11 +7929,11 @@ function polygonMoveCentreLatLng(feature){
     const geom=getDisplayGeometry(feature);
     const ft={type:'Feature',properties:{},geometry:geom};
     const c=(turf.centerOfMass?turf.centerOfMass(ft):turf.centroid(ft)).geometry.coordinates;
-    if(Array.isArray(c)&&Number.isFinite(c[0])&&Number.isFinite(c[1]))return L.latLng(c[1],c[0]);
+    if(Array.isArray(c)&&Number.isFinite(c[0])&&Number.isFinite(c[1]))return MAP_ADAPTER.latLng(c);
   }catch(_){ }
   try{
     const b=featureBBox(feature);
-    if(b)return L.latLng((b[1]+b[3])/2,(b[0]+b[2])/2);
+    if(b)return MAP_ADAPTER.latLng([(b[0]+b[2])/2,(b[1]+b[3])/2]);
   }catch(_){ }
   return null;
 }
@@ -7972,7 +7949,7 @@ function renderVertexCentreMoveHandles(){
     if(!f||isLocked(r.file,f))continue;
     const ll=polygonMoveCentreLatLng(f);
     if(!ll)return;
-    const p=map.latLngToContainerPoint(ll);
+    const p=MAP_RUNTIME.latLngToPixel(ll);
     if(!pointInPixelBounds(p,bounds))continue;
     const h=document.createElement('div');
     h.className='polygon-centre-move-handle';
@@ -8044,7 +8021,7 @@ function centreMoveDown(e,featureId){
   document.body.classList.add('vertex-centre-move-active','vertex-drag-active');
   overlay().classList.add('vertex-dragging');
   suppressVertexMidpointClicks(700);
-  try{map.dragging.disable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(false)}catch(_){ }
   bindCentreMoveEvents();
   setStatus('Moving polygon. Drag the centre handle; hold Shift to constrain to 0°/45°/90°.');
 }
@@ -8094,7 +8071,7 @@ function finishCentreMove(e,{cancel=false,fromFallback=false}={}){
   }
   unbindCentreMoveEvents();
   releaseCentreMovePointerCapture(drag,e);
-  try{map.dragging.enable()}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(true)}catch(_){ }
   if(cancel&&drag.feature){drag.feature.geometry=clone(drag.baseGeometry);}
   if(drag.changed&&drag.feature){
     commitManualGeometry(drag.feature);
@@ -8184,8 +8161,8 @@ function startDrawTool(kind='polygon'){
   D.targetFeatureId=null;
   DStart(D.kind);
 }
-function pointToCoord(p){const ll=map.containerPointToLatLng(p);return [ll.lng,ll.lat];}
-function coordToPoint(c){return map.latLngToContainerPoint([c[1],c[0]]);}
+function pointToCoord(p){const ll=MAP_RUNTIME.pixelToLatLng(p);return [ll.lng,ll.lat];}
+function coordToPoint(c){return MAP_RUNTIME.latLngToPixel([c[1],c[0]]);}
 function closeRingCopy(r){const out=clone(r||[]);closeRing(out);return out;}
 function pointDistance(a,b){return Math.hypot((a.x||0)-(b.x||0),(a.y||0)-(b.y||0));}
 function angleSnapCoord(anchorCoord,targetCoord,stepDeg=45){
@@ -8197,7 +8174,7 @@ function angleSnapCoord(anchorCoord,targetCoord,stepDeg=45){
   const step=stepDeg*Math.PI/180;
   const ang=Math.atan2(dy,dx);
   const snapped=Math.round(ang/step)*step;
-  return pointToCoord(L.point(a.x+Math.cos(snapped)*len,a.y+Math.sin(snapped)*len));
+  return pointToCoord(MAP_ADAPTER.point(a.x+Math.cos(snapped)*len,a.y+Math.sin(snapped)*len));
 }
 function unwrapLongitudeNear(lng,referenceLng){
   const value=Number(lng),reference=Number(referenceLng);
@@ -8242,7 +8219,7 @@ function constrainedDrawCoord(latlng,ev=null){
     target={...target,coord:clone(c),point:coordToPoint(c)};
     SNAP.last=target;
   }
-  return {coord:c,latlng:L.latLng(c[1],c[0]),target};
+  return {coord:c,latlng:MAP_ADAPTER.latLng(c),target};
 }
 function rectangleRing(startCoord,endCoord,forceSquare=false){
   if(!startCoord||!endCoord)return null;
@@ -8250,10 +8227,10 @@ function rectangleRing(startCoord,endCoord,forceSquare=false){
   if(forceSquare){
     const dx=b.x-a.x,dy=b.y-a.y;
     const size=Math.max(Math.abs(dx),Math.abs(dy));
-    b=L.point(a.x+(dx<0?-size:size),a.y+(dy<0?-size:size));
+    b=MAP_ADAPTER.point(a.x+(dx<0?-size:size),a.y+(dy<0?-size:size));
   }
   if(pointDistance(a,b)<4)return null;
-  return closeRingCopy([pointToCoord(a),pointToCoord(L.point(b.x,a.y)),pointToCoord(b),pointToCoord(L.point(a.x,b.y))]);
+  return closeRingCopy([pointToCoord(a),pointToCoord(MAP_ADAPTER.point(b.x,a.y)),pointToCoord(b),pointToCoord(MAP_ADAPTER.point(a.x,b.y))]);
 }
 function circleRing(centerCoord,edgeCoord,segments=getDrawSegments()){
   if(!centerCoord||!edgeCoord)return null;
@@ -8268,7 +8245,7 @@ function circleRing(centerCoord,edgeCoord,segments=getDrawSegments()){
   const ring=[];
   for(let i=0;i<segments;i++){
     const a=(i/segments)*Math.PI*2;
-    ring.push(pointToCoord(L.point(center.x+Math.cos(a)*radius,center.y+Math.sin(a)*radius)));
+    ring.push(pointToCoord(MAP_ADAPTER.point(center.x+Math.cos(a)*radius,center.y+Math.sin(a)*radius)));
   }
   return closeRingCopy(ring);
 }
@@ -8288,7 +8265,7 @@ function regularPolygonRing(centerCoord,edgeCoord,sides=getRegularSides(),shiftS
   const ring=[];
   for(let i=0;i<sides;i++){
     const angle=startAngle+(i/sides)*Math.PI*2;
-    ring.push(pointToCoord(L.point(
+    ring.push(pointToCoord(MAP_ADAPTER.point(
       center.x+Math.cos(angle)*radius,
       center.y+Math.sin(angle)*radius
     )));
@@ -8306,8 +8283,8 @@ function rotatedRectangleRing(){
   const nx=-vy/len,ny=vx/len;
   const width=(pc.x-p1.x)*nx+(pc.y-p1.y)*ny;
   if(Math.abs(width)<4)return null;
-  const p2=L.point(p1.x+nx*width,p1.y+ny*width);
-  const p3=L.point(p0.x+nx*width,p0.y+ny*width);
+  const p2=MAP_ADAPTER.point(p1.x+nx*width,p1.y+ny*width);
+  const p3=MAP_ADAPTER.point(p0.x+nx*width,p0.y+ny*width);
   return closeRingCopy([pointToCoord(p0),pointToCoord(p1),pointToCoord(p2),pointToCoord(p3)]);
 }
 function drawPreviewRing(){
@@ -8377,7 +8354,7 @@ function addDrawnGeometry(geom,name='Polygon',properties={}){
   f.properties.name=f.name;
   file.features.push(f);
   D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
-  if(map.doubleClickZoom)map.doubleClickZoom.enable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(true);
   project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;
   clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:properties.drawKind||geom.type});setStatus(`${f.name} created.`);
   return f;
@@ -8401,7 +8378,7 @@ function DStart(kind=null){
   project.mode='draw';
   if(nextKind!=='hole'&&nextKind!=='split'){project.selectedFeatureId=null;project.selectedFileId=null;}
   D.active=true;D.points=[];D.cursor=null;D.kind=nextKind;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
-  if(map.doubleClickZoom)map.doubleClickZoom.disable();
+  MAP_RUNTIME.setDoubleClickZoomEnabled(false);
   updateDrawToolbarForKind();
   setNotice(drawKindNotice(nextKind));
   setStatus(drawKindStartStatus(nextKind));
@@ -8423,7 +8400,7 @@ function drawKindStartStatus(kind){
 }
 function DCancel(silent=false){
   overlay().classList.remove('shift-pan');D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
-  if(map.doubleClickZoom)map.doubleClickZoom.enable();clearDrawSvg();renderAll();if(!silent)setStatus('Drawing cancelled.');
+  MAP_RUNTIME.setDoubleClickZoomEnabled(true);clearDrawSvg();renderAll();if(!silent)setStatus('Drawing cancelled.');
 }
 function DUndo(){
   if(!D.active)return;
@@ -8563,8 +8540,8 @@ function maybeAddFinalDoubleClickPoint(e){
   const c=snap.coord;
   const last=D.points[D.points.length-1];
   if(!last){D.points.push(c);return;}
-  const pLast=map.latLngToContainerPoint([last[1],last[0]]);
-  const pNow=map.latLngToContainerPoint([c[1],c[0]]);
+  const pLast=MAP_RUNTIME.latLngToPixel([last[1],last[0]]);
+  const pNow=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);
   if(pLast.distanceTo(pNow)>4)D.points.push(c);
 }
 function handleShapePointerDown(e){
@@ -8859,7 +8836,7 @@ function zoomHole(featureId,polyIndex,ringIndex){
   const r=ref(featureId);if(!r)return;
   const ring=getRing(getDisplayGeometry(r.feature),polyIndex,ringIndex);
   if(!ring)return;
-  try{map.fitBounds(leafletBounds(turf.bbox(turf.polygon([ring]))),{padding:[32,32]});setStatus('Zoomed to hole.');}catch(err){setStatus('Could not zoom to hole.','error');}
+  try{MAP_RUNTIME.fitExtent(turf.bbox(turf.polygon([ring])),{padding:[32,32]});setStatus('Zoomed to hole.');}catch(err){setStatus('Could not zoom to hole.','error');}
 }
 function renderHoleManagerRows(featureId=project.selectedFeatureId){
   const r=ref(featureId);
@@ -9072,7 +9049,7 @@ renderOverlay=function(){
   for(const r of refs){
     for(const info of holeInfosForFeature(r.feature)){
       if(!info.center)continue;
-      const p=map.latLngToContainerPoint([info.center[1],info.center[0]]);
+      const p=MAP_RUNTIME.latLngToPixel([info.center[1],info.center[0]]);
       if(!pointInPixelBounds(p,bounds))continue;
       const h=document.createElement('div');
       h.className='hole-centre-handle';
@@ -11414,7 +11391,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
       onRemove(mp){this._token++;mp.off('moveend zoomend resize viewreset',this.redraw,this);if(this._canvas&&this._canvas.parentNode)this._canvas.parentNode.removeChild(this._canvas);this._canvas=null;},
       updateItem(it){this.item=it;this.redraw();},
       _reset(){if(!this._map||!this._canvas)return;const size=this._map.getSize();this._canvas.width=Math.max(1,size.x);this._canvas.height=Math.max(1,size.y);L.DomUtil.setPosition(this._canvas,this._map.containerPointToLayerPoint([0,0]));},
-      redraw(){if(!this._map||!this._canvas)return;this._token++;const token=this._token;this._reset();const canvas=this._canvas,ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);const item=this.item;if(!item||item.visible===false)return;canvas.style.opacity=String(clamp(item.opacity??0.75,.05,1));const cache=v98EnsureReferenceRenderCache(item);const b=this._map.getBounds().pad(0.08);const view=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];const style=v96StyleReference(item);ctx.lineWidth=Math.max(1,Number(style.weight)||2);ctx.strokeStyle=style.color||'#d92c32';ctx.fillStyle=style.fillColor||style.color||'#d92c32';ctx.globalAlpha=1;let i=0;const tasks=cache.tasks||[];const map=this._map;const drawPoint=(coords)=>{const c=coords&&coords[0];if(!c)return;const p=map.latLngToContainerPoint([c[1],c[0]]);ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.stroke();};const drawLineRange=(coords,start,end,closed,fill)=>{if(!coords||coords.length<2)return;start=Math.max(0,start||0);end=Math.min(coords.length,end==null?coords.length:end);if(end-start<2)return;ctx.beginPath();let started=false;for(let j=start;j<end;j++){const c=coords[j];if(!c)continue;const p=map.latLngToContainerPoint([c[1],c[0]]);if(!started){ctx.moveTo(p.x,p.y);started=true;}else ctx.lineTo(p.x,p.y);}if(!started)return;if(closed)ctx.closePath();if(fill&&coords.length<=120000){ctx.save();ctx.globalAlpha=style.fillOpacity??0.14;ctx.fill('evenodd');ctx.restore();}ctx.save();ctx.globalAlpha=style.opacity??0.75;ctx.stroke();ctx.restore();};const drawLine=(coords,closed,fill)=>drawLineRange(coords,0,coords?.length||0,closed,fill);const step=()=>{if(token!==this._token)return;const startTime=v96Now();let drawn=0;while(i<tasks.length&&(v96Now()-startTime)<12){const t=tasks[i++];if(!v98BboxIntersects(t.bbox,view))continue;if(t.kind==='point')drawPoint(t.coords);else if(t.kind==='line')drawLine(t.coords,false,false);else if(t.kind==='lineChunk')drawLineRange(t.coords,t.start,t.end,false,false);else if(t.kind==='polygonChunk')drawLineRange(t.coords,t.start,t.end,false,false);else drawLine(t.coords,true,t.ringIndex===0);drawn++;}if(i<tasks.length)requestAnimationFrame(step);else{item.meta=item.meta||{};item.meta.lastRenderedTasks=drawn;}};step();}
+      redraw(){if(!this._map||!this._canvas)return;this._token++;const token=this._token;this._reset();const canvas=this._canvas,ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);const item=this.item;if(!item||item.visible===false)return;canvas.style.opacity=String(clamp(item.opacity??0.75,.05,1));const cache=v98EnsureReferenceRenderCache(item);const b=this._map.getBounds().pad(0.08);const view=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];const style=v96StyleReference(item);ctx.lineWidth=Math.max(1,Number(style.weight)||2);ctx.strokeStyle=style.color||'#d92c32';ctx.fillStyle=style.fillColor||style.color||'#d92c32';ctx.globalAlpha=1;let i=0;const tasks=cache.tasks||[];const map=this._map;const drawPoint=(coords)=>{const c=coords&&coords[0];if(!c)return;const p=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.stroke();};const drawLineRange=(coords,start,end,closed,fill)=>{if(!coords||coords.length<2)return;start=Math.max(0,start||0);end=Math.min(coords.length,end==null?coords.length:end);if(end-start<2)return;ctx.beginPath();let started=false;for(let j=start;j<end;j++){const c=coords[j];if(!c)continue;const p=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);if(!started){ctx.moveTo(p.x,p.y);started=true;}else ctx.lineTo(p.x,p.y);}if(!started)return;if(closed)ctx.closePath();if(fill&&coords.length<=120000){ctx.save();ctx.globalAlpha=style.fillOpacity??0.14;ctx.fill('evenodd');ctx.restore();}ctx.save();ctx.globalAlpha=style.opacity??0.75;ctx.stroke();ctx.restore();};const drawLine=(coords,closed,fill)=>drawLineRange(coords,0,coords?.length||0,closed,fill);const step=()=>{if(token!==this._token)return;const startTime=v96Now();let drawn=0;while(i<tasks.length&&(v96Now()-startTime)<12){const t=tasks[i++];if(!v98BboxIntersects(t.bbox,view))continue;if(t.kind==='point')drawPoint(t.coords);else if(t.kind==='line')drawLine(t.coords,false,false);else if(t.kind==='lineChunk')drawLineRange(t.coords,t.start,t.end,false,false);else if(t.kind==='polygonChunk')drawLineRange(t.coords,t.start,t.end,false,false);else drawLine(t.coords,true,t.ringIndex===0);drawn++;}if(i<tasks.length)requestAnimationFrame(step);else{item.meta=item.meta||{};item.meta.lastRenderedTasks=drawn;}};step();}
     });
     return new Layer(item);
   }
@@ -11506,7 +11483,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     m.querySelector('[data-a="select"]').onclick=()=>{closeLayerMenu();REF.selectedId=id;renderSidebar();renderSelected();};
     m.querySelector('[data-a="visible"]').onclick=()=>{closeLayerMenu();item.visible=item.visible===false;v96SyncReferenceLayers();renderSidebar();setDirty(true);};
     m.querySelector('[data-a="lock"]').onclick=()=>{closeLayerMenu();item.locked=!item.locked;renderSidebar();setDirty(true);};
-    m.querySelector('[data-a="zoom"]').onclick=()=>{closeLayerMenu();try{const bb=item.meta?.bbox||(item._v98RenderCache&&item._v98RenderCache.bbox)||turf.bbox(item.data);map.fitBounds(leafletBounds(bb),{padding:[30,30]});}catch(_){ }};
+    m.querySelector('[data-a="zoom"]').onclick=()=>{closeLayerMenu();try{const bb=item.meta?.bbox||(item._v98RenderCache&&item._v98RenderCache.bbox)||turf.bbox(item.data);MAP_RUNTIME.fitExtent(bb,{padding:[30,30]});}catch(_){ }};
     m.querySelector('[data-a="import"]').onclick=()=>{closeLayerMenu();v96ImportReferenceAsEditable(item);};
     m.querySelector('[data-a="delete"]').onclick=()=>{closeLayerMenu();if(confirm(`Delete reference overlay "${item.name||'overlay'}"?`)){REF.items=REF.items.filter(x=>x.id!==id);const layer=REF.layers.get(id);if(layer)try{map.removeLayer(layer);}catch(_){ }REF.layers.delete(id);renderSidebar();renderSelected();setDirty(true);}};
     m.querySelector('[data-a="opacity"]').oninput=(ev)=>{item.opacity=Number(ev.target.value)||.75;v96SyncReferenceLayers();setDirty(true);};
@@ -11540,7 +11517,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     $('v96RefOpacity').oninput=e=>{item.opacity=Number(e.target.value)||.75;v96SyncReferenceLayers();panel.querySelector('.property-note').textContent=Math.round(item.opacity*100)+'% opacity';setDirty(true);};
     $('v96RefVisible').onchange=e=>{item.visible=e.target.checked;v96SyncReferenceLayers();renderSidebar();setDirty(true);};
     $('v96RefLocked').onchange=e=>{item.locked=e.target.checked;renderSidebar();setDirty(true);};
-    $('v96RefZoom').onclick=()=>{try{const bb=item.meta?.bbox||(item._v98RenderCache&&item._v98RenderCache.bbox)||turf.bbox(item.data);map.fitBounds(leafletBounds(bb),{padding:[30,30]});}catch(_){ }};
+    $('v96RefZoom').onclick=()=>{try{const bb=item.meta?.bbox||(item._v98RenderCache&&item._v98RenderCache.bbox)||turf.bbox(item.data);MAP_RUNTIME.fitExtent(bb,{padding:[30,30]});}catch(_){ }};
     $('v96RefImport').onclick=()=>v96ImportReferenceAsEditable(item);
     $('v96RefDone').onclick=()=>{REF.selectedId=null;renderSidebar();renderSelected();};
     $('v96RefDelete').onclick=()=>{if(confirm(`Delete reference overlay "${item.name||'overlay'}"?`)){REF.items=REF.items.filter(x=>x.id!==item.id);const layer=REF.layers.get(item.id);if(layer)try{map.removeLayer(layer);}catch(_){ }REF.layers.delete(item.id);REF.selectedId=null;renderSidebar();renderSelected();setDirty(true);}};
@@ -11782,7 +11759,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     if((project.files||[]).length || (IMAGE.overlays||[]).length || (MEASURE.items||[]).length)return;
     const boxes=[];
     for(const item of REF.items||[]){if(item.data)try{boxes.push(turf.bbox(item.data));}catch(_){ }}
-    if(boxes.length){const b=boxes.reduce((a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[2],b[2]),Math.max(a[3],b[3])]);try{map.fitBounds(leafletBounds(b),{padding:[40,40]});}catch(_){ }}
+    if(boxes.length){const b=boxes.reduce((a,b)=>[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[2],b[2]),Math.max(a[3],b[3])]);try{MAP_RUNTIME.fitExtent(b,{padding:[40,40]});}catch(_){ }}
   };
   window.fitAllProjectElements=fitAllProjectElements;
   const v96Style=document.createElement('style');
@@ -11834,7 +11811,7 @@ function v100ImageGeoTiffEnsureModal(){
   return modal;
 }
 function v100CloseImageGeoTiffExportModal(){const m=$('imageGeoTiffExportModal'); if(m){m.classList.remove('active');delete m.dataset.imageId;}}
-function v100ProjectedPoint(lng,lat,zoom){try{return map.project(L.latLng(lat,lng),zoom==null?map.getZoom():zoom);}catch(_){return L.point(0,0);}}
+function v100ProjectedPoint(lng,lat,zoom){try{return MAP_RUNTIME.projectLonLat([lng,lat],zoom==null?MAP_RUNTIME.getZoom():zoom);}catch(_){return MAP_ADAPTER.point(0,0);}}
 function v100ImageGeoTiffBounds(corners){
   let minLng=Infinity,maxLng=-Infinity,minLat=Infinity,maxLat=-Infinity;
   (corners||[]).forEach(c=>{const lng=Number(c[0]),lat=Number(c[1]);if(Number.isFinite(lng)&&Number.isFinite(lat)){minLng=Math.min(minLng,lng);maxLng=Math.max(maxLng,lng);minLat=Math.min(minLat,lat);maxLat=Math.max(maxLat,lat);}});
@@ -11915,7 +11892,7 @@ async function v100ExportSelectedImageGeoTiff(options={}){
   const naturalW=img.naturalWidth||o.width||800,naturalH=img.naturalHeight||o.height||600,corners=imageRectCorners(o),bounds=v100ImageGeoTiffBounds(corners);
   const out=v100ImageGeoTiffOutputSize(bounds,naturalW,naturalH,v100ImageGeoTiffClamp(options.maxDim||2048,64,12000));
   const srcCanvas=document.createElement('canvas');srcCanvas.width=naturalW;srcCanvas.height=naturalH;const sctx=srcCanvas.getContext('2d',{willReadFrequently:true});sctx.drawImage(img,0,0,naturalW,naturalH);const src=sctx.getImageData(0,0,naturalW,naturalH).data;
-  const zoom=map.getZoom(),dstPts=corners.map(c=>v100ProjectedPoint(c[0],c[1],zoom)),H=v100FindHomography([[0,0],[naturalW,0],[naturalW,naturalH],[0,naturalH]],dstPts),invH=v100Invert3x3(H),rgba=new Uint8Array(out.width*out.height*4),bakeOpacity=options.bakeOpacity?v100ImageGeoTiffClamp(o.opacity??1,0,1):1,status=options.statusEl;
+  const zoom=MAP_RUNTIME.getZoom(),dstPts=corners.map(c=>v100ProjectedPoint(c[0],c[1],zoom)),H=v100FindHomography([[0,0],[naturalW,0],[naturalW,naturalH],[0,naturalH]],dstPts),invH=v100Invert3x3(H),rgba=new Uint8Array(out.width*out.height*4),bakeOpacity=options.bakeOpacity?v100ImageGeoTiffClamp(o.opacity??1,0,1):1,status=options.statusEl;
   for(let y=0;y<out.height;y++){
     const lat=bounds.maxLat-((y+0.5)/out.height)*bounds.latSpan;
     for(let x=0;x<out.width;x++){
@@ -12305,7 +12282,7 @@ initUxRehaul();
     if(D.kind!=='line')return v116BaseConstrainedDrawCoord(latlng,ev);
     const snap=snappedLatLng(latlng,{event:ev});let c=snap.coord;
     if(ev?.shiftKey&&D.points.length)c=angleSnapCoord(D.points[D.points.length-1],c,45);
-    return {coord:c,latlng:L.latLng(c[1],c[0]),target:snap.target};
+    return {coord:c,latlng:MAP_ADAPTER.latLng(c),target:snap.target};
   };
   const v116BaseDrawPreviewGeometry=drawPreviewGeometry;
   drawPreviewGeometry=function(){
@@ -12324,7 +12301,7 @@ initUxRehaul();
     const f={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geom),renderedGeometry:clone(geom),geometry:clone(geom),editStack:[],visible:true,style:{color,fillColor:color,weight:3,fillOpacity:0}};
     f.properties.name=f.name;file.features.push(f);
     D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
-    if(map.doubleClickZoom)map.doubleClickZoom.enable();project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;
+    MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;
     clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:'LineString'});setStatus(`${f.name} created.`);return f;
   };
   const v116BaseDFinish=DFinish;
@@ -12357,7 +12334,7 @@ initUxRehaul();
   maybeAddFinalDoubleClickPoint=function(e){
     if(D.active&&D.kind==='line'){
       const ll=drawOverlayLatLng(e),snap=constrainedDrawCoord(ll,e),c=snap.coord,last=D.points[D.points.length-1];
-      if(!last||map.latLngToContainerPoint([last[1],last[0]]).distanceTo(map.latLngToContainerPoint([c[1],c[0]]))>4)D.points.push(c);
+      if(!last||MAP_RUNTIME.latLngToPixel([last[1],last[0]]).distanceTo(MAP_RUNTIME.latLngToPixel([c[1],c[0]]))>4)D.points.push(c);
       return;
     }
     return v116BaseMaybeAddFinalDoubleClickPoint(e);
@@ -12411,7 +12388,7 @@ initUxRehaul();
   function pointSegmentDistancePx(point,a,b){return distPx(point,closestPointOnSeg(point,a,b).point);}
   function geometryHit(latlng,geom,tolerance=9){
     if(!geom)return false;
-    const p=map.latLngToContainerPoint(latlng);
+    const p=MAP_RUNTIME.latLngToPixel(latlng);
     if(polygonSupported(geom.type)){
       try{return turf.booleanPointInPolygon(turf.point([latlng.lng,latlng.lat]),{type:'Feature',properties:{},geometry:geom});}catch(_){return false;}
     }
@@ -12439,7 +12416,7 @@ initUxRehaul();
   findSnapTarget=function(latlng,opts={}){
     const base=v116BaseFindSnapTarget(latlng,opts);
     if(!snappingActive(opts.event))return base;
-    const tolerance=opts.tolerancePx||snapTolerance();const edgeTolerance=opts.edgeTolerancePx||Math.max(3,Math.round(tolerance*.55));const p=map.latLngToContainerPoint(latlng);let best=base;
+    const tolerance=opts.tolerancePx||snapTolerance();const edgeTolerance=opts.edgeTolerancePx||Math.max(3,Math.round(tolerance*.55));const p=MAP_RUNTIME.latLngToPixel(latlng);let best=base;
     for(const file of project.files||[])for(const f of file.features||[]){
       if(isFileSleeping(file)||isFeatureSleeping(file,f)||!lineSupported(getDisplayGeometry(f).type))continue;
       if(opts.excludeFeatureId&&f.id===opts.excludeFeatureId&&!opts.allowSameFeature)continue;
@@ -12532,9 +12509,9 @@ initUxRehaul();
   renderVertexEdgeHandles=function(){
     const ov=overlay();if(V.edgeDrag)return;ov.querySelectorAll('.edge-drag-handle').forEach(n=>n.remove());
     if(!V.active||V.lasso||V.drag||D.active||MEASURE.active)return;const refs=vertexEditRefs();if(!refs.length)return;
-    const totalVertices=refs.reduce((sum,r)=>sum+vertexCount(getDisplayGeometry(r.feature)),0),stride=midpointStride(totalVertices,map.getZoom()),maxEdges=PERF.maxVisibleEdgeHandles||1200,bounds=paddedPixelBounds(60);let rendered=0;
+    const totalVertices=refs.reduce((sum,r)=>sum+vertexCount(getDisplayGeometry(r.feature)),0),stride=midpointStride(totalVertices,MAP_RUNTIME.getZoom()),maxEdges=PERF.maxVisibleEdgeHandles||1200,bounds=paddedPixelBounds(60);let rendered=0;
     for(const item of refs){const f=item.feature,geom=getDisplayGeometry(f);editablePaths(geom).forEach(path=>{const n=path.isLine?path.coords.length:ringCount(path.coords),segments=path.isLine?Math.max(0,n-1):n;
-      for(let i=0;i<segments;i++){if(i%stride!==0||rendered>=maxEdges)continue;const j=path.isLine?i+1:(i+1)%n,a=path.coords[i],b=path.coords[j];if(!a||!b)continue;const ap=coordToPt(a),bp=coordToPt(b),mid=L.point((ap.x+bp.x)/2,(ap.y+bp.y)/2);if(!pointInPixelBounds(mid,bounds))continue;const len=distPx(ap,bp);if(len<24)continue;const angle=Math.atan2(bp.y-ap.y,bp.x-ap.x)*180/Math.PI,h=document.createElement('div');h.className='edge-drag-handle';h.title=path.isLine?'Drag line segment parallel':'Drag edge parallel inward/outward';h.style.left=ap.x+'px';h.style.top=ap.y+'px';h.style.width=len+'px';h.style.transform=`translate(0,-50%) rotate(${angle}deg)`;h.addEventListener('pointerdown',ev=>edgeDown(ev,{featureId:f.id,polygonIndex:path.polygonIndex,ringIndex:path.ringIndex,startIndex:i,endIndex:j}));ov.appendChild(h);rendered++;}
+      for(let i=0;i<segments;i++){if(i%stride!==0||rendered>=maxEdges)continue;const j=path.isLine?i+1:(i+1)%n,a=path.coords[i],b=path.coords[j];if(!a||!b)continue;const ap=coordToPt(a),bp=coordToPt(b),mid=MAP_ADAPTER.point((ap.x+bp.x)/2,(ap.y+bp.y)/2);if(!pointInPixelBounds(mid,bounds))continue;const len=distPx(ap,bp);if(len<24)continue;const angle=Math.atan2(bp.y-ap.y,bp.x-ap.x)*180/Math.PI,h=document.createElement('div');h.className='edge-drag-handle';h.title=path.isLine?'Drag line segment parallel':'Drag edge parallel inward/outward';h.style.left=ap.x+'px';h.style.top=ap.y+'px';h.style.width=len+'px';h.style.transform=`translate(0,-50%) rotate(${angle}deg)`;h.addEventListener('pointerdown',ev=>edgeDown(ev,{featureId:f.id,polygonIndex:path.polygonIndex,ringIndex:path.ringIndex,startIndex:i,endIndex:j}));ov.appendChild(h);rendered++;}
     });}
   };
 
@@ -12545,7 +12522,7 @@ initUxRehaul();
     e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();wakeFeature(r.file,r.feature);if((r.feature.editStack||[]).length)flattenEdits(r.feature);
     const base=normalizeEditableGeometry(clone(getDisplayGeometry(r.feature)));r.feature.geometry=clone(base);V.midpointPointer=null;overlay().querySelectorAll('.mid').forEach(n=>n.remove());
     V.moveDrag={pointerId:e.pointerId,target:e.currentTarget,handle:e.currentTarget,feature:r.feature,featureId:r.feature.id,start:overlayPoint(e),moved:false,changed:false,history:false,baseGeometry:clone(base),lastDx:0,lastDy:0};
-    try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){ }e.currentTarget.classList.add('dragging');document.body.classList.add('vertex-centre-move-active','vertex-drag-active');overlay().classList.add('vertex-dragging');suppressVertexMidpointClicks(700);try{map.dragging.disable()}catch(_){ }bindCentreMoveEvents();setStatus('Moving LineString. Drag the centre handle; hold Shift to constrain direction.');
+    try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){ }e.currentTarget.classList.add('dragging');document.body.classList.add('vertex-centre-move-active','vertex-drag-active');overlay().classList.add('vertex-dragging');suppressVertexMidpointClicks(700);try{MAP_RUNTIME.setPanEnabled(false)}catch(_){ }bindCentreMoveEvents();setStatus('Moving LineString. Drag the centre handle; hold Shift to constrain direction.');
   };
   const v116BaseTransformScreen=transformGeometryByScreenDelta;
   transformGeometryByScreenDelta=function(geom,dx,dy){
@@ -14584,7 +14561,7 @@ showAutosaveRecoveryIfAvailable();
     return '';
   }
   function patchCursorReadout(){
-    map.on('mousemove',e=>{const p=displayLatLng(e.latlng); const snap=(SNAP&&SNAP.last)?' · snap':''; byId('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${drawMetricText(e.latlng)}${snap}`;});
+    MAP_RUNTIME.on('mousemove',e=>{if(!e.latLng)return;const p=displayLatLng(e.latLng); const snap=(SNAP&&SNAP.last)?' · snap':''; byId('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${drawMetricText(e.latLng)}${snap}`;});
   }
   function wrapRenderHooks(){
     const origAll=renderAll; renderAll=function(){const res=origAll.apply(this,arguments); setTimeout(updateCoordPanel,0); return res;};
@@ -14733,8 +14710,8 @@ showAutosaveRecoveryIfAvailable();
     const item=(MEASURE.items||[]).find(x=>x.id===id); if(!item)return;
     const coords=(item.coordinates||[]).filter(c=>Array.isArray(c)); if(!coords.length)return;
     try{
-      if(coords.length===1){map.setView([coords[0][1],coords[0][0]],Math.max(map.getZoom(),10));return;}
-      map.fitBounds(L.latLngBounds(coords.map(c=>[c[1],c[0]])),{padding:[35,35]});
+      if(coords.length===1){MAP_RUNTIME.setView(coords[0],Math.max(MAP_RUNTIME.getZoom(),10));return;}
+      MAP_RUNTIME.fitExtent(turf.bbox({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}}),{padding:[35,35]});
     }catch(_){ }
   }
   function showMeasureLayerMenu(e,id){
@@ -14849,7 +14826,7 @@ showAutosaveRecoveryIfAvailable();
   function setFamilyLocked(family,v){familyItems(family).forEach(i=>i.locked=!!v); try{if(v&&MEASURE.active&&familyItems(family).some(x=>x.id===MEASURE.editingId)&&typeof cancelMeasure==='function')cancelMeasure(true);}catch(_){ } refreshMeasures();status((family==='annotation'?'Annotations':'Measurements')+(v?' locked.':' unlocked.'));}
   function setMeasureVisible(id,v){const item=measureById(id); if(!item)return; item.visible=!!v; try{if(!v&&MEASURE.editingId===id&&typeof cancelMeasure==='function')cancelMeasure(true);}catch(_){ } refreshMeasures();status(mName(item)+(v?' visible.':' hidden.'));}
   function setMeasureLocked(id,v){const item=measureById(id); if(!item)return; item.locked=!!v; try{if(v&&MEASURE.editingId===id&&typeof cancelMeasure==='function')cancelMeasure(true);}catch(_){ } refreshMeasures();status(mName(item)+(v?' locked.':' unlocked.'));}
-  function zoomMeasure(id){const item=measureById(id); if(!item)return; const coords=(item.coordinates||[]).filter(c=>Array.isArray(c)); if(!coords.length)return; try{if(coords.length===1){map.setView([coords[0][1],coords[0][0]],Math.max(map.getZoom(),10));}else{map.fitBounds(L.latLngBounds(coords.map(c=>[c[1],c[0]])),{padding:[35,35]});}}catch(_){ }}
+  function zoomMeasure(id){const item=measureById(id); if(!item)return; const coords=(item.coordinates||[]).filter(c=>Array.isArray(c)); if(!coords.length)return; try{if(coords.length===1){MAP_RUNTIME.setView(coords[0],Math.max(MAP_RUNTIME.getZoom(),10));}else{MAP_RUNTIME.fitExtent(turf.bbox({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}}),{padding:[35,35]});}}catch(_){ }}
   function positionMenu(e){try{positionLayerMenu(e);return;}catch(_){ } const m=document.getElementById('layerMenu'); if(!m)return; m.style.left=(e.clientX||0)+'px';m.style.top=(e.clientY||0)+'px';}
   window.showMeasureLayerMenu=function(e,id){
     if(e){e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();}
@@ -15217,7 +15194,7 @@ showAutosaveRecoveryIfAvailable();
         const h=Math.max(1,Math.abs(se.y-nw.y));
         const x=Math.min(nw.x,se.x),y=Math.min(nw.y,se.y);
         this._img.style.display='block';
-        L.DomUtil.setPosition(this._img,L.point(x,y));
+        L.DomUtil.setPosition(this._img,MAP_ADAPTER.point(x,y));
         this._img.style.width=w+'px';
         this._img.style.height=h+'px';
       }
@@ -16874,7 +16851,7 @@ showAutosaveRecoveryIfAvailable();
     if(!mobileNotice)return;
     mobileNotice.hidden=true;
     storageSet('editpolygon-mobile-notice-dismissed','1');
-    try{if(typeof map!=='undefined'&&map&&map.invalidateSize)map.invalidateSize({pan:false,animate:false});}catch(_){}
+    try{if(MAP_RUNTIME&&typeof MAP_RUNTIME.resize==='function')MAP_RUNTIME.resize({pan:false,animate:false});}catch(_){}
   }
   if(continueButton)continueButton.addEventListener('click',hideMobileNotice);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showMobileNotice,{once:true});
@@ -17230,7 +17207,7 @@ showAutosaveRecoveryIfAvailable();
     // actually starts. Selection should not force hundreds of thousands of
     // coordinates back through Leaflet merely to open the inspector.
     if(count<V130.lodMinVertices||isVertexEditFeatureId(f.id))return {geom:full,key:'full'};
-    const zoom=map.getZoom();
+    const zoom=MAP_RUNTIME.getZoom();
     const denseSelected=f.id===project.selectedFeatureId&&count>=3000;
     let bucket=zoom<=5?5:zoom<=7?7:zoom<=9?9:zoom<=11?11:12;
     if(denseSelected&&bucket===12)bucket=11;
@@ -17262,7 +17239,7 @@ showAutosaveRecoveryIfAvailable();
       circle?circle.center:null,
       circle?circle.radiusMetres:null,
       circle?polygonMoveBehavior():null,
-      circle&&polygonMoveBehavior()==='screen'?map.getZoom():null
+      circle&&polygonMoveBehavior()==='screen'?MAP_RUNTIME.getZoom():null
     ]);
   }
   function v130BulkVectorRenderer(){
@@ -17342,7 +17319,7 @@ showAutosaveRecoveryIfAvailable();
   }
 
   renderMap=function(){
-    const viewport=map.getBounds().pad(0.35);
+    const viewport=MAP_RUNTIME.getExtent(0.35);
     const desired=[];
     const allIds=new Set();
     for(const file of project.files||[]){
@@ -17351,11 +17328,7 @@ showAutosaveRecoveryIfAvailable();
       for(const f of file.features||[]){
         if(isFeatureSleeping(file,f))continue;
         const bbox=featureBBox(f);
-        if(bbox){
-          try{
-            if(!viewport.intersects(L.latLngBounds([[bbox[1],bbox[0]],[bbox[3],bbox[2]]])))continue;
-          }catch(_){}
-        }
+        if(bbox&&!MAP_ADAPTER.bboxIntersects(viewport,bbox))continue;
         const {geom,lodKey}=v130MapGeometry(f);
         const styleObject=styleWithOpacity(f,file);
         const signature=v130StyleSignature(f,file,styleObject,lodKey);
@@ -17445,9 +17418,9 @@ showAutosaveRecoveryIfAvailable();
     if(!snappingActive(opts.event))return null;
     const tolerance=opts.tolerancePx||snapTolerance();
     const edgeTolerance=opts.edgeTolerancePx||Math.max(3,Math.round(tolerance*.55));
-    const p=map.latLngToContainerPoint(latlng);
-    const a=map.containerPointToLatLng(L.point(p.x-tolerance-4,p.y+tolerance+4));
-    const b=map.containerPointToLatLng(L.point(p.x+tolerance+4,p.y-tolerance-4));
+    const p=MAP_RUNTIME.latLngToPixel(latlng);
+    const a=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(p.x-tolerance-4,p.y+tolerance+4));
+    const b=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(p.x+tolerance+4,p.y-tolerance-4));
     const latMin=Math.min(a.lat,b.lat),latMax=Math.max(a.lat,b.lat);
     const lngMin=Math.min(a.lng,b.lng),lngMax=Math.max(a.lng,b.lng);
     const referenceLng=latlng.lng;
@@ -17571,7 +17544,7 @@ showAutosaveRecoveryIfAvailable();
 
   // Refresh dense display caches when zoom changes; inactive features switch LOD
   // without touching their full editable/export geometry.
-  map.on('zoomend',()=>{
+  MAP_RUNTIME.on('zoomend',()=>{
     for(const rec of V130.layerCache.values()){
       if(rec?.feature&&rec.lodKey!=='full')rec.signature='';
     }
@@ -17932,18 +17905,18 @@ showAutosaveRecoveryIfAvailable();
   zoomFeature=function(fid){
     const r=ref(fid);
     const b=r?featureBBox(r.feature):null;
-    if(b)try{map.fitBounds(leafletBounds(b),{padding:[24,24]});}catch(_){}
+    if(b)try{MAP_RUNTIME.fitExtent(b,{padding:[24,24]});}catch(_){}
   };
   zoomSelected=function(){
     const r=ref();
     const b=r?featureBBox(r.feature):null;
-    if(b)try{map.fitBounds(leafletBounds(b),{padding:[24,24]});}catch(_){}
+    if(b)try{MAP_RUNTIME.fitExtent(b,{padding:[24,24]});}catch(_){}
   };
   zoomFile=function(fid){
     const file=project.files.find(f=>f.id===fid);
     if(!file)return;
     const b=v131UnionBbox((file.features||[]).filter(f=>f.visible!==false).map(featureBBox));
-    if(b)try{map.fitBounds(leafletBounds(b),{padding:[24,24]});}catch(_){}
+    if(b)try{MAP_RUNTIME.fitExtent(b,{padding:[24,24]});}catch(_){}
   };
   fitAll=function(){
     const boxes=[];
@@ -17955,7 +17928,7 @@ showAutosaveRecoveryIfAvailable();
       }
     }
     const b=v131UnionBbox(boxes);
-    if(b)try{map.fitBounds(leafletBounds(b),{padding:[24,24]});}catch(_){}
+    if(b)try{MAP_RUNTIME.fitExtent(b,{padding:[24,24]});}catch(_){}
   };
   $('fitAllBtn')&&($('fitAllBtn').onclick=fitAll);
   $('zoomBtn')&&($('zoomBtn').onclick=zoomSelected);
@@ -19310,21 +19283,21 @@ function circleDisplayCenterLatLng(value,referenceLng=null){
   const parsedReference=Number(referenceLng);
   const reference=referenceLng!==null&&referenceLng!==undefined&&referenceLng!==''&&Number.isFinite(parsedReference)
     ?parsedReference
-    :map.getCenter().lng;
-  return L.latLng(c.center[1],unwrapLongitudeNear(c.center[0],reference));
+    :MAP_RUNTIME.getCenter()[0];
+  return MAP_ADAPTER.latLng([unwrapLongitudeNear(c.center[0],reference),c.center[1]]);
 }
 function circleMetresForScreenRadius(center,pixelRadius){
   const c=Array.isArray(center)?center:normaliseParametricCircle(center).center;
   const centerLL=circleDisplayCenterLatLng({center:c,radiusMetres:1,fallbackSegments:72},c[0]);
-  const centerPoint=map.latLngToContainerPoint(centerLL);
+  const centerPoint=MAP_RUNTIME.latLngToPixel(centerLL);
   const px=Math.max(.01,Number(pixelRadius)||0);
-  const edgeLL=map.containerPointToLatLng(L.point(centerPoint.x+px,centerPoint.y));
-  return Math.max(.01,map.distance(centerLL,edgeLL));
+  const edgeLL=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(centerPoint.x+px,centerPoint.y));
+  return Math.max(.01,MAP_RUNTIME.distanceLatLng(centerLL,edgeLL));
 }
 function circleScreenRadiusPixels(value){
   const owner=value&&typeof value==='object'?value:null;
   const c=normaliseParametricCircle(value);
-  const zoom=map.getZoom();
+  const zoom=MAP_RUNTIME.getZoom();
   const key=`${c.center[0]}|${c.center[1]}|${c.radiusMetres}|${zoom}`;
   if(owner?._screenRadiusCache?.key===key)return owner._screenRadiusCache.radius;
   let low=0,high=1;
@@ -19348,18 +19321,18 @@ function circlePointLatLng(value,bearing=90,behavior=polygonMoveBehavior()){
   const center=circleDisplayCenterLatLng(c);
   if(behavior==='geographic'){
     const p=turf.destination(turf.point([center.lng,center.lat]),c.radiusMetres,bearing,{units:'meters'}).geometry.coordinates;
-    return L.latLng(p[1],unwrapLongitudeNear(p[0],center.lng));
+    return MAP_ADAPTER.latLng([unwrapLongitudeNear(p[0],center.lng),p[1]]);
   }
-  const point=map.latLngToContainerPoint(center);
+  const point=MAP_RUNTIME.latLngToPixel(center);
   const radius=circleScreenRadiusPixels(value);
   const angle=Number(bearing)*Math.PI/180;
-  return map.containerPointToLatLng(L.point(point.x+Math.sin(angle)*radius,point.y-Math.cos(angle)*radius));
+  return MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(point.x+Math.sin(angle)*radius,point.y-Math.cos(angle)*radius));
 }
 function circleContainsLatLng(value,ll,behavior=polygonMoveBehavior()){
   const c=normaliseParametricCircle(value);
   const center=circleDisplayCenterLatLng(c,ll.lng);
-  if(behavior==='geographic')return map.distance(center,ll)<=c.radiusMetres;
-  return map.latLngToContainerPoint(center).distanceTo(map.latLngToContainerPoint(ll))<=circleScreenRadiusPixels(value);
+  if(behavior==='geographic')return MAP_RUNTIME.distanceLatLng(center,ll)<=c.radiusMetres;
+  return MAP_RUNTIME.latLngToPixel(center).distanceTo(MAP_RUNTIME.latLngToPixel(ll))<=circleScreenRadiusPixels(value);
 }
 function materialiseCirclePolygon(value,segments){
   const c=normaliseParametricCircle({...value,fallbackSegments:segments??value.fallbackSegments}),n=c.fallbackSegments;
@@ -19421,7 +19394,7 @@ function finishCircleFromPreview(){
   if(!Number.isFinite(pixelRadius)||pixelRadius<4)return setStatus('Circle radius is too small. Drag at least 4 pixels from the centre.','error');
   const radius=circleMetresForScreenRadius(D.points[0],pixelRadius);if(!(radius>0))return setStatus('Circle radius must be greater than zero.','error');
   pushHistory();const file=(typeof v135ActiveDrawingFile==='function'?v135ActiveDrawingFile():null)||ensureScratch(),f=createParametricCircleFeature(D.points[0],radius,getDrawSegments(),`Circle ${file.features.length+1}`,file);file.features.push(f);
-  D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.stage=0;if(map.doubleClickZoom)map.doubleClickZoom.enable();project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:'circle'});setStatus(`${f.name} created as a true curve.`);return f;
+  D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.stage=0;MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:'circle'});setStatus(`${f.name} created as a true curve.`);return f;
 }
 const v136DAddPoint=DAddPoint;DAddPoint=function(latlng,ev=null){if(D.active&&D.kind==='circle'&&D.points.length){D.cursor=constrainedDrawCoord(latlng,ev).coord;return finishCircleFromPreview();}return v136DAddPoint(latlng,ev);};
 const v136DFinish=DFinish;DFinish=function(){return D.active&&D.kind==='circle'?finishCircleFromPreview():v136DFinish();};
@@ -19501,12 +19474,12 @@ function buildCircleEditHandles(){
     const ll=event.target.getLatLng(),center=circleDisplayCenterLatLng(f.parametricGeometry,ll.lng);
     let radiusMetres;
     if(polygonMoveBehavior()==='screen'){
-      const centerPoint=map.latLngToContainerPoint(center),edgePoint=map.latLngToContainerPoint(ll);
+      const centerPoint=MAP_RUNTIME.latLngToPixel(center),edgePoint=MAP_RUNTIME.latLngToPixel(ll);
       const dx=edgePoint.x-centerPoint.x,dy=edgePoint.y-centerPoint.y;
       radiusMetres=circleMetresForScreenRadius([center.lng,center.lat],Math.max(.01,Math.hypot(dx,dy)));
       CIRCLE_EDIT.bearing=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
     }else{
-      radiusMetres=Math.max(.01,map.distance(center,ll));
+      radiusMetres=Math.max(.01,MAP_RUNTIME.distanceLatLng(center,ll));
       try{CIRCLE_EDIT.bearing=turf.bearing(turf.point(f.parametricGeometry.center),turf.point([ll.lng,ll.lat]));}catch(_){CIRCLE_EDIT.bearing=90;}
     }
     f.parametricGeometry=normaliseParametricCircle({...f.parametricGeometry,radiusMetres});
@@ -19754,7 +19727,7 @@ function gisSyncBasemapOptions(){
   }
 }
 function gisLayerWithinZoom(layer){
-  const zoom=map.getZoom();
+  const zoom=MAP_RUNTIME.getZoom();
   return (layer.minZoom==null||zoom>=layer.minZoom)&&(layer.maxZoom==null||zoom<=layer.maxZoom);
 }
 function syncGisRuntime(){
@@ -19996,20 +19969,20 @@ function gisZoomLayer(key){
     if(key.startsWith('editable:')){
       const file=project.files.find(item=>item.id===key.slice(9));if(!file)return false;
       const features=(file.features||[]).map(featJSON);if(!features.length)return false;
-      map.fitBounds(leafletBounds(turf.bbox({type:'FeatureCollection',features})),{padding:[36,36]});return true;
+      MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features}),{padding:[36,36]});return true;
     }
     if(key.startsWith('reference:')){
       const item=gisReferenceStore().items.find(entry=>entry.id===key.slice(10));if(!item)return false;
       let bounds=item.bounds;
       if(!bounds&&item.data)bounds=turf.bbox(item.data);
-      if(bounds){map.fitBounds([[bounds[1],bounds[0]],[bounds[3],bounds[2]]],{padding:[36,36]});return true;}
+      if(bounds){MAP_RUNTIME.fitExtent(bounds,{padding:[36,36]});return true;}
     }
     if(key.startsWith('image:')){
       const item=imageOverlayById(key.slice(6));if(!item)return false;
-      const corners=imageRectCorners(item);const lngs=corners.map(c=>c[0]),lats=corners.map(c=>c[1]);map.fitBounds([[Math.min(...lats),Math.min(...lngs)],[Math.max(...lats),Math.max(...lngs)]],{padding:[36,36]});return true;
+      const corners=imageRectCorners(item);const lngs=corners.map(c=>c[0]),lats=corners.map(c=>c[1]);MAP_RUNTIME.fitExtent([Math.min(...lngs),Math.min(...lats),Math.max(...lngs),Math.max(...lats)],{padding:[36,36]});return true;
     }
     if(key.startsWith('custom:')){
-      const layer=gisLayerById(key.slice(7)),source=layer&&gisSourceById(layer.sourceId);if(source?.bounds){const b=source.bounds;map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[36,36]});return true;}
+      const layer=gisLayerById(key.slice(7)),source=layer&&gisSourceById(layer.sourceId);if(source?.bounds){const b=source.bounds;MAP_RUNTIME.fitExtent(b,{padding:[36,36]});return true;}
     }
   }catch(err){console.warn('Could not zoom GIS layer',err);}
   return false;
@@ -20082,7 +20055,7 @@ async function gisImportRemoteGeoJson({url,name,mode='editable',color='#1664d6'}
   if(mode==='reference'){
     const store=gisReferenceStore();
     const item={id:uid('ref'),type:'geojson',name:safeName,data:fc,color,fillColor:color,opacity:.8,weight:2,fillOpacity:.15,visible:true,locked:false,remoteUrl:target,createdAt:new Date().toISOString()};
-    store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-geojson-reference');gisNotify();try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }setStatus(`Added remote GeoJSON reference: ${safeName}.`);return {mode,item};
+    store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-geojson-reference');gisNotify();try{MAP_RUNTIME.fitExtent(turf.bbox(fc),{padding:[36,36]});}catch(_){ }setStatus(`Added remote GeoJSON reference: ${safeName}.`);return {mode,item};
   }
   const models=[];
   flattenSupportedFeatures(fc.features||[]).forEach((raw,index)=>{
@@ -20175,7 +20148,7 @@ window.writeAutosaveNow=writeAutosaveNow;
 const v140BaseRenderAll=renderAll;
 renderAll=function(){const result=v140BaseRenderAll.apply(this,arguments);try{syncGisRuntime();gisNotify();}catch(err){console.warn('GIS runtime sync failed',err);}return result;};
 window.renderAll=renderAll;
-map.on('zoomend',()=>{try{syncGisRuntime();gisNotify();}catch(_){ }});
+MAP_RUNTIME.on('zoomend',()=>{try{syncGisRuntime();gisNotify();}catch(_){ }});
 $('basemap')?.addEventListener('change',event=>{
   if(GIS_RUNTIME.restoring)return;
   const value=event.target.value;
@@ -20428,7 +20401,7 @@ function gisProcess(fileId,operation,params={}){const file=gisEditableFile(fileI
   return gisCreateOutputFile(name,output,params.color||'#7c3aed',{operation,sourceFileId:fileId,parameters:gisClone(params)});
 }
 function gisSelectFeatureById(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;project.selectedFileId=fileId;selectFeature(featureId);return true;}
-function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;try{map.fitBounds(leafletBounds(turf.bbox(featJSON(f))),{padding:[40,40],maxZoom:17});return true;}catch(_){return false;}}
+function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(f)),{padding:[40,40],maxZoom:17});return true;}catch(_){return false;}}
 function gisSetFeatureVisibility(fileId,featureId,visible){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;f.visible=visible!==false;renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`${f.visible?'Shown':'Hidden'} ${gisFeatureTitle(file,f)}.`);return true;}
 function gisShowAllHidden(fileId){const file=gisEditableFile(fileId);if(!file)return 0;let count=0;for(const f of file.features||[])if(f.visible===false){f.visible=true;count++;}if(count){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Shown ${count} hidden feature${count===1?'':'s'} in ${file.name}.`);}return count;}
 function gisClearFeatureOverrides(fileId){const file=gisEditableFile(fileId);if(!file)return {shown:0,unlocked:0};let shown=0,unlocked=0;for(const f of file.features||[]){if(f.visible===false){f.visible=true;shown++;}if(f.locked){f.locked=false;unlocked++;}}if(shown||unlocked){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Cleared feature overrides in ${file.name}.`);}return {shown,unlocked};}
@@ -20612,7 +20585,7 @@ window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editabl
   const safeName=String(name||'Remote GeoJSON').trim()||'Remote GeoJSON';
   if(mode==='reference'){
     const store=gisReferenceStore(),item={id:uid('ref'),type:'geojson',name:safeName,data:fc,color,fillColor:color,opacity:.8,weight:2,fillOpacity:.15,visible:true,locked:false,remoteUrl:target,sourceCrs,storageCrs:'EPSG:4326',createdAt:new Date().toISOString()};
-    store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-geojson-reference');gisNotify();try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }setStatus(`Added remote GeoJSON reference: ${safeName}.`);return {mode,item};
+    store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-geojson-reference');gisNotify();try{MAP_RUNTIME.fitExtent(turf.bbox(fc),{padding:[36,36]});}catch(_){ }setStatus(`Added remote GeoJSON reference: ${safeName}.`);return {mode,item};
   }
   const models=[];flattenSupportedFeatures(fc.features||[]).forEach((raw,index)=>{const model=normalize(raw,featureName(raw,`${safeName} ${index+1}`));if(model){applyColor(model,color);models.push(model);}});if(!models.length)throw Error('The remote source contains no supported Point, LineString or Polygon features.');
   const nativeCrs=gisCrsCore().supported(sourceCrs)?sourceCrs:'EPSG:4326';const file={id:uid('file'),name:safeName,sourceFormat:'remote-geojson',sourceUrl:target,visible:true,color,features:models,gisStorageCrs:'EPSG:4326',gisSourceCrs:sourceCrs,gisCrs:nativeCrs,gisExportCrs:nativeCrs};
@@ -20838,7 +20811,7 @@ window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editabl
       const store=gisReferenceStore();
       const item={id:uid('ref'),type:'geojson',name:safeName,data:fc,color,fillColor:color,opacity:.8,weight:2,fillOpacity:.15,visible:true,locked:false,remoteUrl:sourceUrl,sourceCrs,storageCrs:'EPSG:4326',remoteSource:sourceDetails,createdAt:new Date().toISOString()};
       store.items.push(item);store.selectedId=item.id;setDirty(true);
-      if(!deferRender){renderAll();writeAutosaveNow?.('remote-web-data-reference');gisNotify();try{map.fitBounds(leafletBounds(turf.bbox(fc)),{padding:[36,36]});}catch(_){ }setStatus(`Added remote reference: ${safeName}.`);}
+      if(!deferRender){renderAll();writeAutosaveNow?.('remote-web-data-reference');gisNotify();try{MAP_RUNTIME.fitExtent(turf.bbox(fc),{padding:[36,36]});}catch(_){ }setStatus(`Added remote reference: ${safeName}.`);}
       return {mode,item,resolved};
     }
 
@@ -20953,7 +20926,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       }).addTo(POINT_EDIT.group);
       marker.on('dragstart',()=>{
         pushHistory([r.feature.id]);POINT_EDIT.changed=false;
-        try{map.dragging.disable();}catch(_){ }
+        try{MAP_RUNTIME.setPanEnabled(false);}catch(_){ }
         setStatus('Moving point. Release to save the new location.');
       });
       marker.on('drag',event=>{
@@ -20961,7 +20934,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
         POINT_EDIT.changed=true;
       });
       marker.on('dragend',event=>{
-        try{map.dragging.enable();}catch(_){ }
+        try{MAP_RUNTIME.setPanEnabled(true);}catch(_){ }
         let ll=event.target.getLatLng();
         try{
           const snap=snappedLatLng(ll,{event:event.originalEvent||null,excludeFeatureId:r.feature.id});
@@ -21044,7 +21017,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:{color,fillColor:color,weight:2,fillOpacity:.9,radius:6}};
     feature.properties.name=feature.name;file.features.push(feature);
     D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
-    if(map.doubleClickZoom)map.doubleClickZoom.enable();project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=feature.id;
+    MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=feature.id;
     clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:feature.id,type:geometry.type});setStatus(`${feature.name} created.`);return feature;
   };
   const v146BaseDAddPoint=DAddPoint;
@@ -21323,9 +21296,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(!ids.length)ids=(project.files||[]).filter(file=>file.visible!==false).map(file=>file.id);
     return [...new Set(ids)].map(gisEditableFile).filter(file=>file&&file.visible!==false);
   }
-  function screenPoint(event){const host=map.getContainer(),r=host.getBoundingClientRect();return L.point(event.clientX-r.left,event.clientY-r.top);}
+  function screenPoint(event){const host=MAP_RUNTIME.getContainer(),r=host.getBoundingClientRect();return MAP_ADAPTER.point(event.clientX-r.left,event.clientY-r.top);}
   function svgPath(points,{close=false}={}){return points.length?`M ${points.map(point=>`${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' L ')}${close&&points.length>2?' Z':''}`:'';}
-  function geoCoordinates(points,close=false){const coordinates=points.map(point=>{const ll=map.containerPointToLatLng(point);return [ll.lng,ll.lat];});if(close&&coordinates.length&&((coordinates[0][0]!==coordinates.at(-1)[0])||(coordinates[0][1]!==coordinates.at(-1)[1])))coordinates.push([...coordinates[0]]);return coordinates;}
+  function geoCoordinates(points,close=false){const coordinates=points.map(point=>{const ll=MAP_RUNTIME.pixelToLatLng(point);return [ll.lng,ll.lat];});if(close&&coordinates.length&&((coordinates[0][0]!==coordinates.at(-1)[0])||(coordinates[0][1]!==coordinates.at(-1)[1])))coordinates.push([...coordinates[0]]);return coordinates;}
   function selectionPolygonGeometry(points){if(points.length<3)return null;return {type:'Polygon',coordinates:[geoCoordinates(points,true)]};}
   function formatMetricDistance(metres){if(!Number.isFinite(metres))return '—';if(metres>=1000000)return `${(metres/1000).toLocaleString(undefined,{maximumFractionDigits:0})} km`;if(metres>=1000)return `${(metres/1000).toLocaleString(undefined,{maximumFractionDigits:2})} km`;return `${metres.toLocaleString(undefined,{maximumFractionDigits:1})} m`;}
   function formatMetricArea(squareMetres){if(!Number.isFinite(squareMetres))return '—';if(squareMetres>=1000000)return `${(squareMetres/1000000).toLocaleString(undefined,{maximumFractionDigits:2})} km²`;if(squareMetres>=10000)return `${(squareMetres/10000).toLocaleString(undefined,{maximumFractionDigits:2})} ha`;return `${squareMetres.toLocaleString(undefined,{maximumFractionDigits:1})} m²`;}
@@ -21333,13 +21306,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(!geometry)return {area:0,perimeter:0};
     try{const feature={type:'Feature',properties:{},geometry},line=turf.polygonToLine(feature);return {area:turf.area(feature),perimeter:turf.length(line,{units:'kilometers'})*1000};}catch(_){return {area:0,perimeter:0};}
   }
-  function rectangleGeometry(start,end){const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(end),west=Math.min(a.lng,b.lng),east=Math.max(a.lng,b.lng),south=Math.min(a.lat,b.lat),north=Math.max(a.lat,b.lat);return {type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]};}
+  function rectangleGeometry(start,end){const a=MAP_RUNTIME.pixelToLatLng(start),b=MAP_RUNTIME.pixelToLatLng(end),west=Math.min(a.lng,b.lng),east=Math.max(a.lng,b.lng),south=Math.min(a.lat,b.lat),north=Math.max(a.lat,b.lat);return {type:'Polygon',coordinates:[[[west,south],[east,south],[east,north],[west,north],[west,south]]]};}
   function rectangleMetrics(start,end){
-    const a=map.containerPointToLatLng(start),b=map.containerPointToLatLng(end),horizontal=turf.distance([a.lng,a.lat],[b.lng,a.lat],{units:'kilometers'})*1000,vertical=turf.distance([a.lng,a.lat],[a.lng,b.lat],{units:'kilometers'})*1000,geometry=rectangleGeometry(start,end);return {geometry,width:horizontal,height:vertical,...polygonMetrics(geometry)};
+    const a=MAP_RUNTIME.pixelToLatLng(start),b=MAP_RUNTIME.pixelToLatLng(end),horizontal=turf.distance([a.lng,a.lat],[b.lng,a.lat],{units:'kilometers'})*1000,vertical=turf.distance([a.lng,a.lat],[a.lng,b.lat],{units:'kilometers'})*1000,geometry=rectangleGeometry(start,end);return {geometry,width:horizontal,height:vertical,...polygonMetrics(geometry)};
   }
   function updateSelectionMetric(text='',point=null){
     if(MAP_SELECT.metric)MAP_SELECT.metric.textContent=text||'Move over the map to begin.';
-    if(MAP_SELECT.cursorMetric){MAP_SELECT.cursorMetric.textContent=text;MAP_SELECT.cursorMetric.hidden=!text||!point;if(point){MAP_SELECT.cursorMetric.style.left=`${Math.min(point.x+16,map.getContainer().clientWidth-210)}px`;MAP_SELECT.cursorMetric.style.top=`${Math.max(10,point.y-42)}px`;}}
+    if(MAP_SELECT.cursorMetric){MAP_SELECT.cursorMetric.textContent=text;MAP_SELECT.cursorMetric.hidden=!text||!point;if(point){MAP_SELECT.cursorMetric.style.left=`${Math.min(point.x+16,MAP_RUNTIME.getContainer().clientWidth-210)}px`;MAP_SELECT.cursorMetric.style.top=`${Math.max(10,point.y-42)}px`;}}
   }
   function drawSelectionVertices(points){if(!MAP_SELECT.vertices)return;MAP_SELECT.vertices.replaceChildren(...points.map((point,index)=>{const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');circle.setAttribute('cx',point.x);circle.setAttribute('cy',point.y);circle.setAttribute('r',index===0&&points.length>2?'6':'4');circle.classList.toggle('first',index===0);return circle;}));}
   function currentPolygonPreview(){return MAP_SELECT.cursor?[...MAP_SELECT.points,MAP_SELECT.cursor]:[...MAP_SELECT.points];}
@@ -21361,7 +21334,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   function undoMapSelectionPoint(){if(!MAP_SELECT.active||MAP_SELECT.kind!=='polygon')return;MAP_SELECT.points.pop();drawMapSelection();}
   function ensureMapSelectionOverlay(){
-    if(MAP_SELECT.overlay)return MAP_SELECT.overlay;const host=map.getContainer(),overlay=document.createElement('div');overlay.className='gis-spatial-select-overlay';overlay.hidden=true;overlay.innerHTML='<svg aria-hidden="true"><path class="gis-spatial-select-path"></path><path class="gis-spatial-select-preview"></path><rect class="gis-spatial-select-rect"></rect><g class="gis-spatial-select-vertices"></g></svg><div class="gis-spatial-select-banner"><div><strong></strong><span></span><em data-metric></em></div><div class="gis-spatial-select-actions"><button type="button" data-undo>Undo point</button><button type="button" data-finish>Finish</button><button type="button" data-cancel>Cancel</button></div></div><div class="gis-spatial-select-cursor-metric" hidden></div>';host.appendChild(overlay);MAP_SELECT.overlay=overlay;MAP_SELECT.svg=overlay.querySelector('svg');MAP_SELECT.path=overlay.querySelector('.gis-spatial-select-path');MAP_SELECT.previewPath=overlay.querySelector('.gis-spatial-select-preview');MAP_SELECT.rect=overlay.querySelector('rect');MAP_SELECT.vertices=overlay.querySelector('.gis-spatial-select-vertices');MAP_SELECT.banner=overlay.querySelector('.gis-spatial-select-banner');MAP_SELECT.metric=overlay.querySelector('[data-metric]');MAP_SELECT.cursorMetric=overlay.querySelector('.gis-spatial-select-cursor-metric');
+    if(MAP_SELECT.overlay)return MAP_SELECT.overlay;const host=MAP_RUNTIME.getContainer(),overlay=document.createElement('div');overlay.className='gis-spatial-select-overlay';overlay.hidden=true;overlay.innerHTML='<svg aria-hidden="true"><path class="gis-spatial-select-path"></path><path class="gis-spatial-select-preview"></path><rect class="gis-spatial-select-rect"></rect><g class="gis-spatial-select-vertices"></g></svg><div class="gis-spatial-select-banner"><div><strong></strong><span></span><em data-metric></em></div><div class="gis-spatial-select-actions"><button type="button" data-undo>Undo point</button><button type="button" data-finish>Finish</button><button type="button" data-cancel>Cancel</button></div></div><div class="gis-spatial-select-cursor-metric" hidden></div>';host.appendChild(overlay);MAP_SELECT.overlay=overlay;MAP_SELECT.svg=overlay.querySelector('svg');MAP_SELECT.path=overlay.querySelector('.gis-spatial-select-path');MAP_SELECT.previewPath=overlay.querySelector('.gis-spatial-select-preview');MAP_SELECT.rect=overlay.querySelector('rect');MAP_SELECT.vertices=overlay.querySelector('.gis-spatial-select-vertices');MAP_SELECT.banner=overlay.querySelector('.gis-spatial-select-banner');MAP_SELECT.metric=overlay.querySelector('[data-metric]');MAP_SELECT.cursorMetric=overlay.querySelector('.gis-spatial-select-cursor-metric');
     overlay.addEventListener('pointerdown',event=>{
       if(!MAP_SELECT.active||event.target.closest('button'))return;event.preventDefault();event.stopPropagation();const point=screenPoint(event);MAP_SELECT.cursor=point;
       if(MAP_SELECT.kind==='rectangle'){MAP_SELECT.dragStart=point;MAP_SELECT.pointerId=event.pointerId;overlay.setPointerCapture(event.pointerId);MAP_SELECT.rect.setAttribute('x',point.x);MAP_SELECT.rect.setAttribute('y',point.y);MAP_SELECT.rect.setAttribute('width',0);MAP_SELECT.rect.setAttribute('height',0);}
@@ -21404,8 +21377,8 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   });
 
   const CANVAS_RENDERER=L.canvas({padding:.5,tolerance:8});
-  function renderViewKey(){const b=map.getBounds().pad(.35);return [map.getZoom(),b.getWest().toFixed(4),b.getSouth().toFixed(4),b.getEast().toFixed(4),b.getNorth().toFixed(4)].join('|');}
-  function renderCandidateFeatures(file){const b=map.getBounds().pad(.35),bbox=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()],ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
+  function renderViewKey(){const b=MAP_RUNTIME.getExtent(.35);return [MAP_RUNTIME.getZoom(),...b.map(value=>value.toFixed(4))].join('|');}
+  function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
   function renderSignature(file,features,viewKey){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
@@ -22278,7 +22251,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     try{if(geometryHealthIssueMarker)map.removeLayer(geometryHealthIssueMarker);}catch(_){ }
     geometryHealthIssueMarker=null;
     if(Array.isArray(location)&&location.length>=2&&Number.isFinite(Number(location[0]))&&Number.isFinite(Number(location[1]))){
-      try{geometryHealthIssueMarker=L.circleMarker([Number(location[1]),Number(location[0])],{radius:8,color:'#b42318',weight:3,fillColor:'#fff',fillOpacity:.9,interactive:false}).addTo(map);map.panInside([Number(location[1]),Number(location[0])],{padding:[70,70]});}catch(_){ }
+      try{geometryHealthIssueMarker=L.circleMarker([Number(location[1]),Number(location[0])],{radius:8,color:'#b42318',weight:3,fillColor:'#fff',fillOpacity:.9,interactive:false}).addTo(map);MAP_RUNTIME.panInside([Number(location[0]),Number(location[1])],{padding:[70,70]});}catch(_){ }
     }
     return true;
   }

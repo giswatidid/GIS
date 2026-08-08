@@ -37,3 +37,11 @@ GeoJSON is fetched directly and copied into the local browser project. ArcGIS Fe
 ## Known boundary of this release
 
 This is the layer/source foundation, not the completion of every desktop GIS capability. It deliberately does not yet add attribute tables, arbitrary CRS reprojection, WMTS capabilities discovery, vector-tile styling, GeoPackage editing, SQL or GEOS-WASM processing. Those should be built on the new source/layer boundary rather than patched into the legacy UI independently.
+
+## v1.55 map-engine boundary
+
+v1.55.0 adds a formal map runtime before the planned OpenLayers renderer migration. The project, source, layer, feature, CRS and history models remain independent of the renderer and continue to use canonical WGS84 GeoJSON coordinates.
+
+`docs/assets/editpolygon-map-adapter.js` now owns map lifecycle, view state, coordinate/pixel conversion, extent fitting, normalised map events and interaction-state controls. The production implementation still wraps Leaflet in v1.55.0. Renderer-specific layer construction remains transitional work for the OpenLayers parity phase rather than being mixed into the abstraction release.
+
+The active runtime is exposed as `window.EditPolygonMap`. `getNativeMap()` and the legacy Leaflet map globals remain temporary compatibility bridges only; new editor logic should use the map runtime contract instead of adding new direct Leaflet viewport or interaction dependencies.

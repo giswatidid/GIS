@@ -19,5 +19,5 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260807-geometry-health-1542/);
+  assert.match(html,/editpolygon-app\.js\?v=20260807-map-abstraction-1550/);
 });
