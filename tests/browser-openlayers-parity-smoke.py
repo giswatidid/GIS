@@ -23,7 +23,7 @@ class Lyr{constructor(o={}){this.o=o;this.v=o.visible!==false}setVisible(v){this
 class Group extends Lyr{}
 class F{constructor(o={}){Object.assign(this,o)}setStyle(s){this.style=s}} class Pt{constructor(c){this.c=c}} class GJ{readFeature(raw){return new F({raw})}}
 class Sty{constructor(o){this.o=o}}
-window.ol={Map:M,View:V,Feature:F,geom:{Point:Pt},format:{GeoJSON:GJ},proj:{fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(x=>x*1000)},extent:{containsCoordinate:()=>false},interaction:{defaults:()=>new C(),DragPan,DoubleClickZoom},control:{defaults:()=>new C()},layer:{Tile:Lyr,Vector:Lyr,Group},source:{XYZ:S,TileWMS:S,Vector:VS},style:{Style:Sty,Stroke:Sty,Fill:Sty,Circle:Sty,Text:Sty}};
+window.ol={Map:M,View:V,Feature:F,geom:{Point:Pt},format:{GeoJSON:GJ},proj:{fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(x=>x*1000)},extent:{containsCoordinate:()=>false},interaction:{DragPan,DoubleClickZoom},control:{},layer:{Tile:Lyr,Vector:Lyr,Group},source:{XYZ:S,TileWMS:S,Vector:VS},style:{Style:Sty,Stroke:Sty,Fill:Sty,Circle:Sty,Text:Sty}};
 function cls(){const s=new Set();return{contains:v=>s.has(v),add:(...v)=>v.forEach(x=>s.add(x)),remove:(...v)=>v.forEach(x=>s.delete(x))}}
 class LM{constructor(){this.z=4;this.c={lat:-27,lng:153};this.dragging={enable(){},disable(){},enabled:()=>false};this.doubleClickZoom={enable(){},disable(){},enabled:()=>false};this.classList=cls()}setView(ll,z){this.c={lat:ll[0],lng:ll[1]};this.z=z}invalidateSize(){}getPane(){return{}}createPane(){return{style:{}}}}
 window.L={map:()=>new LM(),canvas:()=>({}),DomEvent:{stop(){}},latLng:(lat,lng)=>({lat,lng})};

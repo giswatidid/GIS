@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.1';
+  const VERSION='1.55.1.1';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -97,7 +97,11 @@
     if(!target)throw new Error('Map target was not found.');
     const center=lonLat(options.center||[0,20]),zoom=Number.isFinite(Number(options.zoom))?Number(options.zoom):3;
     const view=new ol.View({center:ol.proj.fromLonLat(center),zoom,minZoom:0,maxZoom:22,constrainResolution:false});
-    const nativeMap=new ol.Map({target,layers:[],view,controls:ol.control?.defaults?ol.control.defaults({rotate:false}):undefined,interactions:ol.interaction?.defaults?ol.interaction.defaults({doubleClickZoom:options.doubleClickZoom!==false}):undefined});
+    const nativeMap=new ol.Map({target,layers:[],view,controls:[]});
+    if(options.doubleClickZoom===false){
+      const dbl=(nativeMap.getInteractions?.().getArray?.()||[]).find(i=>i?.constructor?.name==='DoubleClickZoom');
+      dbl?.setActive?.(false);
+    }
 
     const compatTarget=global.document.createElement('div');
     compatTarget.className='editpolygon-leaflet-compat';
