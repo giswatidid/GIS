@@ -37,13 +37,15 @@ test('overlap picker is geometry neutral',()=>{
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
 
-test('OpenLayers click selection combines renderer hit detection with canonical true-circle hit testing',()=>{
-  const block=app.slice(app.indexOf('function featuresAtLatLng'),app.indexOf('function mapSelectionHooks'));
-  assert.match(block,/nativeHitIds=new Set/);
+test('OpenLayers click selection resolves rendered hits directly and tests the visible true-circle footprint in pixels',()=>{
+  const start=app.indexOf('function trueCircleHitAtPixel');
+  const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
+  assert.ok(start>=0);
+  assert.match(block,/function trueCircleHitAtPixel\(feature,pixel,latlng=null\)/);
+  assert.match(block,/centerPixel\.distanceTo\(hitPixel\)<=circleScreenRadiusPixels/);
   assert.match(block,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
-  assert.match(block,/canonicalCircleHit=isParametricCircleFeature/);
-  assert.match(block,/if\(canonicalCircleHit\)\{out\.push\(row\);continue;\}/);
-  assert.match(block,/nativeHit\|\|featureHitAtMapPoint/);
-  assert.doesNotMatch(block,/if\(nativeRows\.length\)return nativeRows/);
-  assert.match(app,/isParametricCircleFeature\(feature\).*circleContainsLatLng/s);
+  assert.match(block,/fileOfFeature\(String\(id\)\)/);
+  assert.match(block,/hits\.set\(String\(row\.feature\.id\),row\)/);
+  assert.match(block,/trueCircleHitAtPixel\(row\.feature,hitPixel,latlng\)/);
+  assert.doesNotMatch(block,/if\(isLocked\(row\.file,row\.feature\)\)continue/);
 });

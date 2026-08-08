@@ -19,5 +19,14 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-15517-circle-measure-edit-history/);
+  assert.match(html,/editpolygon-app\.js\?v=20260808-openlayers-parity-15518-circle-click-pan-swap/);
+});
+
+
+test('OpenLayers cached vector swaps add the replacement before removing the old layer to avoid pan flicker',()=>{
+  const start=app.indexOf('function cachedRenderMap()');
+  const block=app.slice(start,app.indexOf('function invalidateRenderCache',start));
+  assert.ok(start>=0);
+  assert.match(block,/if\(MAP_RUNTIME\.engine==='openlayers'\)\{\s*addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\);/s);
+  assert.match(block,/else\{\s*if\(cached\)removeCachedLayer\(cached\.group\);addCachedLayer\(group\);/s);
 });

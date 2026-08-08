@@ -3165,37 +3165,44 @@ function featureHitAtMapPoint(feature,file,latlng,pixel){
   }catch(_){ }
   return false;
 }
+function trueCircleHitAtPixel(feature,pixel,latlng=null){
+  if(!isParametricCircleFeature(feature)||!pixel)return false;
+  try{
+    const hitPixel=MAP_ADAPTER.point(pixel),referenceLng=latlng?.lng;
+    const center=circleDisplayCenterLatLng(feature.parametricGeometry,referenceLng),centerPixel=MAP_RUNTIME.latLngToPixel(center);
+    if(polygonMoveBehavior()==='screen'){
+      return centerPixel.distanceTo(hitPixel)<=circleScreenRadiusPixels(feature.parametricGeometry)+mapHitTolerancePx(feature);
+    }
+    const ll=latlng||MAP_RUNTIME.pixelToLatLng(hitPixel);
+    return MAP_RUNTIME.distanceLatLng(center,ll)<=feature.parametricGeometry.radiusMetres;
+  }catch(_){return false;}
+}
 function featuresAtLatLng(latlng,pixel=null){
-  const out=[],rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng),nativeHitIds=new Set();
-  // OpenLayers hit detection is useful, but it is an additional signal rather
-  // than an exclusive fast-path.  True circles are canonical centre+radius
-  // objects while the renderer paints a materialised display polygon, so the
-  // manual circle test must always be allowed to participate as well.
+  const rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng),byId=new Map(rows.map(row=>[String(row.feature.id),row])),hits=new Map();
+  // Prefer the actual rendered OpenLayers feature under the pointer.  Resolve
+  // those ids directly back to project features instead of making them pass
+  // through the legacy bbox/manual hit-test first.  This is particularly
+  // important for true circles, whose canonical model is centre+radius while
+  // the renderer displays a materialised polygon.
   if(MAP_RUNTIME.engine==='openlayers'&&typeof MAP_RUNTIME.editableFeatureIdsAtPixel==='function'){
-    for(const id of MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10})||[])nativeHitIds.add(String(id));
+    for(const id of MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10})||[]){
+      const row=byId.get(String(id))||(()=>{const r=fileOfFeature(String(id));return r?{file:r.file,feature:r.feature,fileIndex:project.files.indexOf(r.file),featureIndex:r.index}:null;})();
+      if(row&&!isFeatureSleeping(row.file,row.feature))hits.set(String(row.feature.id),row);
+    }
   }
   for(const row of rows){
-    if(isLocked(row.file,row.feature))continue;
-    const nativeHit=nativeHitIds.has(String(row.feature.id));
-    // A true circle's visible screen footprint is defined by its canonical
-    // centre/radius plus the current move/display behaviour. Test that footprint
-    // before bbox pruning so click selection cannot miss a circle that every
-    // other selection mode can already select.
-    const canonicalCircleHit=isParametricCircleFeature(row.feature)&&circleContainsLatLng(row.feature.parametricGeometry,latlng);
-    if(canonicalCircleHit){out.push(row);continue;}
-    const tolerance=mapHitTolerancePx(row.feature,row.file);
-    if(!nativeHit){
-      const nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance));
-      const se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
-      const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng));
-      const latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat));
-      const fb=featureBBox(row.feature);
-      if(fb && (latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
-    }
-    if(nativeHit||featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))out.push(row);
+    const id=String(row.feature.id);if(hits.has(id))continue;
+    // Locked geometry remains selectable; locking prevents edits, not inspection.
+    // Test true circles in screen space against the exact visible footprint so
+    // ordinary click selection matches rectangle/polygon/lasso selection.
+    if(trueCircleHitAtPixel(row.feature,hitPixel,latlng)){hits.set(id,row);continue;}
+    const tolerance=mapHitTolerancePx(row.feature,row.file),nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance)),se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
+    const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng)),latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat)),fb=featureBBox(row.feature);
+    if(fb&&(latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
+    if(featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))hits.set(id,row);
   }
-  // Top-most first: last rendered is on top.
-  return out.reverse();
+  const rank=new Map(rows.map((row,index)=>[String(row.feature.id),index]));
+  return [...hits.values()].sort((a,b)=>(rank.get(String(b.feature.id))??-1)-(rank.get(String(a.feature.id))??-1));
 }
 function mapSelectionHooks(){return window.__editPolygonLayersV133||null;}
 function applyMapFeatureSelection(featureId,modifiers={}){
@@ -21519,8 +21526,17 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     for(const file of project.files||[]){
       if(isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
       if(cached?.signature===signature){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
-      if(cached)removeCachedLayer(cached.group);
-      const group=MAP_RUNTIME.engine==='openlayers'?buildOpenLayersCachedLayer(file,features):buildCachedLayer(file,features);addCachedLayer(group);ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
+      const group=MAP_RUNTIME.engine==='openlayers'?buildOpenLayersCachedLayer(file,features):buildCachedLayer(file,features);
+      // OpenLayers renders asynchronously. Removing the previous vector layer
+      // before adding its replacement can expose one empty canvas frame at the
+      // end of a pan. Add the replacement first, then retire the old layer in
+      // the same task so there is never a blank intermediate map state.
+      if(MAP_RUNTIME.engine==='openlayers'){
+        addCachedLayer(group);if(cached)removeCachedLayer(cached.group);
+      }else{
+        if(cached)removeCachedLayer(cached.group);addCachedLayer(group);
+      }
+      ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
     }
     for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
     if(typeof gisRenderMapLegends==='function')gisRenderMapLegends();
