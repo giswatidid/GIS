@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.3';
+  const VERSION='1.55.4.4';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -271,17 +271,32 @@
     function getContainer(){return target;}
     function getSize(){const s=nativeMap.getSize?.()||[target.clientWidth||0,target.clientHeight||0];return point(s[0],s[1]);}
     function getZoom(){return finite(view.getZoom(),0);}
-    function getCenter(){const c=view.getCenter();return c?ol.proj.toLonLat(c):[0,0];}
+    // OpenLayers' public toLonLat() deliberately wraps longitude into the
+    // canonical -180..180 range. That is useful for labels, but it loses the
+    // horizontal world copy represented by an EPSG:3857 coordinate. Drawing,
+    // handles and viewport culling need the inverse transform to retain that
+    // continuous longitude branch. Recover it from the projected world width,
+    // then unwrap the canonical longitude to the projected x coordinate.
+    const projectedOriginX=(()=>{try{return finite(ol.proj.fromLonLat([0,0])?.[0],0);}catch(_){return 0;}})();
+    const projectedHalfWorld=(()=>{try{const x=Number(ol.proj.fromLonLat([180,0])?.[0]);return Number.isFinite(x)&&Math.abs(x-projectedOriginX)>1?Math.abs(x-projectedOriginX):20037508.342789244;}catch(_){return 20037508.342789244;}})();
+    function projectedToContinuousLonLat(coordinate){
+      if(!Array.isArray(coordinate)||coordinate.length<2)return [0,0];
+      let ll;try{ll=lonLat(ol.proj.toLonLat(coordinate));}catch(_){return [0,0];}
+      const x=Number(coordinate[0]),reference=Number.isFinite(x)?((x-projectedOriginX)/projectedHalfWorld)*180:ll[0];
+      ll[0]=wrapLongitudeNear(ll[0],reference);
+      return ll;
+    }
+    function getCenter(){const c=view.getCenter();return c?projectedToContinuousLonLat(c):[0,0];}
     function getView(){return {center:getCenter(),zoom:getZoom()};}
     function setView(centerLonLat,nextZoom,viewOptions={}){const c=lonLat(centerLonLat),projected=ol.proj.fromLonLat(c);if(viewOptions.animate&&typeof view.animate==='function')view.animate({center:projected,zoom:nextZoom,duration:finite(viewOptions.duration,250)});else{view.setCenter(projected);if(Number.isFinite(Number(nextZoom)))view.setZoom(Number(nextZoom));}}
     function setViewLatLng(centerLatLng,nextZoom,viewOptions){let c;if(Array.isArray(centerLatLng))c=[finite(centerLatLng[1]),finite(centerLatLng[0])];else c=lonLat(centerLatLng);setView(c,nextZoom,viewOptions);}
     function fitExtent(extent,fitOptions={}){const b=bbox(extent);if(!b)return false;const projected=ol.proj.transformExtent?ol.proj.transformExtent(b,'EPSG:4326','EPSG:3857'):[ol.proj.fromLonLat([b[0],b[1]])[0],ol.proj.fromLonLat([b[0],b[1]])[1],ol.proj.fromLonLat([b[2],b[3]])[0],ol.proj.fromLonLat([b[2],b[3]])[1]];view.fit(projected,{size:nativeMap.getSize?.(),padding:normalisePadding(fitOptions.padding),maxZoom:Number.isFinite(Number(fitOptions.maxZoom))?Number(fitOptions.maxZoom):undefined,duration:fitOptions.animate===false?0:finite(fitOptions.duration,0)});return true;}
     function fitLatLngBounds(boundsLike,fitOptions={}){try{if(Array.isArray(boundsLike)&&Array.isArray(boundsLike[0])){const a=boundsLike[0],b=boundsLike[1];return fitExtent([a[1],a[0],b[1],b[0]],fitOptions);}}catch(_){ }return false;}
     function panInside(coord,panOptions={}){const c=lonLat(coord),projected=ol.proj.fromLonLat(c),size=nativeMap.getSize?.();let inside=false;try{inside=ol.extent?.containsCoordinate?.(view.calculateExtent(size),projected)||false;}catch(_){ }if(!inside)setView(c,getZoom(),{animate:panOptions.animate!==false,duration:200});return true;}
-    function getExtent(padRatio=0){const size=nativeMap.getSize?.(),e=view.calculateExtent(size);let out=ol.proj.transformExtent?ol.proj.transformExtent(e,'EPSG:3857','EPSG:4326'):[...e];if(padRatio){const dx=(out[2]-out[0])*padRatio,dy=(out[3]-out[1])*padRatio;out=[out[0]-dx,out[1]-dy,out[2]+dx,out[3]+dy];}return out;}
+    function getExtent(padRatio=0){const size=nativeMap.getSize?.(),e=view.calculateExtent(size);const sw=projectedToContinuousLonLat([e[0],e[1]]),ne=projectedToContinuousLonLat([e[2],e[3]]);let out=[sw[0],sw[1],ne[0],ne[1]];if(padRatio){const dx=(out[2]-out[0])*padRatio,dy=(out[3]-out[1])*padRatio;out=[out[0]-dx,out[1]-dy,out[2]+dx,out[3]+dy];}return out;}
     function lonLatToPixel(coord){const c=lonLat(coord),center=getCenter(),display=[wrapLongitudeNear(c[0],center[0]),c[1]],p=nativeMap.getPixelFromCoordinate(ol.proj.fromLonLat(display));return point(p||[0,0]);}
     function latLngToPixel(value){const ll=Array.isArray(value)?{lat:finite(value[0]),lng:finite(value[1])}:value;return lonLatToPixel(lonLat(ll));}
-    function pixelToLonLat(value){const p=point(value),c=nativeMap.getCoordinateFromPixel([p.x,p.y]);return c?ol.proj.toLonLat(c):[0,0];}
+    function pixelToLonLat(value){const p=point(value),c=nativeMap.getCoordinateFromPixel([p.x,p.y]);return c?projectedToContinuousLonLat(c):[0,0];}
     function pixelToLatLng(value){const c=pixelToLonLat(value);return {lat:c[1],lng:c[0]};}
     function lonLatToLayerPixel(coord){return lonLatToPixel(coord);}
     function latLngToLayerPixel(value){return latLngToPixel(value);}
@@ -299,7 +314,7 @@
     function resize(){nativeMap.updateSize?.();}
 
     const records=[];let zooming=false,lastZoom=getZoom();
-    function normalizeOlEvent(type,event){let pixel=event?.pixel?point(event.pixel):null,coord=event?.coordinate?ol.proj.toLonLat(event.coordinate):null;if(!pixel&&event?.originalEvent)try{pixel=point(nativeMap.getEventPixel(event.originalEvent));}catch(_){ }if(!coord&&pixel)try{const c=nativeMap.getCoordinateFromPixel([pixel.x,pixel.y]);if(c)coord=ol.proj.toLonLat(c);}catch(_){ }const ll=coord?{lat:coord[1],lng:coord[0]}:null;return {type,lonLat:coord||null,latLng:ll,pixel,originalEvent:event?.originalEvent||event||null,nativeEvent:event||null};}
+    function normalizeOlEvent(type,event){let pixel=event?.pixel?point(event.pixel):null,coord=event?.coordinate?projectedToContinuousLonLat(event.coordinate):null;if(!pixel&&event?.originalEvent)try{pixel=point(nativeMap.getEventPixel(event.originalEvent));}catch(_){ }if(!coord&&pixel)try{const c=nativeMap.getCoordinateFromPixel([pixel.x,pixel.y]);if(c)coord=projectedToContinuousLonLat(c);}catch(_){ }const ll=coord?{lat:coord[1],lng:coord[0]}:null;return {type,lonLat:coord||null,latLng:ll,pixel,originalEvent:event?.originalEvent||event||null,nativeEvent:event||null};}
     function bindOne(type,handler,native){
       let targetObj=nativeMap,eventType=type,wrapped;
       if(type==='click'){

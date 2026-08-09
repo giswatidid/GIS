@@ -45,13 +45,13 @@ function haversine(a,b){
   const h=Math.sin(dLat/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dLng/2)**2;
   return 2*EARTH_RADIUS*Math.asin(Math.min(1,Math.sqrt(h)));
 }
-function makeContext(center,zoom=3){
+function makeContext(center,zoom=3,{canonicalInverse=false,behavior='screen'}={}){
   const toLonLat=value=>Array.isArray(value)?{lat:Number(value[0]),lng:Number(value[1])}:{lat:Number(value.lat),lng:Number(value.lng)};
   const context={
     result:null,
     PARAMETRIC_CRS84:'urn:ogc:def:crs:OGC::CRS84',
     clone:value=>structuredClone(value),
-    polygonMoveBehavior:()=> 'screen',
+    polygonMoveBehavior:()=> behavior,
     getDrawSegments:()=>72,
     MAP_ADAPTER:{
       point:(x,y)=>typeof x==='object'?{x:Number(x.x),y:Number(x.y)}:{x:Number(x),y:Number(y)},
@@ -64,21 +64,21 @@ function makeContext(center,zoom=3){
         const ll=toLonLat(value),p=mercatorProject([ll.lng,ll.lat],zoom);
         return {x:p.x,y:p.y,distanceTo(other){return Math.hypot(this.x-other.x,this.y-other.y);}};
       },
-      pixelToLatLng:point=>mercatorUnproject(point,zoom),
+      pixelToLatLng:point=>{const ll=mercatorUnproject(point,zoom);if(canonicalInverse)ll.lng=((ll.lng+180)%360+360)%360-180;return ll;},
       distanceLatLng:(a,b)=>haversine(toLonLat(a),toLonLat(b))
     },
     coordToPoint:coord=>{
       const p=mercatorProject(coord,zoom);
       return {x:p.x,y:p.y,distanceTo(other){return Math.hypot(this.x-other.x,this.y-other.y);}};
     },
-    pointToCoord:point=>{const ll=mercatorUnproject(point,zoom);return [ll.lng,ll.lat];},
+    pointToCoord:point=>{const ll=mercatorUnproject(point,zoom);if(canonicalInverse)ll.lng=((ll.lng+180)%360+360)%360-180;return [ll.lng,ll.lat];},
     closeRingCopy:ring=>{const out=ring.map(coord=>[...coord]);if(out.length){const first=out[0],last=out.at(-1);if(first[0]!==last[0]||first[1]!==last[1])out.push([...first]);}return out;},
     pointDistance:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),
     materialiseCirclePolygon:()=>{throw new Error('screen display unexpectedly fell back to geographic materialisation');}
   };
   vm.createContext(context);
   const sources=[
-    'unwrapLongitudeNear','normaliseParametricCircle','circleDisplayCenterLatLng',
+    'unwrapLongitudeNear','continuousClosedRing','normaliseParametricCircle','circleDisplayCenterLatLng',
     'circleMetresForScreenRadius','circleScreenRadiusPixels','circleScreenRing',
     'materialiseCircleDisplayPolygon'
   ].map(functionSource).join('\n');
@@ -86,8 +86,8 @@ function makeContext(center,zoom=3){
   return context;
 }
 
-function verifyPreviewCommitParity(center,pixelRadius,zoom=3){
-  const context=makeContext(center,zoom);
+function verifyPreviewCommitParity(center,pixelRadius,zoom=3,options={}){
+  const context=makeContext(center,zoom,options);
   const centerPixel=mercatorProject(center,zoom);
   const edgeLL=mercatorUnproject({x:centerPixel.x+pixelRadius,y:centerPixel.y},zoom);
   context.center=center;
@@ -125,6 +125,14 @@ test('screen-mode true circle final render exactly matches the live draw preview
 
 test('screen-mode true circle remains centred and circular at southern mid-latitudes',()=>{
   verifyPreviewCommitParity([74,-48],140,3);
+});
+
+test('screen-mode true circle stays continuous when inverse map coordinates canonicalise at the dateline',()=>{
+  verifyPreviewCommitParity([179,-20],90,3,{canonicalInverse:true});
+});
+
+test('screen-mode true circle remains continuous in a repeated world copy when inverse coordinates canonicalise',()=>{
+  verifyPreviewCommitParity([539,-20],90,3,{canonicalInverse:true});
 });
 
 test('map rendering uses display materialisation while export keeps the canonical geographic fallback path',()=>{

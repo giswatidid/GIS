@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-draw-dateline-parity-15543';
+const RELEASE_KEY='20260809-live-draw-circle-wrap-15544';
 
-function fail(message){throw new Error(`v1.55.4.3 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.4 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.3')fail(`package version is ${pkg.version}, expected 1.55.4.3`);
+if(pkg.version!=='1.55.4.4')fail(`package version is ${pkg.version}, expected 1.55.4.4`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -62,6 +62,8 @@ requireToken(analysis,'querySpatialIndexWrapped,applySelectionMode','GIS analysi
 requireToken(app,'function querySpatialIndexWrapped(file,bbox)','application spatial-index bridge');
 requireToken(app,'function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox))','authoritative cached renderer');
 requireToken(adapter,'function wrapLongitudeNear','map adapter');
+requireToken(adapter,'function projectedToContinuousLonLat','OpenLayers continuous inverse projection');
+requireToken(adapter,'function pixelToLonLat(value){const p=point(value),c=nativeMap.getCoordinateFromPixel([p.x,p.y]);return c?projectedToContinuousLonLat(c):[0,0];}','OpenLayers pixel inverse');
 if(/const lng=Math\.max\(-180,Math\.min\(180,c\[0\]\)\)/.test(adapter))fail('Web Mercator helper clamps continuous longitude back to the canonical world');
 
 // Drawing uses the same continuous-longitude model as repeated-world rendering.
@@ -73,6 +75,10 @@ requireToken(app,'if(continuousKinds.has(D.kind))c=unwrapDrawCoordNear(c,branchR
 if(/(?<![\w$.])constrainedDrawCoord\s*=\s*function\b/.test(app))fail('late constrainedDrawCoord monkey patch reintroduced');
 forbidToken(app,'v116BaseConstrainedDrawCoord','legacy LineString draw compatibility');
 requireToken(app,"overlay().classList.remove('shift-pan','zooming')",'draw-session start');
+requireToken(app,'function continuousClosedRing','continuous screen-shape ring');
+requireToken(app,'function renderDrawRuntimePreview','engine-neutral live draw preview');
+requireToken(app,"overlay().addEventListener('pointermove',updateDrawCursorFromPointer,true)",'live draw pointer input');
+requireToken(app,'MAP_RUNTIME.createVectorOverlayLayer({zIndex:1750,interactive:false})','live draw runtime preview');
 requireToken(app,"if(D.active){\n    overlay().classList.remove('zooming');\n    scheduleOverlayRender();",'draw zoom lifecycle');
 if(/e\.key==='Shift'\)updateShiftPanState/.test(app))fail('legacy Shift-pan key binding makes Shift-click drawing non-interactive');
 
@@ -151,4 +157,4 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4.3 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');
+console.log('v1.55.4.4 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');

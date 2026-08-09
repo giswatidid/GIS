@@ -24,7 +24,8 @@ class Lyr{constructor(o={}){this.o=o;this.v=o.visible!==false;this.opacity=o.opa
 class Group extends Lyr{}
 class F{constructor(o={}){Object.assign(this,o);this.values_={...o}}setStyle(s){this.style=s}setId(v){this.id=v}getId(){return this.id}get(k){return this[k]??this.values_[k]}setGeometry(v){this.geometry=v;this.values_.geometry=v}} class Pt{constructor(c){this.c=c}} class GJ{readFeature(raw){return new F({raw,geometry:{type:raw.geometry?.type,coordinates:raw.geometry?.coordinates}})}readGeometry(raw){return{type:raw.type,coordinates:raw.coordinates,projected:true}}}
 class Sty{constructor(o){this.o=o}}
-window.ol={Map:M,View:V,Feature:F,geom:{Point:Pt},format:{GeoJSON:GJ},proj:{fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(x=>x*1000)},extent:{containsCoordinate:()=>false},interaction:{DragPan,DoubleClickZoom},control:{Zoom:ZoomControl,Attribution:AttributionControl},layer:{Tile:Lyr,Vector:Lyr,Image:Lyr,Group},source:{XYZ:S,TileWMS:TWMS,Vector:VS,ImageStatic:S},style:{Style:Sty,Stroke:Sty,Fill:Sty,Circle:Sty,Text:Sty}};
+const canonicalLon=v=>((Number(v)+180)%360+360)%360-180;
+window.ol={Map:M,View:V,Feature:F,geom:{Point:Pt},format:{GeoJSON:GJ},proj:{fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[canonicalLon(c[0]/1000),c[1]/1000],transformExtent:e=>e.map(x=>x*1000)},extent:{containsCoordinate:()=>false},interaction:{DragPan,DoubleClickZoom},control:{Zoom:ZoomControl,Attribution:AttributionControl},layer:{Tile:Lyr,Vector:Lyr,Image:Lyr,Group},source:{XYZ:S,TileWMS:TWMS,Vector:VS,ImageStatic:S},style:{Style:Sty,Stroke:Sty,Fill:Sty,Circle:Sty,Text:Sty}};
 let leafletMapCalls=0;
 window.L={map:()=>{leafletMapCalls++;throw new Error('OpenLayers runtime must not create a Leaflet map');}};
 '''
@@ -56,12 +57,14 @@ with sync_playwright() as p:
       r.getNativeMap().fire('click',{pixel:[320,210],coordinate:[3200,2100],originalEvent:{shiftKey:false}});
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      const wrappedInverse=r.pixelToLonLat(wrappedPixel);
+      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['center']==[873,-27],result
     assert result['zoom']==6,result
     assert result['wrappedPixel']==[87300,-2700],result
+    assert result['wrappedInverse']==[873,-27],result
     assert result['layers']==6,result
     assert result['controlKinds']==['zoom','attribution'],result
     assert result['featureCount']==1,result
@@ -82,7 +85,7 @@ with sync_playwright() as p:
     assert result['childOrder'][-1]=='editpolygon-openlayers-dom-overlays',result
     assert result['nativeClick'] is not None,result
     assert result['nativeClick']['pixel']==[320,210],result
-    assert result['nativeClick']['lonLat']==[3.2,2.1],result
+    assert abs(result['nativeClick']['lonLat'][0]-3.2)<1e-9 and abs(result['nativeClick']['lonLat'][1]-2.1)<1e-9,result
     assert 'editpolygon-leaflet-compat' not in result['childOrder'],result
     assert not errors,errors
     browser.close()

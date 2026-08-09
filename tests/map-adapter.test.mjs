@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.3');
+  assert.equal(runtime.version,'1.55.4.4');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -280,7 +280,8 @@ function fakeOpenLayers(){
   class Point{constructor(c){this.coordinates=c;}}
   class GeoJSON{readFeature(raw){return new Feature({raw,geometry:{type:raw.geometry?.type,coordinates:raw.geometry?.coordinates}});}readGeometry(raw){return {type:raw.type,coordinates:raw.coordinates,projected:true};}}
   class Style{constructor(o){this.options=o;}} class Stroke extends Style{} class Fill extends Style{} class CircleStyle extends Style{} class Text extends Style{}
-  const proj={fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[c[0]/1000,c[1]/1000],transformExtent:e=>e.map(v=>v*1000)};
+  const canonicalLon=value=>((Number(value)+180)%360+360)%360-180;
+  const proj={fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[canonicalLon(c[0]/1000),c[1]/1000],transformExtent:e=>e.map(v=>v*1000)};
   return {
     Map:MapCls,View,Feature,geom:{Point},format:{GeoJSON},
     proj,extent:{containsCoordinate:(e,c)=>c[0]>=e[0]&&c[0]<=e[2]&&c[1]>=e[1]&&c[1]<=e[3]},
@@ -348,15 +349,21 @@ test('OpenLayers runtime preserves canonical lon/lat state without creating a Le
   assert.deepEqual([...runtime.pixelToLonLat(px)],[151,-33]);
 });
 
-test('OpenLayers coordinate-to-pixel conversion targets the world copy nearest the current view',()=>{
+test('OpenLayers forward and inverse pixel conversion preserve the active repeated-world longitude branch',()=>{
   const {context}=openLayersContext();
   const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[873,-27],zoom:6,ol:context.ol});
+  // The fake intentionally mirrors real ol.proj.toLonLat() by canonicalising
+  // longitude. The adapter must recover the continuous longitude from EPSG:3857 x.
+  assert.deepEqual([...runtime.getCenter()],[873,-27]);
   const canonical=runtime.lonLatToPixel([153,-27]);
   const alreadyWrapped=runtime.lonLatToPixel([873,-27]);
   assert.equal(canonical.x,87300);
   assert.equal(canonical.y,-2700);
   assert.equal(canonical.x,alreadyWrapped.x);
   assert.equal(canonical.y,alreadyWrapped.y);
+  assert.deepEqual([...runtime.pixelToLonLat(canonical)],[873,-27]);
+  const extent=runtime.getExtent(0);
+  assert.ok(extent[0]>872&&extent[2]<874,`extent left repeated-world branch: ${extent.join(',')}`);
 });
 
 test('OpenLayers runtime owns display layers and GIS tile/WMS/vector primitives',()=>{
@@ -436,7 +443,7 @@ test('OpenLayers click delivery is native and has no compatibility-surface DOM f
   runtime.getNativeMap().fire('click',{pixel:[320,210],coordinate:[3200,2100],originalEvent:{shiftKey:false}});
   assert.ok(received);
   assert.equal(received.pixel.x,320);assert.equal(received.pixel.y,210);
-  assert.deepEqual([...received.lonLat],[3.2,2.1]);
+  assert.ok(Math.abs(received.lonLat[0]-3.2)<1e-9);assert.ok(Math.abs(received.lonLat[1]-2.1)<1e-9);
   assert.equal((target.handlers.click||[]).length,0);
   assert.equal(target.children.some(child=>child.className==='editpolygon-leaflet-compat'),false);
 });

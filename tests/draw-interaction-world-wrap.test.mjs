@@ -35,12 +35,14 @@ function evalHelpers(names){
 }
 
 test('draw longitude helpers preserve the short branch across the International Date Line',()=>{
-  const c=evalHelpers(['unwrapLongitudeNear','unwrapDrawCoordNear','unwrapDrawPath']);
+  const c=evalHelpers(['unwrapLongitudeNear','unwrapDrawCoordNear','unwrapDrawPath','continuousClosedRing']);
   assert.equal(c.unwrapLongitudeNear(-170,170),190);
   assert.equal(c.unwrapLongitudeNear(170,-170),-190);
   assert.deepEqual(JSON.parse(JSON.stringify(c.unwrapDrawCoordNear([-170,-20],[170,-20]))),[190,-20]);
   assert.deepEqual(JSON.parse(JSON.stringify(c.unwrapDrawPath([[170,-20],[-170,-21],[-160,-22]]))),[[170,-20],[190,-21],[200,-22]]);
   assert.deepEqual(JSON.parse(JSON.stringify(c.unwrapDrawPath([[-170,-20],[170,-21],[160,-22]]))),[[-170,-20],[-190,-21],[-200,-22]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.continuousClosedRing([[179,-20],[-179,-20],[-178,-21],[179,-20]],[179,-20]))),[[179,-20],[181,-20],[182,-21],[179,-20]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(c.continuousClosedRing([[-179,-20],[179,-20],[178,-21],[-179,-20]],[181,-20]))),[[181,-20],[179,-20],[178,-21],[181,-20]]);
 });
 
 
@@ -83,6 +85,10 @@ test('draw overlay cannot become click-through from stale Shift-pan or zoom life
   assert.match(zoomEnd,/classList\.remove\('zooming'\)[\s\S]*renderOverlay\(\)/);
   assert.doesNotMatch(app,/e\.key==='Shift'\)updateShiftPanState/);
   assert.match(css,/#editOverlay\.drawing\.zooming\{opacity:1;pointer-events:auto\}/);
+  assert.match(app,/overlay\(\)\.addEventListener\('pointermove',updateDrawCursorFromPointer,true\)/);
+  assert.match(app,/if\(!window\.PointerEvent\)overlay\(\)\.addEventListener\('mousemove',updateDrawCursorFromPointer,true\)/);
+  assert.equal(app.includes('updateShapeCursorFromPointer'),false);
+  assert.match(functionSource('renderOverlay'),/renderDrawOverlay\(\);[\s\S]*renderDrawRuntimePreview\(\)/);
 });
 
 test('LineString drawing no longer owns a late coordinate conversion implementation',()=>{

@@ -3622,6 +3622,7 @@ function renderOverlay(){
     [...ov.querySelectorAll('.draw-dot,.draw-hint,.draw-shape-guide,.snap-indicator')].forEach(n=>n.remove());
     $('lassoPath').setAttribute('d','');
     renderDrawOverlay();
+    renderDrawRuntimePreview();
     ov.classList.toggle('lasso',false);
     ov.classList.toggle('drawing',D.active);
     renderSnapIndicator();
@@ -3631,6 +3632,7 @@ function renderOverlay(){
   [...ov.querySelectorAll('.vtx,.mid,.polygon-centre-move-handle,.draw-dot,.draw-hint,.draw-shape-guide,.snap-indicator')].forEach(n=>n.remove());
   $('lassoPath').setAttribute('d','');
   renderDrawOverlay();
+  renderDrawRuntimePreview();
   ov.classList.toggle('lasso',V.active&&V.lasso);
   ov.classList.toggle('drawing',D.active);
 
@@ -4418,24 +4420,9 @@ overlay().addEventListener('contextmenu',e=>{
   DUndo();
 });
 
-overlay().addEventListener('mousemove',e=>{
+function updateDrawCursorFromPointer(e){
   if(!D.active)return;
   if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind))return;
-  const ll=drawOverlayLatLng(e);
-  const snap=constrainedDrawCoord(ll,e);
-  D.cursor=snap.coord;
-  D.shiftShape=!!e.shiftKey;
-  const p=displayLatLng(snap.latlng);
-  $('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${snap.target?' · snap '+snap.target.type:''}`;
-  renderOverlay();
-  updateDrawStatus();
-});
-
-function updateShapeCursorFromPointer(e){
-  if(!D.active)return;
-  if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind))return;
-  const shapeKinds=new Set(['rectangle','circle','regular','rotatedRect']);
-  if(!shapeKinds.has(D.kind))return;
   const ll=drawOverlayLatLng(e);
   const snap=constrainedDrawCoord(ll,e);
   D.cursor=snap.coord;
@@ -4446,7 +4433,12 @@ function updateShapeCursorFromPointer(e){
   updateDrawStatus();
   updateButtons();
 }
-overlay().addEventListener('pointermove',updateShapeCursorFromPointer,true);
+// Pointer events are the authoritative live-draw input. The old mousemove path
+// could stop producing compatibility mouse events after another pointer handler
+// had taken part in the gesture, leaving clicks recorded but no visible cursor
+// or geometry preview. A single pointer path covers mouse, pen and touch.
+overlay().addEventListener('pointermove',updateDrawCursorFromPointer,true);
+if(!window.PointerEvent)overlay().addEventListener('mousemove',updateDrawCursorFromPointer,true);
 function ensureScratch(){let file=project.files.find(f=>f.isScratch);if(!file){const c=COLORS[project.files.length%COLORS.length];file={id:uid('file'),name:'drawn_features.geojson',sourceFormat:'geojson',visible:true,color:c,isScratch:true,features:[]};project.files.push(file)}return file}
 function parseCoordText(text, order='latlng'){
   const points=[];
@@ -8374,6 +8366,21 @@ function unwrapDrawPath(points){
   }
   return out;
 }
+function continuousClosedRing(points,referenceCoord=null){
+  const source=(points||[]).filter(c=>Array.isArray(c)&&c.length>=2);
+  if(!source.length)return [];
+  const firstRaw=source[0],lastRaw=source[source.length-1];
+  const alreadyClosed=source.length>1&&Number(firstRaw[0])===Number(lastRaw[0])&&Number(firstRaw[1])===Number(lastRaw[1]);
+  const limit=alreadyClosed?source.length-1:source.length,out=[];
+  const referenceLng=Array.isArray(referenceCoord)&&Number.isFinite(Number(referenceCoord[0]))?Number(referenceCoord[0]):Number(firstRaw[0]);
+  for(let i=0;i<limit;i++){
+    const c=clone(source[i]);
+    c[0]=unwrapLongitudeNear(c[0],out.length?out[out.length-1][0]:referenceLng);
+    out.push(c);
+  }
+  if(out.length)out.push(clone(out[0]));
+  return out;
+}
 function constrainedDrawCoord(latlng,ev=null){
   const snap=snappedLatLng(latlng,{event:ev});
   let c=clone(snap.coord);
@@ -8407,7 +8414,7 @@ function rectangleRing(startCoord,endCoord,forceSquare=false){
     b=MAP_ADAPTER.point(a.x+(dx<0?-size:size),a.y+(dy<0?-size:size));
   }
   if(pointDistance(a,b)<4)return null;
-  return closeRingCopy([pointToCoord(a),pointToCoord(MAP_ADAPTER.point(b.x,a.y)),pointToCoord(b),pointToCoord(MAP_ADAPTER.point(a.x,b.y))]);
+  return continuousClosedRing([pointToCoord(a),pointToCoord(MAP_ADAPTER.point(b.x,a.y)),pointToCoord(b),pointToCoord(MAP_ADAPTER.point(a.x,b.y))],startCoord);
 }
 function circleScreenRing(centerCoord,pixelRadius,segments=getDrawSegments()){
   if(!centerCoord)return null;
@@ -8418,7 +8425,7 @@ function circleScreenRing(centerCoord,pixelRadius,segments=getDrawSegments()){
     const a=(i/segments)*Math.PI*2;
     ring.push(pointToCoord(MAP_ADAPTER.point(center.x+Math.cos(a)*radius,center.y+Math.sin(a)*radius)));
   }
-  return closeRingCopy(ring);
+  return continuousClosedRing(ring,centerCoord);
 }
 function circleDrawRadiusMetres(centerCoord,edgeCoord,behavior=polygonMoveBehavior()){
   if(!centerCoord||!edgeCoord)return NaN;
@@ -8462,7 +8469,7 @@ function regularPolygonRing(centerCoord,edgeCoord,sides=getRegularSides(),shiftS
       center.y+Math.sin(angle)*radius
     )));
   }
-  return closeRingCopy(ring);
+  return continuousClosedRing(ring,centerCoord);
 }
 function rotatedRectangleRing(){
   if(!D.points[0]||!D.points[1]||!D.cursor)return null;
@@ -8477,7 +8484,7 @@ function rotatedRectangleRing(){
   if(Math.abs(width)<4)return null;
   const p2=MAP_ADAPTER.point(p1.x+nx*width,p1.y+ny*width);
   const p3=MAP_ADAPTER.point(p0.x+nx*width,p0.y+ny*width);
-  return closeRingCopy([pointToCoord(p0),pointToCoord(p1),pointToCoord(p2),pointToCoord(p3)]);
+  return continuousClosedRing([pointToCoord(p0),pointToCoord(p1),pointToCoord(p2),pointToCoord(p3)],D.points[0]);
 }
 function drawPreviewRing(){
   if(!D.active)return null;
@@ -8485,7 +8492,7 @@ function drawPreviewRing(){
   if(D.kind==='circle')return circleRing(D.points[0],D.cursor,getDrawSegments());
   if(D.kind==='regular')return regularPolygonRing(D.points[0],D.cursor,getRegularSides(),!!D.shiftShape);
   if(D.kind==='rotatedRect')return rotatedRectangleRing();
-  if(D.kind==='freehand'&&D.points.length>=3)return closeRingCopy(D.points);
+  if(D.kind==='freehand'&&D.points.length>=3)return continuousClosedRing(D.points,D.points[0]);
   return null;
 }
 function mapGeometryCoordinates(geom,transform){
@@ -8645,6 +8652,37 @@ function DFinish(){
   if(D.points.length<3){setStatus('Need at least 3 points to finish polygon.','error');return;}
   const ring=closeRingCopy(D.points);
   addDrawnGeometry({type:'Polygon',coordinates:[ring]},'Polygon',{drawKind:'polygon'});
+}
+let DRAW_RUNTIME_PREVIEW_LAYER=null;
+function ensureDrawRuntimePreviewLayer(){
+  if(DRAW_RUNTIME_PREVIEW_LAYER)return DRAW_RUNTIME_PREVIEW_LAYER;
+  try{DRAW_RUNTIME_PREVIEW_LAYER=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1750,interactive:false});}catch(_){DRAW_RUNTIME_PREVIEW_LAYER=null;}
+  return DRAW_RUNTIME_PREVIEW_LAYER;
+}
+function drawRuntimePreviewItems(){
+  if(!D.active)return [];
+  const items=[],pts=D.points.slice(),ring=drawPreviewRing();
+  const fillStyle={color:'transparent',fillColor:'#1664d6',weight:0,fillOpacity:.10,opacity:1};
+  const outlineStyle={color:'#1664d6',fillColor:'#1664d6',weight:2.5,fillOpacity:.10,opacity:1};
+  const solidStyle={color:'#1664d6',weight:2.5,opacity:1};
+  const guideStyle={color:'#1664d6',weight:2,opacity:.95,dashArray:'6 4'};
+  if(ring?.length>=4){
+    items.push({id:'draw-shape',geometry:{type:'Polygon',coordinates:[ring]},style:outlineStyle});
+  }else{
+    const geom=drawPreviewGeometry();
+    if(geom?.type==='Polygon')items.push({id:'draw-fill',geometry:geom,style:fillStyle});
+    else if(geom?.type==='MultiPolygon')items.push({id:'draw-fill',geometry:geom,style:fillStyle});
+    if(pts.length>=2)items.push({id:'draw-line',geometry:{type:'LineString',coordinates:pts},style:solidStyle});
+    if(D.cursor&&pts.length)items.push({id:'draw-guide',geometry:{type:'LineString',coordinates:[pts[pts.length-1],D.cursor]},style:guideStyle});
+  }
+  pts.forEach((coord,i)=>items.push({id:`draw-point-${i}`,geometry:{type:'Point',coordinates:coord},style:{color:i===0?'#065f46':'#0f4fae',fillColor:i===0?'#16a34a':'#1664d6',radius:i===0?7:5,weight:2,fillOpacity:1,opacity:1}}));
+  if(D.cursor)items.push({id:'draw-cursor',geometry:{type:'Point',coordinates:D.cursor},style:{color:'#0f4fae',fillColor:'#ffffff',radius:4,weight:2,fillOpacity:.85,opacity:.95}});
+  return items;
+}
+function renderDrawRuntimePreview(){
+  if(!D.active){if(DRAW_RUNTIME_PREVIEW_LAYER)MAP_RUNTIME.clearVectorOverlayLayer(DRAW_RUNTIME_PREVIEW_LAYER);return;}
+  const layer=ensureDrawRuntimePreviewLayer();
+  if(layer)MAP_RUNTIME.setVectorOverlayFeatures(layer,drawRuntimePreviewItems());
 }
 function renderDrawOverlay(){
   clearDrawSvg();
@@ -19411,7 +19449,10 @@ function materialiseCirclePolygon(value,segments){
 }
 function materialiseCircleDisplayPolygon(value,segments,behavior=polygonMoveBehavior()){
   const c=normaliseParametricCircle({...value,fallbackSegments:segments??value.fallbackSegments}),n=c.fallbackSegments;
-  if(behavior==='geographic')return materialiseCirclePolygon(c,n);
+  if(behavior==='geographic'){
+    const geometry=materialiseCirclePolygon(c,n),ring=continuousClosedRing(geometry.coordinates?.[0]||[],c.center);
+    return ring.length>=4?{type:'Polygon',coordinates:[ring]}:geometry;
+  }
   try{
     const pixelRadius=circleScreenRadiusPixels(value);
     const ring=circleScreenRing(c.center,pixelRadius,n);

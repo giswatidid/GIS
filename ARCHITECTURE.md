@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.4.3**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
+This document describes the current application architecture as of **v1.55.4.4**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
 
 ## Product boundary
 
@@ -82,6 +82,8 @@ Direct `ol.*` calls in application code are prohibited. Remaining direct `L.*` c
 OpenLayers remains opt-in with `?mapEngine=openlayers`; Leaflet remains the default/reference renderer during the v1.55.4 parity gate.
 
 OpenLayers runs independently: there is no hidden/synchronised Leaflet map, compatibility target, compatibility click bridge or legacy-map global.
+
+OpenLayers coordinate inversion preserves the continuous longitude represented by the active EPSG:3857 world copy rather than exposing `ol.proj.toLonLat()`'s canonical ±180° wrap to application drawing/edit logic. Live draw geometry is mirrored through the shared transient-vector overlay contract, while the DOM edit overlay remains responsible for pointer capture, vertex dots and hints.
 
 OpenLayers currently owns its own:
 

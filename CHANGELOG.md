@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.4.4 — Live drawing preview and circle dateline parity hotfix
+
+- Restored visible in-progress drawing feedback by mirroring the active draw geometry, clicked vertices and live cursor through the engine-neutral transient-vector map runtime; the existing DOM overlay remains as an interaction/handle layer and visual fallback.
+- Replaced the legacy mouse-only live draw cursor path with one Pointer Events path for mouse, pen and touch, with a compatibility fallback only where Pointer Events are unavailable.
+- Fixed OpenLayers pixel-to-longitude conversion losing the active repeated-world branch because `ol.proj.toLonLat()` canonicalises longitude into ±180°. The adapter now recovers the continuous longitude represented by the EPSG:3857 x coordinate for view centres, extents, map events and screen-to-map conversion.
+- Made screen-generated closed rings longitude-continuous around their reference point. True circles, rectangles, regular polygons, rotated rectangles and freehand previews therefore stay local when crossing the International Date Line.
+- Geographic-size circle display materialisation is also unwrapped only for map display; canonical geographic export materialisation remains unchanged.
+- Added regressions for canonicalising OpenLayers inverse transforms, repeated-world inverse pixel conversion, dateline/repeated-world true circles, live runtime drawing previews and Pointer Events draw tracking.
+
 ## v1.55.4.3 — Drawing interaction and dateline parity hotfix
 
 - Fixed polygon/LineString vertices crossing the International Date Line being normalised into opposite longitude branches, which could render a short dateline segment as a line around most of the world.
