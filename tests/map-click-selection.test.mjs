@@ -1,0 +1,72 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
+
+test('map click selection uses one unified geometry-aware hit-test path',()=>{
+  assert.match(app,/function featureHitAtMapPoint\(feature,file,latlng,pixel\)/);
+  assert.match(app,/geom\.type==='Point'/);
+  assert.match(app,/geom\.type==='MultiPoint'/);
+  assert.match(app,/geom\.type==='LineString'/);
+  assert.match(app,/geom\.type==='MultiLineString'/);
+  assert.match(app,/geom\.type==='Polygon'/);
+  assert.match(app,/geom\.type==='MultiPolygon'/);
+  assert.match(app,/isParametricCircleFeature\(feature\).*circleContainsLatLng/s);
+  assert.match(app,/featuresAtLatLng\(e\.latLng,e\.pixel\)/);
+});
+
+test('map click semantics match the Layers selection model',()=>{
+  assert.match(app,/function applyMapFeatureSelection\(featureId,modifiers=\{\}\)/);
+  assert.match(app,/const current=new Set\(hooks\.selectedIds\?\.\(\)\|\|\[\]\),toggle=!!\(modifiers\.ctrlKey\|\|modifiers\.metaKey\),add=!!modifiers\.shiftKey/);
+  assert.match(app,/else if\(add\)\{current\.add\(featureId\);\}/);
+  assert.match(app,/else\{current\.clear\(\);current\.add\(featureId\);\}/);
+  assert.match(app,/if\(!candidates\.length\)\{\s*if\(!modifiers\.shiftKey&&!modifiers\.ctrlKey&&!modifiers\.metaKey\)clearMapFeatureSelection\(\)/s);
+  assert.match(app,/window\.__editPolygonLayersV133\|\|null/);
+});
+
+test('OpenLayers selection state forces the cached renderer to refresh immediately',()=>{
+  const v132=app.slice(app.indexOf('function v132ApplyFeatureStyles'),app.indexOf('function v132RefreshLayerUi'));
+  const v133=app.slice(app.indexOf('function v133ApplyMapStyles'),app.indexOf('function v133SyncFeatureRow'));
+  assert.match(v132,/MAP_RUNTIME\.engine==='openlayers'.*renderMap\(\)/s);
+  assert.match(v133,/MAP_RUNTIME\.engine==='openlayers'.*renderMap\(\)/s);
+});
+
+test('overlap picker is geometry neutral',()=>{
+  assert.match(app,/Select overlapping feature/);
+  assert.doesNotMatch(app,/Select overlapping polygon/);
+});
+
+test('OpenLayers click selection tests true circles against the exact materialised geometry rendered by OpenLayers',()=>{
+  const start=app.indexOf('function parametricCircleHitAtMapPoint');
+  const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
+  assert.ok(start>=0);
+  assert.match(block,/function parametricCircleHitAtMapPoint\(feature,file,latlng,pixel\)/);
+  assert.match(block,/MAP_RUNTIME\.engine==='openlayers'/);
+  assert.match(block,/const rendered=featJSON\(feature\)\?\.geometry/);
+  assert.match(block,/turf\.booleanPointInPolygon\(pointFeature,renderedFeature\)/);
+  assert.match(block,/polygonBoundaryHitPixel\(rendered\.coordinates/);
+  assert.match(block,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);
+  assert.match(block,/fileOfFeature\(String\(id\)\)/);
+  assert.match(block,/featureHitAtMapPoint\(row\.feature,row\.file,latlng,hitPixel\)/);
+  assert.doesNotMatch(block,/trueCircleHitAtPixel/);
+  assert.doesNotMatch(block,/if\(isLocked\(row\.file,row\.feature\)\)continue/);
+});
+
+
+test('OpenLayers click delivery is owned by the native OL map with no compatibility-surface fallback',()=>{
+  const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
+  assert.match(adapter,/if\(type==='click'\)/);
+  assert.match(adapter,/nativeMap\.on\(eventType,wrapped\)/);
+  assert.doesNotMatch(adapter,/editpolygon-leaflet-compat|queueMicrotask|syncLegacy|getLegacyMap/);
+});
+
+
+test('critical map click-selection functions are not overwritten later in the monolithic compatibility script',()=>{
+  for(const name of ['featuresAtLatLng','featureHitAtMapPoint','parametricCircleHitAtMapPoint','applyMapFeatureSelection','selectFromMapClick']){
+    const declaration=app.indexOf(`function ${name}(`);
+    assert.ok(declaration>=0,`${name} declaration must exist`);
+    const tail=app.slice(declaration+1);
+    assert.doesNotMatch(tail,new RegExp(`${name}\\s*=\\s*function`),`${name} must retain its authoritative runtime binding`);
+  }
+});
