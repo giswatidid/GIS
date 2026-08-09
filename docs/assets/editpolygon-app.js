@@ -3764,17 +3764,24 @@ function applyVertexDragPosition(e,drag=V.drag){
   const pt=overlayPoint(e);
   const rawLL=MAP_RUNTIME.pixelToLatLng(pt);
   const snapped=snappedLatLng(rawLL,{event:e,excludePath:drag.path,excludeFeatureId:drag.feature.id});
+  // OpenLayers reports the horizontal world copy under the pointer. After the
+  // user pans around the repeated world, that can be +/-360n away from the
+  // stored ring even though it is the same visible location. A single edited
+  // vertex must stay on the longitude branch of the vertex it replaces or the
+  // untouched neighbours become connected by a world-spanning segment.
+  const editCoord=unwrapCoordNear(snapped.coord,drag.originalCoord||snapped.coord);
+  const editLatLng=MAP_ADAPTER.latLng(editCoord);
 
   // Move-only by construction: every move is applied to the immutable geometry
   // captured on pointerdown, with exactly one existing coordinate replaced.
-  restoreMoveOnlyGeometry(drag.feature,drag.baseGeometry,drag.path,snapped.coord);
-  drag.lastCoord=clone(snapped.coord);
+  restoreMoveOnlyGeometry(drag.feature,drag.baseGeometry,drag.path,editCoord);
+  drag.lastCoord=clone(editCoord);
 
   if(SNAP.topology&&SNAP.enabled&&!e.altKey&&!SNAP.altDown){
-    applyLinkedMoveOnly(drag.linked,drag.linkedBaseGeometries,snapped.coord);
+    applyLinkedMoveOnly(drag.linked,drag.linkedBaseGeometries,editCoord);
   }
 
-  const drawPt=MAP_RUNTIME.latLngToPixel(snapped.latlng);
+  const drawPt=MAP_RUNTIME.latLngToPixel(editLatLng);
   const key=vkey(drag.path);
   const el=[...overlay().querySelectorAll('.vtx')].find(node=>node.__vkey===key);
   if(el){
@@ -3782,7 +3789,7 @@ function applyVertexDragPosition(e,drag=V.drag){
     el.style.top=drawPt.y+'px';
   }
   scheduleVertexDragVisualUpdate(drag);
-  return snapped;
+  return {...snapped,coord:editCoord,latlng:editLatLng};
 }
 function scheduleVertexDragVisualUpdate(drag=V.drag){
   // Live geometry follows the dragged handle. The cached renderer updates only
@@ -5003,11 +5010,10 @@ function featureGeom(f){return clone(getDisplayGeometry(f));}
 function transformCoordByScreenDelta(coord,dx,dy){
   const p=MAP_RUNTIME.latLngToPixel([coord[1],coord[0]]);
   const ll=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(p.x+dx,p.y+dy));
-  // Do not wrap longitude here. The base map repeats horizontally, and
-  // users expect dragged geometries to move freely into adjacent world copies
-  // instead of snapping back across the dateline. Display readouts may wrap,
-  // but stored geometry must preserve the continuous longitude.
-  return [ll.lng,Math.max(-90,Math.min(90,ll.lat))];
+  // A repeated-world viewport can put the returned longitude +/-360n away from
+  // the stored coordinate. Preserve the coordinate's existing branch while
+  // still allowing a genuine local dateline crossing (179 -> 181, not -179).
+  return [unwrapLongitudeNear(ll.lng,coord[0]),Math.max(-90,Math.min(90,ll.lat))];
 }
 function transformGeometryByScreenDelta(geom,dx,dy){
   const g=clone(geom);
@@ -5092,14 +5098,16 @@ function transformGeometryByAreaPreservingDrag(geom,startPoint,dx,dy){
   const origin0=polygonAreaMoveOrigin(geom);
   const startLL=MAP_RUNTIME.pixelToLatLng(startPoint);
   const endLL=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(startPoint.x+dx,startPoint.y+dy));
+  const startLng=unwrapLongitudeNear(startLL.lng,origin0[0]);
+  const endLng=unwrapLongitudeNear(endLL.lng,startLng);
   const deg=Math.PI/180;
   const inv=180/Math.PI;
   const cos0=polygonAreaMoveCos(origin0[1]);
-  const clickX=(startLL.lng-origin0[0])*deg*POLYGON_AREA_MOVE_EARTH_RADIUS*cos0;
+  const clickX=(startLng-origin0[0])*deg*POLYGON_AREA_MOVE_EARTH_RADIUS*cos0;
   const clickY=(startLL.lat-origin0[1])*deg*POLYGON_AREA_MOVE_EARTH_RADIUS;
   const origin1Lat=polygonAreaMoveClampLat(endLL.lat-(clickY/POLYGON_AREA_MOVE_EARTH_RADIUS)*inv);
   const cos1=polygonAreaMoveCos(origin1Lat);
-  const origin1Lng=endLL.lng-(clickX/(POLYGON_AREA_MOVE_EARTH_RADIUS*cos1))*inv;
+  const origin1Lng=endLng-(clickX/(POLYGON_AREA_MOVE_EARTH_RADIUS*cos1))*inv;
   const tr=c=>{
     const x=(c[0]-origin0[0])*deg*POLYGON_AREA_MOVE_EARTH_RADIUS*cos0;
     const y=(c[1]-origin0[1])*deg*POLYGON_AREA_MOVE_EARTH_RADIUS;
@@ -7896,8 +7904,10 @@ function applyEdgeDragPosition(e,drag=V.edgeDrag){
   const b2=MAP_ADAPTER.point(drag.bPoint.x+drag.normal.x*amount,drag.bPoint.y+drag.normal.y*amount);
   const aLL=MAP_RUNTIME.pixelToLatLng(a2);
   const bLL=MAP_RUNTIME.pixelToLatLng(b2);
-  const coordA=[aLL.lng,aLL.lat];
-  const coordB=[bLL.lng,bLL.lat];
+  // Keep each edited endpoint on the branch of the endpoint it replaces. This
+  // is the edge-drag equivalent of the red-vertex repeated-world guard.
+  const coordA=unwrapCoordNear([aLL.lng,aLL.lat],drag.originalCoordA||drag.lastCoordA);
+  const coordB=unwrapCoordNear([bLL.lng,bLL.lat],drag.originalCoordB||drag.lastCoordB);
   restoreEdgeDragGeometry(drag.feature,drag.baseGeometry,drag.pathA,coordA,drag.pathB,coordB);
   drag.lastCoordA=clone(coordA);
   drag.lastCoordB=clone(coordB);
@@ -8009,6 +8019,8 @@ function edgeDown(e,edge){
     originalVertexCount:vertexCount(base),
     aPoint,bPoint,
     normal,
+    originalCoordA:clone(a),
+    originalCoordB:clone(b),
     lastCoordA:clone(a),
     lastCoordB:clone(b),
     lastAmount:0
@@ -8353,6 +8365,12 @@ function unwrapLongitudeNear(lng,referenceLng){
   const value=Number(lng),reference=Number(referenceLng);
   if(!Number.isFinite(value)||!Number.isFinite(reference))return value;
   return value+360*Math.round((reference-value)/360);
+}
+function unwrapCoordNear(coord,referenceCoord){
+  if(!Array.isArray(coord)||!Array.isArray(referenceCoord))return coord;
+  const out=clone(coord);
+  out[0]=unwrapLongitudeNear(out[0],referenceCoord[0]);
+  return out;
 }
 function unwrapDrawCoordNear(coord,referenceCoord){
   if(!Array.isArray(coord)||!Array.isArray(referenceCoord))return coord;
@@ -19588,7 +19606,8 @@ function buildCircleEditHandles(){
   CIRCLE_EDIT.centerMarker=MAP_RUNTIME.createDomOverlay({coordinate:[center.lng,center.lat],className:'v137-circle-edit-div-icon',html:circleEditHandleHtml('center'),anchor:[14,14],draggable:true,zIndex:3300,title:'Move circle',
     onDragStart:()=>{begin();CIRCLE_EDIT.moveDrag={base:normaliseParametricCircle(f.parametricGeometry),pixelRadius:circleScreenRadiusAt(f.parametricGeometry),behavior:polygonMoveBehavior()};},
     onDrag:event=>{
-      const ll=event.latLng,centerCoord=[ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag=CIRCLE_EDIT.moveDrag;
+      const ll=event.latLng,drag=CIRCLE_EDIT.moveDrag;
+      const centerCoord=unwrapCoordNear([ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag?.base?.center||f.parametricGeometry.center);
       const radiusMetres=drag?.behavior==='screen'?circleRadiusForScreenSize(centerCoord,drag.pixelRadius):(drag?.base.radiusMetres||f.parametricGeometry.radiusMetres);
       f.parametricGeometry=normaliseParametricCircle({...drag.base,center:centerCoord,radiusMetres});CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
     },

@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.5';
+  const VERSION='1.55.4.6';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -86,7 +86,7 @@
         dragging=true;panWasEnabled=typeof isPanEnabled==='function'?!!isPanEnabled():true;
         try{if(typeof setPanEnabled==='function')setPanEnabled(false);}catch(_){ }
         try{spec.onDragStart?.(eventPayload(event));}catch(_){ }
-        moveHandler=ev=>{if(!dragging)return;const rect=container.getBoundingClientRect?.()||{left:0,top:0};const px=point((ev.clientX??0)-rect.left,(ev.clientY??0)-rect.top);coordinate=lonLat(pixelToLonLat(px));update();try{spec.onDrag?.(eventPayload(ev));}catch(_){ }};
+        moveHandler=ev=>{if(!dragging)return;const rect=container.getBoundingClientRect?.()||{left:0,top:0};const px=point((ev.clientX??0)-rect.left,(ev.clientY??0)-rect.top);const next=lonLat(pixelToLonLat(px));next[0]=wrapLongitudeNear(next[0],coordinate[0]);coordinate=next;update();try{spec.onDrag?.(eventPayload(ev));}catch(_){ }};
         upHandler=ev=>finishDrag(ev,ev.type==='pointercancel');
         global.addEventListener?.('pointermove',moveHandler,true);global.addEventListener?.('pointerup',upHandler,true);global.addEventListener?.('pointercancel',upHandler,true);
       });

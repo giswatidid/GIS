@@ -1,5 +1,13 @@
 # EditPolygon changelog
 
+## v1.55.4.6 — Repeated-world editing parity hotfix
+
+- Fixed polygon and LineString vertex dragging after several horizontal world wraps producing world-spanning segments because the moved vertex was committed in the viewport's repeated longitude branch while its neighbours remained in the stored branch.
+- Applied the same branch-stability rule to parallel edge dragging and whole-feature centre movement, including geographic-area movement.
+- Draggable map-runtime DOM handles now keep pointer coordinates on the pre-drag longitude branch, protecting point/measurement/overlay editing from the same repeated-world offset.
+- True-circle centre dragging now keeps the canonical centre on its pre-drag branch while retaining local International Date Line crossings.
+- Added dedicated repeated-world edit regressions covering +/-360n offsets and 179/181 degree dateline continuity.
+
 ## v1.55.4.5 — Drawing preview startup-order hotfix
 
 - Fixed a temporal-dead-zone startup crash introduced by v1.55.4.4: the live drawing preview layer state is now initialized beside the core drawing state before the application's first `renderAll()` can enter `renderOverlay()`.

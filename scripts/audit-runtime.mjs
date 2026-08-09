@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-draw-preview-init-155445';
+const RELEASE_KEY='20260809-world-wrap-edit-155446';
 
-function fail(message){throw new Error(`v1.55.4.5 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.6 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.5')fail(`package version is ${pkg.version}, expected 1.55.4.5`);
+if(pkg.version!=='1.55.4.6')fail(`package version is ${pkg.version}, expected 1.55.4.6`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -88,6 +88,18 @@ if(drawPreviewStateIndex<0||renderOverlayIndex<0||startupRenderIndex<0)fail('cou
 if(drawPreviewStateIndex>renderOverlayIndex||drawPreviewStateIndex>startupRenderIndex)fail('live draw preview layer state is initialized after renderOverlay/startup render and can enter the temporal dead zone');
 requireToken(app,"if(D.active){\n    overlay().classList.remove('zooming');\n    scheduleOverlayRender();",'draw zoom lifecycle');
 if(/e\.key==='Shift'\)updateShiftPanState/.test(app))fail('legacy Shift-pan key binding makes Shift-click drawing non-interactive');
+
+// Repeated-world editing is branch-stable as well as repeated-world rendering.
+// A pointer can be reported in world copy +/-360n from the stored geometry, but
+// moving one vertex/edge/handle must never connect that copy back to untouched
+// coordinates with a world-spanning segment.
+requireToken(app,'function unwrapCoordNear','generic continuous-longitude edit helper');
+requireToken(app,'const editCoord=unwrapCoordNear(snapped.coord,drag.originalCoord||snapped.coord);','red vertex repeated-world edit guard');
+requireToken(app,'const coordA=unwrapCoordNear([aLL.lng,aLL.lat],drag.originalCoordA||drag.lastCoordA);','edge repeated-world edit guard');
+requireToken(app,'return [unwrapLongitudeNear(ll.lng,coord[0]),Math.max(-90,Math.min(90,ll.lat))];','whole-feature repeated-world edit guard');
+requireToken(app,'const startLng=unwrapLongitudeNear(startLL.lng,origin0[0]);','geographic move repeated-world edit guard');
+requireToken(adapter,'next[0]=wrapLongitudeNear(next[0],coordinate[0]);coordinate=next;','DOM handle repeated-world drag guard');
+requireToken(app,'const centerCoord=unwrapCoordNear([ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag?.base?.center||f.parametricGeometry.center);','circle-centre repeated-world edit guard');
 
 // The current editable renderer must be one engine-neutral implementation.
 const rendererStart=app.indexOf('function buildRuntimeCachedLayer');
@@ -164,4 +176,4 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4.5 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');
+console.log('v1.55.4.6 runtime/repository audit passed. OpenLayers is adapter-confined; repeated-world drawing and editing preserve continuous longitude branches; deployment assets are clean.');
