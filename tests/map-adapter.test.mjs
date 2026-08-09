@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.1');
+  assert.equal(runtime.version,'1.55.4.2');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -346,6 +346,17 @@ test('OpenLayers runtime preserves canonical lon/lat state without creating a Le
   const px=runtime.lonLatToPixel([151,-33]);
   assert.equal(px.x,15100);assert.equal(px.y,-3300);
   assert.deepEqual([...runtime.pixelToLonLat(px)],[151,-33]);
+});
+
+test('OpenLayers coordinate-to-pixel conversion targets the world copy nearest the current view',()=>{
+  const {context}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[873,-27],zoom:6,ol:context.ol});
+  const canonical=runtime.lonLatToPixel([153,-27]);
+  const alreadyWrapped=runtime.lonLatToPixel([873,-27]);
+  assert.equal(canonical.x,87300);
+  assert.equal(canonical.y,-2700);
+  assert.equal(canonical.x,alreadyWrapped.x);
+  assert.equal(canonical.y,alreadyWrapped.y);
 });
 
 test('OpenLayers runtime owns display layers and GIS tile/WMS/vector primitives',()=>{

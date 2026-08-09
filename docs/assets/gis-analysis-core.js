@@ -70,6 +70,33 @@ function querySpatialIndex(index,bbox){
   for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)for(const i of cells[`${x}:${y}`]||[]){if(seen.has(i))continue;seen.add(i);const entry=entries[i];if(intersectsBbox(entry.bbox,bbox))out.push(entry.id);}
   return out;
 }
+
+// Query a longitude-periodic spatial index for map display. Web maps repeat the
+// world horizontally, while project geometry deliberately keeps continuous
+// longitudes so edits can move through adjacent world copies. A viewport at
+// 850°E is therefore visually equivalent to one at 130°E. Query only the
+// shifted viewport copies that can intersect the index bounds and de-duplicate
+// feature ids. This preserves viewport culling without making features vanish
+// after repeated world pans.
+function querySpatialIndexWrapped(index,bbox,{period=360,maxCopies=64}={}){
+  if(!index?.bounds||!bbox)return [];
+  const view=bbox.map(Number),bounds=index.bounds.map(Number),p=Number(period);
+  if(view.some(v=>!Number.isFinite(v))||bounds.some(v=>!Number.isFinite(v))||!Number.isFinite(p)||p<=0)return querySpatialIndex(index,bbox);
+  if(view[3]<bounds[1]||view[1]>bounds[3])return [];
+  const west=Math.min(view[0],view[2]),east=Math.max(view[0],view[2]),width=east-west;
+  // If the padded viewport spans an entire world, longitude culling has no
+  // value. Keep the latitude window but query the index's full x range once.
+  if(width>=p-1e-9)return querySpatialIndex(index,[bounds[0],view[1],bounds[2],view[3]]);
+  const first=Math.ceil((bounds[0]-east)/p),last=Math.floor((bounds[2]-west)/p);
+  if(last<first)return [];
+  if(last-first+1>Math.max(1,Number(maxCopies)||64))return querySpatialIndex(index,[bounds[0],view[1],bounds[2],view[3]]);
+  const seen=new Set(),out=[];
+  for(let k=first;k<=last;k++){
+    const shifted=[west+k*p,view[1],east+k*p,view[3]];
+    for(const id of querySpatialIndex(index,shifted))if(!seen.has(id)){seen.add(id);out.push(id);}
+  }
+  return out;
+}
 function applySelectionMode(current,matches,mode='replace'){
   const before=new Set(current||[]),found=new Set(matches||[]);
   if(mode==='add'){for(const id of found)before.add(id);}
@@ -81,6 +108,6 @@ function applySelectionMode(current,matches,mode='replace'){
 function expressionPreview(expression,features,calculate,limit=5){
   return (features||[]).slice(0,limit).map((feature,index)=>({id:feature.id,value:calculate(expression,feature.properties||{},index)}));
 }
-const api={version:'1.48.0',clone,fmt,compare,selectByAttribute,statistics,bboxOfGeometry,intersectsBbox,buildSpatialIndex,querySpatialIndex,applySelectionMode,expressionPreview};
+const api={version:'1.48.1',clone,fmt,compare,selectByAttribute,statistics,bboxOfGeometry,intersectsBbox,buildSpatialIndex,querySpatialIndex,querySpatialIndexWrapped,applySelectionMode,expressionPreview};
 global.EditPolygonGISAnalysisCore=Object.freeze(api);
 })(typeof window!=='undefined'?window:globalThis);

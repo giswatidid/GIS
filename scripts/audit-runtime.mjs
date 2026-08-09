@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-circle-projection-parity-15541';
+const RELEASE_KEY='20260809-world-wrap-parity-15542';
 
-function fail(message){throw new Error(`v1.55.4.1 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.2 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.1')fail(`package version is ${pkg.version}, expected 1.55.4.1`);
+if(pkg.version!=='1.55.4.2')fail(`package version is ${pkg.version}, expected 1.55.4.2`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -52,6 +52,17 @@ for(const direct of [/\bmap\.removeLayer\(/,/\bmap\.addLayer\(/,/\bmap\.hasLayer
   if(direct.test(app))fail(`direct native-map escape hatch remains: ${direct}`);
 }
 if((app.match(/getNativeMap/g)||[]).length!==0)fail('application code must not escape to a native map object');
+
+// Repeated horizontal world copies are a supported map-view state. Candidate
+// culling must be longitude-periodic and pixel overlays must target the world
+// copy nearest the active view rather than assuming canonical -180..180 only.
+const analysis=read('docs/assets/gis-analysis-core.js');
+requireToken(analysis,'function querySpatialIndexWrapped','GIS analysis core');
+requireToken(analysis,'querySpatialIndexWrapped,applySelectionMode','GIS analysis core API');
+requireToken(app,'function querySpatialIndexWrapped(file,bbox)','application spatial-index bridge');
+requireToken(app,'function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox))','authoritative cached renderer');
+requireToken(adapter,'function wrapLongitudeNear','map adapter');
+if(/const lng=Math\.max\(-180,Math\.min\(180,c\[0\]\)\)/.test(adapter))fail('Web Mercator helper clamps continuous longitude back to the canonical world');
 
 // The current editable renderer must be one engine-neutral implementation.
 const rendererStart=app.indexOf('function buildRuntimeCachedLayer');
@@ -128,4 +139,4 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4.1 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');
+console.log('v1.55.4.2 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');

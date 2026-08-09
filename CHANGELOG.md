@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.4.2 — Repeated-world rendering parity hotfix
+
+- Fixed editable vectors disappearing after panning horizontally around the repeated world multiple times in OpenLayers.
+- Added longitude-periodic spatial-index queries for map viewport culling while preserving continuous-longitude project geometry.
+- Map spatial-selection candidate queries use the same repeated-world logic.
+- Coordinate-to-pixel conversion now chooses the equivalent longitude nearest the current view, keeping handles and transient overlays aligned with the visible world copy.
+- Web Mercator helper projection preserves continuous longitude instead of clamping x to the canonical world.
+- Added multi-world regressions covering canonical Australian data, continuous-longitude geometry, latitude filtering and viewport spans wider than one world.
+
 ## v1.55.4.1 — True-circle projection parity hotfix
 
 - Fixed true circles changing apparent centre/shape after the radius click in screen/map-shape mode, most visibly at Australian and southern mid-latitudes.

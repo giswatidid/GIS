@@ -21154,6 +21154,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     ANALYSIS_RUNTIME.indexes.set(file.id,entry);return entry;
   }
   function querySpatialIndex(file,bbox){const cache=buildSpatialIndex(file);return cache?analysisCore().querySpatialIndex(cache.index,bbox):[];}
+  function querySpatialIndexWrapped(file,bbox){const cache=buildSpatialIndex(file),core=analysisCore();return cache?(core.querySpatialIndexWrapped?core.querySpatialIndexWrapped(cache.index,bbox):core.querySpatialIndex(cache.index,bbox)):[];}
   function rebuildSpatialIndex(fileId){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const result=buildSpatialIndex(file,true);return {count:result?.count||0,builtAt:result?.builtAt||Date.now()};}
   function invalidateSpatialIndex(fileId){if(fileId)ANALYSIS_RUNTIME.indexes.delete(fileId);else ANALYSIS_RUNTIME.indexes.clear();}
 
@@ -21166,7 +21167,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     }catch(_){return false;}
   }
   function geometryMatchesForFile(file,selectionFeature){
-    const bbox=turf.bbox(selectionFeature),ids=querySpatialIndex(file,bbox),lookup=new Set(ids);
+    const bbox=turf.bbox(selectionFeature),ids=querySpatialIndexWrapped(file,bbox),lookup=new Set(ids);
     return (file.features||[]).filter(feature=>lookup.has(feature.id)&&feature.visible!==false&&!feature._gisFiltered&&exactIntersectsSelection(feature,selectionFeature)).map(feature=>feature.id);
   }
   function selectByGeometryTargets(fileIds,geometry,mode='replace'){
@@ -21387,7 +21388,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   });
 
   function renderViewKey(){const b=MAP_RUNTIME.getExtent(.35);return [MAP_RUNTIME.getZoom(),...b.map(value=>value.toFixed(4))].join('|');}
-  function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
+  function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
   function renderSignature(file,features,viewKey){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
@@ -21465,7 +21466,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     invalidateRenderCache,
     getSelectedFeature:gisSelectedFeatureDetails
   });
-  window.__editPolygonGISAnalysis={version:GIS_ANALYSIS_VERSION,rebuildSpatialIndex,selectionInfo,invalidateRenderCache};
+  window.__editPolygonGISAnalysis={version:GIS_ANALYSIS_VERSION,rebuildSpatialIndex,selectionInfo,invalidateRenderCache,querySpatialIndexWrapped};
   try{invalidateRenderCache();renderMap();gisNotify();}catch(error){console.warn('GIS analysis initialisation failed',error);}
 })();
 

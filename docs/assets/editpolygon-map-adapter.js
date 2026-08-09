@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.1';
+  const VERSION='1.55.4.2';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -23,6 +23,10 @@
   function latLng(value){const c=lonLat(value);return {lat:c[1],lng:c[0]};}
   function bbox(value){if(!Array.isArray(value)||value.length<4)return null;const out=value.slice(0,4).map(Number);return out.every(Number.isFinite)?out:null;}
   function bboxIntersects(a,b){const aa=bbox(a),bb=bbox(b);if(!aa||!bb)return false;return !(aa[2]<bb[0]||aa[0]>bb[2]||aa[3]<bb[1]||aa[1]>bb[3]);}
+  function wrapLongitudeNear(value,reference){
+    const lon=finite(value),ref=finite(reference,lon);
+    return lon+Math.round((ref-lon)/360)*360;
+  }
   function haversine(a,b){
     const aa=lonLat(a),bb=lonLat(b),R=6371008.8,d2r=Math.PI/180;
     const p1=aa[1]*d2r,p2=bb[1]*d2r,dp=(bb[1]-aa[1])*d2r,dl=(bb[0]-aa[0])*d2r;
@@ -43,7 +47,7 @@
   }
   function mercatorWorldPixel(coord,zoom){
     const c=lonLat(coord),z=Math.max(0,finite(zoom)),scale=256*Math.pow(2,z);
-    const lng=Math.max(-180,Math.min(180,c[0])),lat=Math.max(-85.05112878,Math.min(85.05112878,c[1]));
+    const lng=c[0],lat=Math.max(-85.05112878,Math.min(85.05112878,c[1]));
     const sin=Math.sin(lat*Math.PI/180);
     return point((lng+180)/360*scale,(0.5-Math.log((1+sin)/(1-sin))/(4*Math.PI))*scale);
   }
@@ -275,7 +279,7 @@
     function fitLatLngBounds(boundsLike,fitOptions={}){try{if(Array.isArray(boundsLike)&&Array.isArray(boundsLike[0])){const a=boundsLike[0],b=boundsLike[1];return fitExtent([a[1],a[0],b[1],b[0]],fitOptions);}}catch(_){ }return false;}
     function panInside(coord,panOptions={}){const c=lonLat(coord),projected=ol.proj.fromLonLat(c),size=nativeMap.getSize?.();let inside=false;try{inside=ol.extent?.containsCoordinate?.(view.calculateExtent(size),projected)||false;}catch(_){ }if(!inside)setView(c,getZoom(),{animate:panOptions.animate!==false,duration:200});return true;}
     function getExtent(padRatio=0){const size=nativeMap.getSize?.(),e=view.calculateExtent(size);let out=ol.proj.transformExtent?ol.proj.transformExtent(e,'EPSG:3857','EPSG:4326'):[...e];if(padRatio){const dx=(out[2]-out[0])*padRatio,dy=(out[3]-out[1])*padRatio;out=[out[0]-dx,out[1]-dy,out[2]+dx,out[3]+dy];}return out;}
-    function lonLatToPixel(coord){const p=nativeMap.getPixelFromCoordinate(ol.proj.fromLonLat(lonLat(coord)));return point(p||[0,0]);}
+    function lonLatToPixel(coord){const c=lonLat(coord),center=getCenter(),display=[wrapLongitudeNear(c[0],center[0]),c[1]],p=nativeMap.getPixelFromCoordinate(ol.proj.fromLonLat(display));return point(p||[0,0]);}
     function latLngToPixel(value){const ll=Array.isArray(value)?{lat:finite(value[0]),lng:finite(value[1])}:value;return lonLatToPixel(lonLat(ll));}
     function pixelToLonLat(value){const p=point(value),c=nativeMap.getCoordinateFromPixel([p.x,p.y]);return c?ol.proj.toLonLat(c):[0,0];}
     function pixelToLatLng(value){const c=pixelToLonLat(value);return {lat:c[1],lng:c[0]};}
@@ -426,5 +430,5 @@
     }
   }
 
-  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
+  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
 })(typeof window!=='undefined'?window:globalThis);

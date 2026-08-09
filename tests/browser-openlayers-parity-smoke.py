@@ -54,11 +54,14 @@ with sync_playwright() as p:
       const handleEngine=!!handle.getElement()?.dataset?.editpolygonMapOverlay;const handleParent=handle.getElement()?.parentElement?.className||'';const childOrder=[...document.getElementById('map').children].map(el=>el.className||'');handle.remove();
       let nativeClick=null;r.on('click',event=>{nativeClick={pixel:[event.pixel.x,event.pixel.y],lonLat:event.lonLat};});
       r.getNativeMap().fire('click',{pixel:[320,210],coordinate:[3200,2100],originalEvent:{shiftKey:false}});
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      r.setView([873,-27],6,{animate:false});
+      const wrappedPixel=r.lonLatToPixel([153,-27]);
+      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
-    assert result['center']==[153,-27],result
+    assert result['center']==[873,-27],result
     assert result['zoom']==6,result
+    assert result['wrappedPixel']==[87300,-2700],result
     assert result['layers']==6,result
     assert result['controlKinds']==['zoom','attribution'],result
     assert result['featureCount']==1,result

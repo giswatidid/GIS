@@ -1,6 +1,6 @@
 # EditPolygon v1.55.4 quality baseline
 
-v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.1** keeps this architecture baseline and incorporates the first deployed parity correction: map-shape true circles now use projection-aware display materialisation so the final circle exactly matches the live preview, while geographic export/conversion materialisation remains separate.
+v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.2** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, and viewport culling now treats horizontally repeated world copies as longitude-periodic so editable vectors do not disappear after multiple globe rotations.
 
 ## What was reviewed
 
@@ -133,7 +133,7 @@ OpenLayers controls are instantiated explicitly (`ol.control.Zoom` and `ol.contr
 Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngine=openlayers` in a normal browser with representative data:
 
 1. Confirm `EditPolygonMap.engine === "openlayers"` and no fallback reason.
-2. Pan/zoom repeatedly with several polygons visible; vectors must not flash away.
+2. Pan/zoom repeatedly with several polygons visible, including several complete horizontal rotations around the repeated world; vectors must not flash away or disappear after crossing world copies.
 3. Click-select point, line, polygon and true circle; Shift-click multiple; click empty map to clear.
 4. Draw point, line, polygon and true circle. For a true circle over Australia/southern mid-latitudes, the final circle must remain centred on the first click and keep the same apparent circular shape/diameter as the live preview.
 5. Edit polygon/line vertices and midpoint handles; verify live geometry follows the pointer and undo/redo.
@@ -148,7 +148,7 @@ Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngin
 14. Test a larger FeatureServer/import and pan/zoom for stability/performance.
 15. On a touch device, check pan/zoom, drawers, selection and one edit workflow.
 
-Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch found during this checklist is fixed in v1.55.4.1 and now has an automated southern-hemisphere regression.
+Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. Both now have dedicated automated regressions.
 
 ## CRS validation retained from earlier releases
 
