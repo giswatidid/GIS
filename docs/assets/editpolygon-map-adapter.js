@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.9';
+  const VERSION='1.55.4.10';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -60,6 +60,24 @@
     }
     return g;
   }
+  function geometryFingerprint(geometry){
+    // Content-derived geometry identity used by the application renderer to
+    // verify that a cached/native editable feature still represents the
+    // authoritative project geometry.  This deliberately does not depend on
+    // mutable revision counters, which can legitimately repeat after undo.
+    let h1=2166136261>>>0,h2=0x9e3779b9>>>0,count=0;
+    const mixCode=code=>{h1^=code&255;h1=Math.imul(h1,16777619)>>>0;h2=(Math.imul(h2^code,2246822519)+3266489917)>>>0;};
+    const mixString=value=>{const text=String(value);for(let i=0;i<text.length;i++){const code=text.charCodeAt(i);mixCode(code&255);mixCode(code>>>8);}};
+    const visit=value=>{
+      if(Array.isArray(value)){mixCode(91);for(const item of value)visit(item);mixCode(93);return;}
+      if(value&&typeof value==='object'){mixCode(123);for(const key of Object.keys(value).sort()){mixString(key);visit(value[key]);}mixCode(125);return;}
+      if(typeof value==='number'){count++;mixString(Number.isFinite(value)?String(value):'NaN');mixCode(44);return;}
+      mixString(value==null?'null':value);mixCode(59);
+    };
+    visit(geometry);
+    return `${geometry?.type||'none'}:${count}:${h1.toString(16)}:${h2.toString(16)}`;
+  }
+
   function haversine(a,b){
     const aa=lonLat(a),bb=lonLat(b),R=6371008.8,d2r=Math.PI/180;
     const p1=aa[1]*d2r,p2=bb[1]*d2r,dp=(bb[1]-aa[1])*d2r,dl=(bb[0]-aa[0])*d2r;
@@ -183,8 +201,10 @@
         }
         if(typeof node.eachLayer==='function')try{node.eachLayer(visit);}catch(_){ }
       };
-      visit(layer);return updated;
+      visit(layer);if(updated&&layer?.__editpolygonGeometrySignatures)layer.__editpolygonGeometrySignatures.set(featureId,geometryFingerprint(geometry));return updated;
     }
+    function editableLayerMatchesGeometry(layer,featureId,geometry){return !!layer&&layer.__editpolygonGeometrySignatures?.get?.(featureId)===geometryFingerprint(geometry);}
+    function clearEditableVectorLayers(layerKey=null){let removed=0;try{nativeMap.eachLayer?.(layer=>{if(layer?.__editpolygonEditable&&(layerKey==null||layer.__editpolygonLayerKey===layerKey)){nativeMap.removeLayer(layer);removed++;}});}catch(_){ }return removed;}
     function addDisplayLayer(layer){if(!layer)return layer;try{if(typeof layer.addTo==='function')layer.addTo(nativeMap);else nativeMap.addLayer?.(layer);}catch(_){ }return layer;}
     function removeDisplayLayer(layer){if(!layer)return layer;try{nativeMap.removeLayer?.(layer);}catch(_){ }return layer;}
     function hasDisplayLayer(layer){try{return !!(layer&&nativeMap.hasLayer?.(layer));}catch(_){return false;}}
@@ -244,14 +264,14 @@
       return L.divIcon({className:'annotation-label',html:`<div class="measure-label-inner" style="color:${htmlEscape(color)};font-size:${size}px;font-family:${htmlEscape(font)};font-weight:${weight};font-style:${italic};">${htmlEscape(annotation.text||'')}</div>`,iconSize:null});
     }
     function createEditableVectorLayer(spec={}){
-      const group=L.layerGroup(),geometryFeatures=new Map();group.__editpolygonEngine='leaflet';group.__editpolygonEditable=true;group.__editpolygonFeatureCount=(spec.features||[]).length;group.__editpolygonGeometryFeatures=geometryFeatures;
+      const group=L.layerGroup(),geometryFeatures=new Map(),geometrySignatures=new Map();group.__editpolygonEngine='leaflet';group.__editpolygonEditable=true;group.__editpolygonLayerKey=spec.layerKey??null;group.__editpolygonFeatureCount=(spec.features||[]).length;group.__editpolygonGeometryFeatures=geometryFeatures;group.__editpolygonGeometrySignatures=geometrySignatures;
       for(const item of spec.features||[]){
         if(!item?.geometry)continue;
         try{
           const descriptor={...leafletStyleDescriptor(item.style||{}),radius:Math.max(1,Number(item.style?.radius??5))};
           const raw={type:'Feature',properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'},geometry:item.geometry};
           const geo=L.geoJSON(raw,{renderer:editableRenderer,interactive:false,smoothFactor:spec.smoothFactor??1.2,style:()=>descriptor,pointToLayer:(feature,ll)=>L.circleMarker(ll,{renderer:editableRenderer,radius:descriptor.radius,color:descriptor.color,fillColor:descriptor.fillColor,fillOpacity:descriptor.fillOpacity,opacity:descriptor.opacity,weight:descriptor.weight,dashArray:descriptor.dashArray,interactive:false})});
-          geo.eachLayer?.(child=>{child.featureId=item.id;child.__editpolygonId=item.id;child.__editpolygonKind='geometry';child.__editpolygonEditable=true;if(!geometryFeatures.has(item.id))geometryFeatures.set(item.id,child);});group.addLayer(geo);
+          geo.eachLayer?.(child=>{child.featureId=item.id;child.__editpolygonId=item.id;child.__editpolygonKind='geometry';child.__editpolygonEditable=true;if(!geometryFeatures.has(item.id))geometryFeatures.set(item.id,child);});geometrySignatures.set(item.id,geometryFingerprint(item.geometry));group.addLayer(geo);
         }catch(_){ }
         if(item.label?.coordinate&&item.label?.text!=null)try{const c=lonLat(item.label.coordinate),marker=L.marker([c[1],c[0]],{interactive:false,icon:editableLabelIcon(item.label.text)});marker.__editpolygonKind='label';group.addLayer(marker);}catch(_){ }
         if(item.annotation?.coordinate&&item.annotation?.text)try{const c=lonLat(item.annotation.coordinate),marker=L.marker([c[1],c[0]],{interactive:false,icon:editableAnnotationIcon(item.annotation)});marker.__editpolygonKind='annotation';group.addLayer(marker);}catch(_){ }
@@ -272,7 +292,7 @@
       for(const item of items||[]){if(!item?.geometry)continue;const st=item.style||{};try{const geo=L.geoJSON({type:'Feature',properties:item.properties||{},geometry:item.geometry},{interactive:item.interactive===true,style:()=>st,pointToLayer:(feature,ll)=>L.circleMarker(ll,{radius:Math.max(1,Number(st.radius??6)),color:st.color||'#1664d6',fillColor:st.fillColor||st.color||'#1664d6',fillOpacity:st.fillOpacity??.9,opacity:st.opacity??1,weight:st.weight??2,dashArray:st.dashArray||null,interactive:item.interactive===true})});geo.eachLayer(child=>{child.__editpolygonOverlayId=item.id||null;if(item.onClick)child.on?.('click',event=>item.onClick({id:item.id,item,originalEvent:event?.originalEvent||null,latLng:event?.latlng||null}));});layer.addLayer(geo);}catch(_){ }}return true;
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
-    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableFeatureIdsAtPixel});
+    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel});
   }
 
   function createOpenLayersRuntime(options={}){
@@ -426,21 +446,23 @@
       try{layer.setStyle?.(styleFromDescriptor(descriptor));layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
     function createEditableVectorLayer(spec={}){
-      const format=new ol.format.GeoJSON(),source=new ol.source.Vector(),olFeatures=[],geometryFeatures=new Map();
+      const format=new ol.format.GeoJSON(),source=new ol.source.Vector(),olFeatures=[],geometryFeatures=new Map(),geometrySignatures=new Map();
       for(const item of spec.features||[]){
         if(!item?.geometry)continue;
-        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(styleFromDescriptor(item.style||{}));geometryFeatures.set(item.id,f);olFeatures.push(f);}catch(_){ }
+        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(styleFromDescriptor(item.style||{}));geometryFeatures.set(item.id,f);geometrySignatures.set(item.id,geometryFingerprint(item.geometry));olFeatures.push(f);}catch(_){ }
         if(item.label?.coordinate&&item.label?.text!=null){try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
         if(item.annotation?.coordinate&&item.annotation?.text){try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
-      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;return layer;
+      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;return layer;
     }
     function updateEditableFeatureGeometry(layer,featureId,geometry){
       if(!layer||!featureId||!geometry)return false;
       const feature=layer.__editpolygonGeometryFeatures?.get?.(featureId)||layer.getSource?.()?.getFeatureById?.(featureId);
       if(!feature||typeof feature.setGeometry!=='function')return false;
-      try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometryToCanonicalWorld(geometry),{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
+      try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometryToCanonicalWorld(geometry),{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.__editpolygonGeometrySignatures?.set?.(featureId,geometryFingerprint(geometry));layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
+    function editableLayerMatchesGeometry(layer,featureId,geometry){return !!layer&&layer.__editpolygonGeometrySignatures?.get?.(featureId)===geometryFingerprint(geometry);}
+    function clearEditableVectorLayers(layerKey=null){let removed=0;try{for(const layer of [...(nativeMap.getLayers?.().getArray?.()||[])]){if(layer?.__editpolygonEditable&&(layerKey==null||layer.__editpolygonLayerKey===layerKey)){nativeMap.removeLayer(layer);removed++;}}}catch(_){ }nativeMap.render?.();return removed;}
     function editableFeatureIdsAtPixel(pixelValue,options={}){
       if(typeof nativeMap.forEachFeatureAtPixel!=='function')return [];
       const p=point(pixelValue),ids=[];
@@ -466,7 +488,7 @@
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:domOverlayPane,lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
 
-    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableFeatureIdsAtPixel});
+    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel});
   }
 
   function createRuntime(options={}){
@@ -479,5 +501,5 @@
     }
   }
 
-  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,canonicalLongitude,geometryToCanonicalWorld,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
+  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,canonicalLongitude,geometryToCanonicalWorld,geometryFingerprint,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
 })(typeof window!=='undefined'?window:globalThis);

@@ -57,7 +57,7 @@ with sync_playwright() as p:
       return {engine:runtime.engine,version:runtime.version,center:runtime.getCenter(),zoom:runtime.getZoom(),pixel:runtime.lonLatToPixel([153,-27]),event:{lonLat:evt.lonLat,pixel:[evt.pixel.x,evt.pixel.y],ctrl:evt.originalEvent.ctrlKey},panDisabled,editable:editable.__editpolygonEditable,featureCount:editable.__editpolygonFeatureCount,hitIds:ids,live,wmsLayers:wms.options.layers,refKind:reference.__editpolygonReferenceKind,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,layerCount:__native.layers.size};
     }''')
     assert result['engine']=='leaflet',result
-    assert result['version']=='1.55.4.9',result
+    assert result['version']=='1.55.4.10',result
     assert result['center']==[151,-33],result
     assert result['zoom']==8,result
     assert result['pixel']['x']==306 and result['pixel']['y']==54,result

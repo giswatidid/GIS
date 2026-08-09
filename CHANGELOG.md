@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.4.10 — Hard history/render geometry authority
+
+- Reworked undo/redo rendering after live testing proved that the project model and a live-mutated native editable layer could still disagree until a later selection redraw. History restoration is now a hard model/native boundary rather than a best-effort cache invalidation.
+- Added a non-serialised monotonic `HISTORY_RENDER_EPOCH` directly to the authoritative render signature. Historical feature revision counters may move backwards; this epoch never does, so an undo/redo state cannot reuse a native layer from an earlier history generation.
+- Added content-derived geometry fingerprints to cached editable signatures. Cache identity therefore depends on the actual geometry as well as private revision counters, closing the revision-collision class of stale-render bugs.
+- Editable map-runtime layers now carry an owning layer key and per-feature geometry-content signatures. Before accepting a selected/picked cache hit, the renderer verifies that the native feature still matches the project model.
+- Added `clearEditableVectorLayers()` to both map runtimes. History restore and render-cache invalidation can now hard-purge adapter-owned editable layers, including any orphan native layer that escaped application cache bookkeeping.
+- Manual geometry commits now retire the transient native live-edit materialisation before the next authoritative paint. Direct native geometry mutation is therefore limited to the active pointer interaction rather than surviving as an implicit post-edit authority.
+- Added executable regressions and runtime-audit requirements for history epochs, geometry fingerprints, model/native verification, keyed editable-layer ownership and hard purge. OpenLayers browser smoke coverage now exercises content matching and keyed purge directly.
+
 ## v1.55.4.9 — History transaction and edit-lifecycle hardening
 
 - Completed a full undo/redo and edit-lifecycle review after extended live testing still found occasional geometry changes only becoming visible after deselection.

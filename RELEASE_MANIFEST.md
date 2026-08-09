@@ -1,12 +1,10 @@
-# Current release manifest — v1.55.4.9
+# Current release manifest — v1.55.4.10
 
-This is the current repository update manifest. v1.55.4.9 is a focused history/edit-lifecycle hardening release on top of v1.55.4.8. Extended live testing proved the v1.55.4.8 design was correct but not actually authoritative at runtime: a late v1.16 `VStop` compatibility wrapper discarded the new `{render:false}` argument, allowing the pre-undo geometry to be painted even though the base history-aware implementation explicitly prohibited it.
-
-The release removes that stale wrapper, makes vertex-editor shutdown drain pending edit work before history replacement, and prevents pointerdown-only edit interactions from generating no-op undo entries.
+v1.55.4.10 is a focused undo/redo render-authority release on top of v1.55.4.9. Live testing showed that, despite transaction-safe editor shutdown, a selected OpenLayers feature could still display live-mutated geometry until a selection change forced another renderer pass. This release removes that implicit dual authority: native live geometry is transient pointer feedback only, while committed/history rendering is rematerialised from the project model under explicit content and ownership checks.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.8**.
+Upgrade from **v1.55.4.9**.
 
 ## Files to update
 
@@ -19,9 +17,9 @@ Upgrade from **v1.55.4.8**.
 - `docs/assets/editpolygon-map-adapter.js`
 - `docs/index.html`
 - `package.json`
-- `scripts/audit-bindings.mjs`
 - `scripts/audit-runtime.mjs`
 - `tests/browser-map-adapter-smoke.py`
+- `tests/browser-openlayers-parity-smoke.py`
 - `tests/gis-crs-integration.test.mjs`
 - `tests/gis-remote-source-integration.test.mjs`
 - `tests/history-render-authority.test.mjs`
@@ -40,10 +38,9 @@ None.
 
 ## Deployment
 
-If applying the GitHub patch ZIP through the web UI:
+1. Replace every file listed above.
+2. Do not delete unrelated repository files.
+3. Wait for GitHub Pages to finish deploying.
+4. Hard-refresh the OpenLayers URL before testing.
 
-1. replace every file listed under **Files to update**;
-2. do not add or delete any files;
-3. do not manually edit any code.
-
-The complete v1.55.4.9 repository ZIP may instead be used as the authoritative clean tree.
+The complete v1.55.4.10 repository ZIP can instead be used as the authoritative clean tree.

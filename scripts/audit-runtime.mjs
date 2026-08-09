@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-history-transaction-authority-155449';
+const RELEASE_KEY='20260809-history-render-authority-1554410';
 
-function fail(message){throw new Error(`v1.55.4.9 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.10 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.9')fail(`package version is ${pkg.version}, expected 1.55.4.9`);
+if(pkg.version!=='1.55.4.10')fail(`package version is ${pkg.version}, expected 1.55.4.10`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -183,8 +183,18 @@ requireToken(app,'V.geometryGuardTimer','history-safe delayed vertex guard owner
 requireToken(app,'renderGeneration:0','authoritative render generation');
 requireToken(app,'ANALYSIS_RUNTIME.renderGeneration++','render-generation invalidation');
 requireToken(app,'generation:${ANALYSIS_RUNTIME.renderGeneration}','render signature generation');
+requireToken(app,'let HISTORY_RENDER_EPOCH=0','monotonic history render epoch');
+requireToken(app,'HISTORY_RENDER_EPOCH++','history render epoch advance');
+requireToken(app,'history:${HISTORY_RENDER_EPOCH}','history epoch in render signature');
+requireToken(app,'renderGeometryFingerprint(feature)','geometry content in render signature');
+requireToken(app,'cachedEditableGeometryMatchesModel','model/native geometry cache verification');
+requireToken(app,'layerKey:file.id','adapter-owned editable layer key');
+requireToken(adapter,'function geometryFingerprint(geometry)','map-runtime geometry fingerprint');
+requireToken(adapter,'function editableLayerMatchesGeometry(layer,featureId,geometry)','map-runtime geometry content verification');
+requireToken(adapter,'function clearEditableVectorLayers(layerKey=null)','map-runtime editable layer hard purge');
+
 requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','canonical Point model healing');
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.9 runtime/repository audit passed. OpenLayers is adapter-confined; history restore is transaction-safe across legacy edit wrappers, standalone points and transient vector overlays are repeated-world stable, and deployment assets are clean.');
+console.log('v1.55.4.10 runtime/repository audit passed. History restore now has a hard model/native render boundary with content fingerprints and editable-layer purge; OpenLayers remains adapter-confined and deployment assets are clean.');

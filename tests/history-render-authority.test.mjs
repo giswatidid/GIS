@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
+const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
 function functionSource(name){
   const start=app.indexOf(`function ${name}(`);assert.ok(start>=0,`${name} missing`);
@@ -107,4 +108,36 @@ test('point and circle drag history starts on movement rather than pointerdown a
   assert.match(pointBlock,/onDrag:event=>\{if\(!POINT_EDIT\.historyStarted\)\{pushHistory\(\[r\.feature\.id\]\)/);
   assert.match(pointBlock,/if\(event\?\.cancelled\)return/);
   assert.match(pointBlock,/if\(!POINT_EDIT\.changed\)/);
+});
+
+
+test('history restoration creates a hard native-render authority boundary',()=>{
+  const src=functionSource('invalidateHistoryRestoreCaches');
+  assert.match(app,/let HISTORY_RENDER_EPOCH=0/);
+  assert.match(src,/HISTORY_RENDER_EPOCH\+\+/);
+  assert.match(src,/MAP_RUNTIME\.clearEditableVectorLayers\?\.\(/);
+  assert.match(src,/invalidateRenderCache\?\.\(/);
+});
+
+test('cached renderer identity includes actual geometry content and history epoch',()=>{
+  const signature=functionSource('renderSignature');
+  assert.match(app,/function renderGeometryFingerprint\(feature\)/);
+  assert.match(app,/EditPolygonMapAdapter\?\.geometryFingerprint/);
+  assert.match(signature,/history:\$\{HISTORY_RENDER_EPOCH\}/);
+  assert.match(signature,/renderGeometryFingerprint\(feature\)/);
+  assert.match(app,/cachedEditableGeometryMatchesModel\(cached\.group,features\)/);
+});
+
+test('committed manual geometry retires transient native edit materialisation',()=>{
+  const src=functionSource('commitManualGeometry');
+  assert.match(src,/invalidateRenderCache\?\.\(owner\.id\)/);
+});
+
+test('map adapter tracks editable layer ownership and content, and can hard-purge it',()=>{
+  assert.match(adapter,/function geometryFingerprint\(geometry\)/);
+  assert.match(adapter,/__editpolygonLayerKey=spec\.layerKey\?\?null/);
+  assert.match(adapter,/__editpolygonGeometrySignatures=geometrySignatures/);
+  assert.match(adapter,/function editableLayerMatchesGeometry\(layer,featureId,geometry\)/);
+  assert.match(adapter,/function clearEditableVectorLayers\(layerKey=null\)/);
+  assert.match(adapter,/editableLayerMatchesGeometry,clearEditableVectorLayers/);
 });

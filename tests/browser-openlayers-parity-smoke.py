@@ -42,11 +42,15 @@ with sync_playwright() as p:
     result=page.evaluate('''async()=>{
       const r=EditPolygonMapAdapter.createRuntime({engine:'openlayers',target:'map',center:[153,-27],zoom:6,ol});
       const base=r.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png'});r.addDisplayLayer(base);
-      const vec=r.createEditableVectorLayer({features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
+      const vec=r.createEditableVectorLayer({layerKey:'editable-main',features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
       const hitIds=r.editableFeatureIdsAtPixel([15300,-2700],{hitTolerance:8});
-      const liveUpdated=r.updateEditableFeatureGeometry(vec,'p1',{type:'Point',coordinates:[154,-28]});
+      const initialGeometry={type:'Point',coordinates:[153,-27]},movedGeometry={type:'Point',coordinates:[154,-28]};
+      const matchesInitial=r.editableLayerMatchesGeometry(vec,'p1',initialGeometry);
+      const liveUpdated=r.updateEditableFeatureGeometry(vec,'p1',movedGeometry);
+      const matchesMoved=r.editableLayerMatchesGeometry(vec,'p1',movedGeometry),matchesOldAfterMove=r.editableLayerMatchesGeometry(vec,'p1',initialGeometry);
       const liveGeometry=vec.__editpolygonGeometryFeatures.get('p1').geometry;
+      const purgeProbe=r.createEditableVectorLayer({layerKey:'purge-probe',features:[{id:'probe',geometry:initialGeometry,style:{color:'#333'}}]});r.addDisplayLayer(purgeProbe);const purgeCount=r.clearEditableVectorLayers('purge-probe'),purgeGone=!r.hasDisplayLayer(purgeProbe);
       const transient=r.createVectorOverlayLayer({zIndex:1700});r.setVectorOverlayFeatures(transient,[{id:'t1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#b42318',radius:7}}]);
       const wms=r.createWmsLayer({url:'https://example.test/wms',layers:'demo',opacity:.6,zIndex:25});r.addDisplayLayer(wms);
       const ref=r.createGeoJsonLayer({data:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]},style:{color:'#d92c32'},zIndex:40.01});r.addDisplayLayer(ref);
@@ -58,7 +62,7 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['center']==[873,-27],result
@@ -74,6 +78,10 @@ with sync_playwright() as p:
     assert result['leafletMapCalls']==0,result
     assert result['hasLegacyMap'] is False,result
     assert result['hasParityBridge'] is False,result
+    assert result['matchesInitial'] is True,result
+    assert result['matchesMoved'] is True,result
+    assert result['matchesOldAfterMove'] is False,result
+    assert result['purgeCount']==1 and result['purgeGone'] is True,result
     assert result['liveUpdated'] is True,result
     assert result['liveCoordinates']==[154,-28],result
     assert result['transientCount']==1,result

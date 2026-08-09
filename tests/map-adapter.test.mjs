@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.9');
+  assert.equal(runtime.version,'1.55.4.10');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -474,4 +474,19 @@ test('OpenLayers tile layers distinguish display max zoom from native tile max z
   assert.equal(layer.getSource().opts.maxZoom,19);
   assert.equal(layer.opts.maxZoom,22);
   assert.equal(layer.__editpolygonMaxNativeZoom,19);
+});
+
+test('editable layer content identity and hard purge stay inside the map adapter',()=>{
+  const context=load(),native=new FakeMap(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
+  const a={type:'Polygon',coordinates:[[[150,-28],[151,-28],[151,-27],[150,-28]]]};
+  const b={type:'Polygon',coordinates:[[[150,-28],[152,-28],[151,-27],[150,-28]]]};
+  assert.notEqual(context.EditPolygonMapAdapter.geometryFingerprint(a),context.EditPolygonMapAdapter.geometryFingerprint(b));
+  const layer=runtime.createEditableVectorLayer({layerKey:'layer-a',features:[{id:'f1',geometry:a,style:{color:'#123'}}]});
+  runtime.addDisplayLayer(layer);
+  assert.equal(runtime.editableLayerMatchesGeometry(layer,'f1',a),true);
+  assert.equal(runtime.editableLayerMatchesGeometry(layer,'f1',b),false);
+  assert.equal(runtime.updateEditableFeatureGeometry(layer,'f1',b),true);
+  assert.equal(runtime.editableLayerMatchesGeometry(layer,'f1',b),true);
+  assert.equal(runtime.clearEditableVectorLayers('layer-a'),1);
+  assert.equal(runtime.hasDisplayLayer(layer),false);
 });

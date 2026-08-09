@@ -457,6 +457,10 @@ function commitManualGeometry(f){
   f.geometry=clone(g);
   f.editStack=[];
   clearFeatureCaches(f);
+  // Native vector features may have been mutated directly for smooth pointer
+  // feedback. Once a manual edit is committed, retire that transient native
+  // representation so the next paint is materialised from this project model.
+  try{const owner=fileOfFeature(f.id)?.file;if(owner)window.EditPolygonGIS?.invalidateRenderCache?.(owner.id);}catch(_){ }
 }
 
 function recomputeFeature(f){
@@ -2168,6 +2172,10 @@ window.__editMeasure=startEditMeasure;
 
 
 const project={files:[],selectedFileId:null,selectedFeatureId:null,mergeIds:[],history:[],future:[],dirty:false,mode:'select'};
+// Monotonic, non-serialised boundary between history states and native map
+// materialisations. Unlike feature revision counters this can never move
+// backwards when an old snapshot is restored.
+let HISTORY_RENDER_EPOCH=0;
 const LAYER={pickCandidates:[],cycle:null};
 const sidebarState={collapsedFiles:new Set()};
 const AUTOSAVE={
@@ -2720,16 +2728,22 @@ function toggleTopology(){
 
 function snapshot(){return JSON.stringify({files:project.files,selectedFileId:project.selectedFileId,selectedFeatureId:project.selectedFeatureId,mergeIds:project.mergeIds,measurements:MEASURE.items})}
 function invalidateHistoryRestoreCaches(fileIds=null){
-  // Closing an active editor at the start of undo/redo can legitimately render
-  // once before the saved feature/project state is installed. That render may
-  // repopulate the spatial/vector cache with pre-history geometry. Invalidate
-  // again after replacement so the first history paint and the next map click
-  // cannot disagree about which geometry is authoritative.
+  // A history restore is a hard geometry-authority boundary. Live OpenLayers
+  // editing intentionally mutates a native feature for pointer performance,
+  // but no such native object is allowed to survive into a restored history
+  // state. The monotonic epoch also makes cache reuse impossible even when a
+  // restored feature carries a revision number seen earlier in the session.
+  HISTORY_RENDER_EPOCH++;
+  const ids=Array.isArray(fileIds)?[...new Set(fileIds.filter(Boolean))]:[];
+  try{
+    if(ids.length){for(const id of ids)MAP_RUNTIME.clearEditableVectorLayers?.(id);}
+    else MAP_RUNTIME.clearEditableVectorLayers?.();
+  }catch(_){ }
   try{
     const api=window.EditPolygonGIS;
     if(!api)return;
-    if(Array.isArray(fileIds)&&fileIds.length){
-      for(const id of new Set(fileIds.filter(Boolean))){
+    if(ids.length){
+      for(const id of ids){
         api.invalidateSpatialIndex?.(id);
         api.invalidateRenderCache?.(id);
       }
@@ -21283,6 +21297,21 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     workerJob:null,
     jobSeq:0
   };
+  const RENDER_GEOMETRY_FINGERPRINTS=new WeakMap();
+  function renderGeometryFingerprint(feature){
+    if(!feature)return 'none';
+    if(isParametricCircleFeature(feature)){
+      const c=feature.parametricGeometry||{};
+      return `circle:${(c.center||[]).join(',')}:${c.radiusMetres||0}:${c.fallbackSegments||0}:${polygonMoveBehavior()}`;
+    }
+    const geometry=getDisplayGeometry(feature),revision=feature._gisGeometryRevision||0,cached=RENDER_GEOMETRY_FINGERPRINTS.get(feature);
+    if(cached&&cached.geometry===geometry&&cached.revision===revision)return cached.value;
+    let value='';
+    try{value=window.EditPolygonMapAdapter?.geometryFingerprint?.(geometry)||JSON.stringify(geometry)||'none';}catch(_){value=`${geometry?.type||'none'}:${vertexCount(geometry)}`;}
+    RENDER_GEOMETRY_FINGERPRINTS.set(feature,{geometry,revision,value});
+    return value;
+  }
+
   const analysisCore=()=>window.EditPolygonGISAnalysisCore||null;
   const selectedIds=()=>window.__editPolygonLayersV133?.selectedIds?.()||[...new Set([...(project.mergeIds||[]),project.selectedFeatureId].filter(Boolean))];
   const selectedHook=()=>window.__editPolygonLayersV133||null;
@@ -21567,8 +21596,8 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function renderSignature(file,features,viewKey){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
-    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `${viewKey}|generation:${ANALYSIS_RUNTIME.renderGeneration}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
+    return `${viewKey}|generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
   function buildRuntimeCachedLayer(file,features){
     const labels=file.gisLabels;
@@ -21578,7 +21607,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates,style:{...(feature.annotationStyle||{}),annotation:true}};}
       return descriptor;
     });
-    return MAP_RUNTIME.createEditableVectorLayer({features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1,smoothFactor:V.active?2.5:1.2});
+    return MAP_RUNTIME.createEditableVectorLayer({layerKey:file.id,features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1,smoothFactor:V.active?2.5:1.2});
   }
   function cachedLayerPresent(layer){return MAP_RUNTIME.hasDisplayLayer(layer);}
   function addCachedLayer(layer){return MAP_RUNTIME.addDisplayLayer(layer);}
@@ -21593,11 +21622,23 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return {updated,requested:ids.length,fallbackFiles:[...fallbackFiles]};
   }
   window.__editpolygonLiveGeometryUpdate=liveGeometryUpdate;
+  function cachedEditableGeometryMatchesModel(layer,features){
+    if(typeof MAP_RUNTIME.editableLayerMatchesGeometry!=='function')return true;
+    // Selected/picked features are the ones eligible for direct native live
+    // mutation. Never trust a signature hit for them without verifying content.
+    const watched=new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean));
+    if(!watched.size)return true;
+    for(const feature of features){
+      if(!watched.has(feature.id))continue;
+      if(!MAP_RUNTIME.editableLayerMatchesGeometry(layer,feature.id,mapFeatureJSON(feature).geometry))return false;
+    }
+    return true;
+  }
   function cachedRenderMap(){
     const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
       if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
-      if(cached?.signature===signature){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
+      if(cached?.signature===signature&&cachedEditableGeometryMatchesModel(cached.group,features)){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
       const group=buildRuntimeCachedLayer(file,features);
       // Both engines now use the same adapter-owned editable-vector primitive.
       // Install the replacement before retiring the previous layer so a renderer
@@ -21616,7 +21657,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     // to collide with that signature. Bumping the generation guarantees the
     // next authoritative render rebuilds from the restored project model.
     ANALYSIS_RUNTIME.renderGeneration++;
-    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();}
+    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);try{MAP_RUNTIME.clearEditableVectorLayers?.(fileId);}catch(_){ }}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();try{MAP_RUNTIME.clearEditableVectorLayers?.();}catch(_){ }}
   }
   registerRuntimeTransition('history',()=>{invalidateSpatialIndex();invalidateRenderCache();});
 
