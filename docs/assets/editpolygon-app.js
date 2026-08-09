@@ -2739,7 +2739,7 @@ function invalidateHistoryRestoreCaches(fileIds=null){
     }
   }catch(_){ }
 }
-function restore(s){VStop(true);const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];if(Array.isArray(d.measurements))MEASURE.items=d.measurements;MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);invalidateHistoryRestoreCaches();renderAll();setDirty(true)}
+function restore(s){VStop(true,{render:false});const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];if(Array.isArray(d.measurements))MEASURE.items=d.measurements;MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);invalidateHistoryRestoreCaches();renderAll();setDirty(true)}
 
 /* v125: scalable undo history.
    Earlier builds discarded every undo state when the complete project JSON was
@@ -2778,6 +2778,7 @@ function pushMeasurementHistory(){
   catch(err){console.warn('Measurement history snapshot skipped:',err);return false;}
 }
 function restoreMeasurementHistoryEntry(entry){
+  if(V.active)VStop(true,{render:false});
   if(MEASURE.active)cancelMeasure(true);
   const saved=JSON.parse(entry.state||'{}');MEASURE.items=clone(saved.items||[]);MEASURE.selectedId=saved.selectedId&&MEASURE.items.some(item=>item.id===saved.selectedId)?saved.selectedId:null;MEASURE.editingId=null;MEASURE.active=false;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);renderAll();setDirty(true);
 }
@@ -2800,7 +2801,7 @@ function captureHistoryEntry(featureIds=null){
   return scoped||fullHistoryEntry();
 }
 function restoreFeatureHistoryEntry(entry){
-  VStop(true);
+  VStop(true,{render:false});
   const restoredFileIds=[];
   for(const target of entry.targets||[]){
     let file=project.files.find(f=>f.id===target.fileId);
@@ -4134,7 +4135,8 @@ function VStart(){
   renderAll();
   setStatus(`Vertex editor started for ${V.featureIds.length} polygon${V.featureIds.length===1?'':'s'}.`);
 }
-function VStop(silent=false){
+function VStop(silent=false,options={}){
+  const render=options?.render!==false;
   V.active=false;
   V.featureId=null;
   V.featureIds=[];
@@ -4144,11 +4146,16 @@ function VStop(silent=false){
   V.drag=null;
   V.edgeDrag=null;
   V.moveDrag=null;
-  document.body.classList.remove('vertex-centre-move-active');
-  overlay().classList.remove('lasso');
+  document.body.classList.remove('vertex-centre-move-active','vertex-drag-active');
+  overlay().classList.remove('lasso','vertex-dragging');
   renderOverlay();
   setNotice('Select one or more polygons, then click <strong>Edit polygon</strong>.');
-  renderAll();
+  // History restoration replaces the authoritative feature model immediately
+  // after closing the editor. Do not paint the pre-undo geometry in between:
+  // that intermediate paint can repopulate the cached OpenLayers vector layer
+  // with geometry that is about to be replaced and make the first history
+  // frame disagree with the next selection/map interaction.
+  if(render)renderAll();
   if(!silent)setStatus('Vertex editor closed.');
 }
 function VDelete(){
@@ -21233,6 +21240,10 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   const ANALYSIS_RUNTIME={
     indexes:new Map(),
     vectorCache:new Map(),
+    // A monotonic generation makes cache invalidation observable in the render
+    // signature even if a restored historical feature carries the same private
+    // geometry revision as a layer that was live-mutated during editing.
+    renderGeneration:0,
     renderInitialised:false,
     worker:null,
     workerJob:null,
@@ -21523,7 +21534,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `${viewKey}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    return `${viewKey}|generation:${ANALYSIS_RUNTIME.renderGeneration}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
   function buildRuntimeCachedLayer(file,features){
     const labels=file.gisLabels;
@@ -21565,6 +21576,12 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;
   function invalidateRenderCache(fileId){
+    // Cache invalidation is also a render-generation boundary. Live edit paths
+    // can mutate a native vector feature without changing the cached signature;
+    // history can then restore an older feature whose private revision happens
+    // to collide with that signature. Bumping the generation guarantees the
+    // next authoritative render rebuilds from the restored project model.
+    ANALYSIS_RUNTIME.renderGeneration++;
     if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();}
   }
   registerRuntimeTransition('history',()=>{invalidateSpatialIndex();invalidateRenderCache();});

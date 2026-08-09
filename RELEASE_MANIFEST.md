@@ -1,10 +1,10 @@
-# Current release manifest — v1.55.4.7
+# Current release manifest — v1.55.4.8
 
-This is the current repository update manifest. v1.55.4.7 is a focused live-parity hotfix on top of v1.55.4.6. It fixes three defects exposed by extended OpenLayers acceptance testing: standalone points could persist repeated-world longitudes and disappear/zoom into unsupported tile levels; undo/redo could leave a stale cached geometry that changed again on the next map click; and the true-circle radius guide could disappear because transient vector geometry was projected from a distant repeated-world branch.
+This is the current repository update manifest. v1.55.4.8 is a focused live-parity hotfix on top of v1.55.4.7. It fixes the remaining undo/redo display race found in extended OpenLayers acceptance testing: the history model could be restored correctly while the selected cached vector still showed the pre-undo geometry until a later selection/map interaction forced another renderer signature.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.6**.
+Upgrade from **v1.55.4.7**.
 
 ## Files to update
 
@@ -28,7 +28,7 @@ Upgrade from **v1.55.4.6**.
 
 ## Files to add
 
-- `tests/history-point-circle-parity.test.mjs`
+- `tests/history-render-authority.test.mjs`
 
 ## Files to delete
 
@@ -43,4 +43,4 @@ If applying the GitHub patch ZIP through the web UI:
 3. do not delete any files;
 4. do not manually edit any code.
 
-The complete v1.55.4.7 repository ZIP may instead be used as the authoritative clean tree.
+The complete v1.55.4.8 repository ZIP may instead be used as the authoritative clean tree.

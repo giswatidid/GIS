@@ -1,5 +1,13 @@
 # EditPolygon changelog
 
+## v1.55.4.8 — Undo/redo render-authority hotfix
+
+- Fixed undo/redo restoring the project model while a selected polygon could continue displaying the pre-history geometry until the next map click or deselection.
+- History restoration now closes vertex editing without an intermediate `renderAll()` of the geometry that is about to be replaced; the restored model is installed first and receives the authoritative paint.
+- Cached editable rendering now carries a monotonic render generation. Every explicit render-cache invalidation advances that generation, so a restored historical feature cannot accidentally reuse the signature of an OpenLayers feature that was live-mutated during editing even when their private geometry revisions coincide.
+- Kept the v1.55.4.7 post-restore spatial/vector invalidation, now as a second guard after model replacement rather than as compensation for a deliberately stale intermediate paint.
+- Added a regression that fails on v1.55.4.7 and verifies no pre-history paint, post-replacement invalidation ordering and generation-based cache authority.
+
 ## v1.55.4.7 — Point, history-cache and transient-overlay parity hotfix
 
 - Fixed standalone Point/MultiPoint features created or moved in a repeated world copy storing viewport longitudes such as `3114°` in the canonical project geometry. Standalone point longitudes are now canonical CRS84 values, and existing affected point models are healed when loaded through the feature model.
