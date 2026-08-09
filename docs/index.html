@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+
+<html lang="en" class="v121-app-booting">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>EditPolygon – Free Online Polygon Editor</title>
+    <meta name="description" content="EditPolygon is a free, user-friendly and powerful online polygon editor. Draw, edit, validate, repair and convert GIS formats in your browser."/>
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"/>
+    <meta name="application-name" content="EditPolygon"/>
+    <meta name="apple-mobile-web-app-title" content="EditPolygon"/>
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
+    <meta name="theme-color" content="#12161d" media="(prefers-color-scheme: dark)"/>
+    <meta name="color-scheme" content="light dark"/>
+    <meta name="format-detection" content="telephone=no"/>
+    <meta name="referrer" content="strict-origin-when-cross-origin"/>
+    <link rel="canonical" href="https://editpolygon.com/"/>
+    <link rel="icon" href="favicon.ico" sizes="any"/>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png"/>
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png"/>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png"/>
+    <link rel="manifest" href="manifest.webmanifest"/>
+    <link rel="preconnect" href="https://a.tile.openstreetmap.org" crossorigin/>
+    <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin/>
+    <link rel="dns-prefetch" href="//nominatim.openstreetmap.org"/>
+    <meta property="og:type" content="website"/>
+    <meta property="og:site_name" content="EditPolygon"/>
+    <meta property="og:locale" content="en_US"/>
+    <meta property="og:title" content="EditPolygon – Free Online Polygon Editor"/>
+    <meta property="og:description" content="Draw, edit, validate, repair and convert polygon files locally in your browser. Free, user-friendly and powerful."/>
+    <meta property="og:url" content="https://editpolygon.com/"/>
+    <meta property="og:image" content="https://editpolygon.com/social-preview.png"/>
+    <meta property="og:image:width" content="1200"/>
+    <meta property="og:image:height" content="630"/>
+    <meta property="og:image:alt" content="EditPolygon online polygon editing workspace"/>
+    <meta name="twitter:card" content="summary_large_image"/>
+    <meta name="twitter:title" content="EditPolygon – Free Online Polygon Editor"/>
+    <meta name="twitter:description" content="Draw, edit, validate, repair and convert polygon files locally in your browser."/>
+    <meta name="twitter:image" content="https://editpolygon.com/social-preview.png"/>
+    <meta name="twitter:image:alt" content="EditPolygon online polygon editing workspace"/>
+    <script type="application/ld+json">
+    {
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "EditPolygon",
+  "alternateName": "Edit Polygon",
+  "url": "https://editpolygon.com/",
+  "description": "EditPolygon is a free, user-friendly and powerful online polygon editor. Draw, edit, validate, repair and convert GIS formats in your browser.",
+  "applicationCategory": "UtilitiesApplication",
+  "applicationSubCategory": "GIS and geospatial editing",
+  "operatingSystem": "Any operating system with a modern desktop web browser",
+  "browserRequirements": "Requires JavaScript and a modern web browser. A desktop computer is recommended.",
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "featureList": [
+    "Draw and edit polygon and multipolygon geometry",
+    "Validate and repair polygon geometry",
+    "Convert common geospatial file formats",
+    "Import GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV",
+    "Export GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV",
+    "Process imported geometry files locally in the browser"
+  ],
+  "audience": [
+    {
+      "@type": "Audience",
+      "audienceType": "GIS professionals"
+    },
+    {
+      "@type": "Audience",
+      "audienceType": "Emergency-management users"
+    },
+    {
+      "@type": "Audience",
+      "audienceType": "Casual map users"
+    }
+  ]
+}
+    </script>
+
+<style id="v121StartupPaintGuard">
+/* v121: prevent the progressively enhanced legacy shell from flashing before
+   the final editor styles, theme and saved panel state have been applied. */
+html.v121-app-booting{
+  background:#f4f5f6;
+  overflow:hidden;
+}
+html.v121-app-booting.v121-prefers-night{
+  background:#12161d;
+}
+html.v121-app-booting body{
+  visibility:hidden!important;
+}
+html.v121-app-booting::before{
+  content:"Loading EditPolygon…";
+  position:fixed;
+  inset:0;
+  z-index:2147483647;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  background:#f4f5f6;
+  color:#475569;
+  font:700 13px/1.35 Arial,Helvetica,sans-serif;
+  letter-spacing:.01em;
+}
+html.v121-app-booting.v121-prefers-night::before{
+  background:#12161d;
+  color:#cbd5e1;
+}
+/* Do not animate from the base layout into restored sidebar/theme state. */
+html.v121-app-booting *,
+html.v121-app-booting *::before,
+html.v121-app-booting *::after{
+  transition:none!important;
+  animation:none!important;
+}
+html.v121-app-ready body{
+  animation:v121EditorReveal .08s linear both;
+}
+@keyframes v121EditorReveal{
+  from{opacity:.01}
+  to{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){
+  html.v121-app-ready body{animation:none}
+}
+</style>
+<script id="v121StartupPaintGuardScript">
+(function(){
+  'use strict';
+  var root=document.documentElement;
+  try{
+    if(localStorage.getItem('polygonEditorTheme')==='night'){
+      root.classList.add('v121-prefers-night');
+    }
+  }catch(_){ }
+
+  var revealed=false;
+  function revealEditor(){
+    if(revealed)return;
+    revealed=true;
+    root.classList.remove('v121-app-booting','v121-prefers-night');
+    root.classList.add('v121-app-ready');
+    window.setTimeout(function(){root.classList.remove('v121-app-ready');},180);
+  }
+  window.__v121RevealEditor=revealEditor;
+
+  function revealAfterSettling(){
+    window.requestAnimationFrame(function(){
+      window.requestAnimationFrame(function(){
+        /* Allow DOMContentLoaded enhancement hooks and saved UI state to finish. */
+        window.setTimeout(revealEditor,90);
+      });
+    });
+  }
+  if(document.readyState==='complete') revealAfterSettling();
+  else window.addEventListener('load',revealAfterSettling,{once:true});
+
+  /* Never leave the interface hidden if a third-party resource fails to load. */
+  window.setTimeout(revealEditor,2500);
+})();
+</script>
+
+<!-- Stability build v2 · v125 scalable complex-geometry undo -->
+<link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260809-openlayers-compat-free-audit-1553"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260809-openlayers-compat-free-audit-1553"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260809-openlayers-compat-free-audit-1553"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260809-openlayers-compat-free-audit-1553"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260809-openlayers-compat-free-audit-1553"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260809-openlayers-compat-free-audit-1553"/>
+
+
+
+</head>
+<body>
+<noscript>
+  
+  <div class="no-script-message">
+    <div class="no-script-title">EditPolygon – Free Online Polygon Editor</div>
+    <p>EditPolygon requires JavaScript to draw, edit, validate, repair and convert polygon files. Use a modern desktop browser and enable JavaScript to open the editor.</p>
+    <p>Supported workflows include GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV. Feedback: <a href="mailto:feedback@editpolygon.com">feedback@editpolygon.com</a>.</p>
+  </div>
+</noscript>
+
+<div class="app">
+<header class="toolbar project-toolbar compact-topbar" aria-label="EditPolygon application header">
+<div class="topbar-brand"><h1 class="title" id="siteTitle">EditPolygon</h1><div class="topbar-subtitle">Free online polygon editor</div></div>
+<div class="topbar-actions topbar-core">
+<button class="primary" id="openBtn">Open</button>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject" aria-label="Open polygon or geospatial files" hidden="" id="fileInput" multiple="" type="file"/>
+<button id="saveBtn" title="Save project">Save</button>
+<button class="icon-action" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
+<button class="icon-action" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
+<button id="fitAllBtn" title="Fit all content">Fit</button>
+</div>
+<div class="topbar-search-wrap">
+<input class="location-search-box" id="locationSearchInput" placeholder="Search place or lat, lng" type="text"/>
+<button class="primary" id="locationSearchBtn">Go</button>
+<button class="icon-action" id="clearLocationSearchBtn" title="Clear search">×</button>
+</div>
+<div class="topbar-actions topbar-export-compact">
+<select id="exportScope" title="Export scope"><option value="all">All</option><option value="selected">Selected</option><option value="visible">Visible</option></select>
+<select id="exportFormat" title="Export format"><option value="kml" selected>KML</option><option value="geojson">GeoJSON</option><option value="kmz">KMZ</option>
+<option value="gml">GML</option><option value="csv">CSV</option><option value="wkt">WKT</option><option value="topojson">TopoJSON</option><option value="shp">Shapefile ZIP</option></select>
+<button class="primary" id="exportBtn">Export</button>
+</div>
+<div class="topbar-more-wrap">
+<button aria-expanded="false" aria-haspopup="true" class="topbar-more-btn" id="topMoreBtn" title="More project tools">More ▾</button>
+<div aria-label="More tools" class="top-more-menu compact-project-menu" id="topMoreMenu" role="menu">
+<div class="top-menu-section-title">Project</div>
+<button id="restoreAutosaveBtn">Restore autosave</button>
+<button id="converterOpenBtn">Convert formats</button>
+<button id="validatorOpenBtn" title="Check geometry in the selected project layer">Check &amp; fix geometry</button>
+<button class="danger" id="clearBtn">Clear project</button>
+<div class="top-menu-section-title">Help</div><button id="aboutEditPolygonBtn" type="button">Help, about &amp; privacy</button><a class="top-menu-link" role="menuitem" href="mailto:feedback@editpolygon.com">Send feedback</a><button id="topMenuCommandProxy">Command palette</button>
+</div>
+</div>
+</header>
+<nav aria-label="Tools" class="tool-rail" id="toolRail">
+<button class="rail-btn active" data-rail="select" title="Select (V)"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M5 4l12 11-6 1.2-2.7 5.2L5 4z"></path><path d="M11 16l4 5"></path></svg></span><span class="lbl">Select</span></button>
+<button class="rail-btn" data-rail="draw" title="Draw polygon (D)"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M4 20l4.2-1 10.6-10.6-3.2-3.2L5 15.8 4 20z"></path><path d="M14.6 6.2l3.2 3.2"></path></svg></span><span class="lbl">Draw</span></button>
+<button class="rail-btn" data-rail="vertex" title="Edit polygon"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M7 5h10l4 7-4 7H7l-4-7 4-7z"></path><circle cx="7" cy="5" r="1.4"></circle><circle cx="17" cy="5" r="1.4"></circle><circle cx="21" cy="12" r="1.4"></circle><circle cx="17" cy="19" r="1.4"></circle><circle cx="7" cy="19" r="1.4"></circle><circle cx="3" cy="12" r="1.4"></circle></svg></span><span class="lbl">Polygon</span></button>
+<button class="rail-btn" data-rail="image" title="Add/select image overlay"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><rect height="14" rx="1" width="16" x="4" y="5"></rect><path d="M7 16l3.2-3.2 2.4 2.4L15.8 12 20 16"></path><circle cx="9" cy="9" r="1.2"></circle></svg></span><span class="lbl">Image</span></button>
+<button class="rail-btn" data-rail="measure" title="Measure distance or area"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M4 17l13-13 3 3L7 20 4 17z"></path><path d="M8 16l-1.5-1.5M11 13l-1.5-1.5M14 10l-1.5-1.5M17 7l-1.5-1.5"></path></svg></span><span class="lbl">Measure</span></button>
+<button class="rail-btn" data-rail="annotate" title="Annotate with text or point markers"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5z"></path><path d="M8 9h8M8 12h5"></path></svg></span><span class="lbl">Annotate</span></button>
+<div class="rail-spacer"></div>
+<button class="rail-btn" data-rail="command" title="Command palette (Ctrl+K)"><span class="ico"><svg aria-hidden="true" viewbox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="M15 15l5 5"></path></svg></span><span class="lbl">Search</span></button>
+<div class="rail-tip">Map editor</div>
+</nav>
+<div aria-label="Selection tools" class="rail-flyout select-tool-flyout" id="selectToolFlyout" role="menu">
+<div class="rail-flyout-title">Select features</div>
+<button data-select-tool="click"><span class="flyout-icon">↖</span><span><strong>Click selection</strong><small>Click features normally. Ctrl/Cmd toggles and Shift adds.</small></span></button>
+<button data-select-tool="rectangle"><span class="flyout-icon">□</span><span><strong>Rectangle selection</strong><small>Drag a box. Its dimensions and area update while you drag.</small></span></button>
+<button data-select-tool="polygon"><span class="flyout-icon">⬠</span><span><strong>Polygon selection</strong><small>Click boundary points. The live area follows the pointer.</small></span></button>
+<button data-select-tool="lasso"><span class="flyout-icon">⌁</span><span><strong>Lasso selection</strong><small>Press and drag a freehand boundary around features.</small></span></button>
+<div class="select-flyout-settings">
+<label>Target layers<select id="selectTargetLayer"><option value="*">All visible editable layers</option></select></label>
+<label>Selection action<select id="selectApplyMode"><option value="replace">Replace selection</option><option value="add">Add to selection</option><option value="remove">Remove from selection</option><option value="intersect">Keep only matching selected</option></select></label>
+</div>
+<div class="draw-tool-separator"></div>
+<button data-select-command="attribute"><span class="flyout-icon">ƒ</span><span><strong>Select by attribute…</strong><small>Find records using a field value or comparison.</small></span></button>
+<button data-select-command="location"><span class="flyout-icon">◎</span><span><strong>Select by location…</strong><small>Select using another layer and a spatial relationship.</small></span></button>
+<div class="select-flyout-quick-actions"><button type="button" data-select-command="clear">Clear selection</button><button type="button" data-select-command="save">Save selected layer…</button></div>
+</div>
+<div aria-label="Draw tools" class="rail-flyout" id="drawToolFlyout" role="menu">
+<div class="rail-flyout-title">Draw shapes</div>
+<button data-draw-tool="point"><span class="flyout-icon">•</span><span><strong>Point</strong><small>Click once to create an editable GIS point</small></span></button>
+<button data-draw-tool="polygon"><span class="flyout-icon">P</span><span><strong>Free polygon</strong><small>Click points. Hold Shift to snap the next edge to 45° angles</small></span></button>
+<button data-draw-tool="rectangle"><span class="flyout-icon">▭</span><span><strong>Rectangle / square</strong><small>Click first corner, click opposite corner. Hold Shift for square</small></span></button>
+<button data-draw-tool="circle"><span class="flyout-icon">○</span><span><strong>Circle</strong><small>Click centre, click radius. GML preserves the true circle</small></span></button>
+<button data-draw-tool="rotatedRect"><span class="flyout-icon">▱</span><span><strong>Rotated rectangle</strong><small>Click first edge, then set width. Shift snaps edge angle</small></span></button>
+<button data-draw-tool="regular"><span class="flyout-icon">⬡</span><span><strong>Regular polygon</strong><small>Click centre, click radius point. Choose sides in the draw bar</small></span></button>
+<button data-draw-tool="freehand"><span class="flyout-icon">⌁</span><span><strong>Freehand polygon</strong><small>Press and drag to sketch a polygon</small></span></button>
+<button data-draw-tool="buffer"><span class="flyout-icon">▰</span><span><strong>Buffer corridor</strong><small>Click a centreline, then finish to create a corridor polygon</small></span></button>
+<div class="draw-tool-separator"></div>
+<button id="coordPolygonBtn"><span class="flyout-icon">⌖</span><span><strong>Add by coordinates</strong><small>Paste latitude/longitude points</small></span></button>
+</div>
+<div aria-label="Image tools" class="rail-flyout" id="imageToolFlyout" role="menu">
+<div class="rail-flyout-title">Image</div>
+<button id="addImageOverlayBtn"><span class="flyout-icon">I</span><span><strong>Add image overlay</strong><small>Import an image for tracing or georeferencing</small></span></button>
+<input accept="image/png,image/jpeg,image/webp,image/gif" hidden="" id="imageOverlayInput" type="file"/>
+</div>
+<div aria-label="Measure tools" class="rail-flyout" id="measureToolFlyout" role="menu">
+<div class="rail-flyout-title">Measure</div>
+<button data-measure-tool="distance" id="measureDistanceBtn"><span class="flyout-icon">M</span><span><strong>Distance</strong><small>Click points to measure a path</small></span></button>
+<button data-measure-tool="area" id="measureAreaBtn"><span class="flyout-icon">A</span><span><strong>Area</strong><small>Draw a closed area and calculate size</small></span></button>
+<label class="rail-flyout-label">Distance unit
+      <select id="lengthUnitSelect"><option value="km">km</option><option value="m">m</option><option value="mi">miles</option><option value="yd">yards</option><option value="ft">feet</option><option value="nmi">nautical miles</option></select>
+</label>
+<label class="rail-flyout-label">Area unit
+      <select id="areaUnitSelect"><option value="ha">hectares</option><option value="km2">km²</option><option value="m2">m²</option><option value="ac">acres</option><option value="mi2">sq miles</option><option value="ft2">sq feet</option></select>
+</label>
+</div>
+<div aria-label="Annotation tools" class="rail-flyout" id="annotateToolFlyout" role="menu">
+<div class="rail-flyout-title">Annotate</div>
+<button data-annotate-tool="annotation" id="annotationBtn"><span class="flyout-icon">T</span><span><strong>Text label</strong><small>Place a note directly on the map</small></span></button>
+<button data-annotate-tool="point" id="drawPointBtn"><span class="flyout-icon">•</span><span><strong>Point marker</strong><small>Drop a simple marker with optional label</small></span></button>
+</div>
+<aside class="sidebar">
+<div class="sidebar-section project-section" id="projectSection"><div class="section-title"><span>Project</span><span class="subtle" id="projectCounts">0 files · 0 features</span></div><div class="dropzone" id="dropzone"><strong>Import files</strong><br/>Drop files here or click to open files<br/><span class="subtle">Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT/TXT and Shapefile ZIP</span></div><div class="notice" id="modeNotice">Use the left rail for tools. Select any map object to edit it in the right inspector.</div></div>
+<div class="sidebar-resizer" data-resizer="project-files"></div><div class="sidebar-section files-section" id="filesSection"><div class="section-title"><span>Layers</span></div><div id="fileList"></div></div>
+</aside>
+<aside class="sidebar-section selected-section inspector-panel" id="selectedSection"><div class="section-title"><span>Inspector</span><span class="subtle" id="selectedState">None</span></div><div id="selectedPanel"><div class="empty-inspector">Select a point, line, polygon, image, or measurement to edit it.</div></div></aside>
+<main id="map" aria-label="Interactive polygon editing map"></main>
+<div aria-label="Map display options" class="map-display-control" id="mapDisplayControl">
+<label>Map
+      <select id="basemap"><option value="osm">OSM</option><option value="light">Light</option><option value="dark">Dark</option><option value="sat">Satellite</option></select>
+</label>
+<button class="theme-toggle-btn" id="themeToggleBtn" title="Toggle night mode" type="button">Night</button>
+<button class="fullscreen-editor-btn" id="fullscreenEditorBtn" title="Fullscreen editor" type="button">Fullscreen</button>
+</div>
+<div aria-live="polite" class="mode-banner" id="modeBanner" role="status">
+<strong id="modeBannerTitle">Select mode</strong>
+<span id="modeBannerHint">Select a polygon to edit.</span>
+<span class="mode-banner-metric" id="modeBannerMetric"></span>
+<div aria-label="Active tool controls" class="mode-banner-controls" id="modeBannerControls">
+<button class="mode-banner-btn primary" id="modeBannerFinishBtn" type="button">Finish</button>
+<button class="mode-banner-btn" id="modeBannerCancelBtn" type="button">Cancel</button>
+</div>
+</div>
+<div id="imageTraceLayer"><canvas id="imageTraceCanvas"></canvas><svg id="imageTraceSvg2"></svg><div id="imageTraceDomLayer"></div><div id="imageTraceHitLayer"></div></div>
+<div class="float-toolbar selected-float-toolbar" id="selectedFloatToolbar">
+<button class="active" id="selectBtn">Select</button>
+<button id="drawBtn">Draw polygon</button>
+<button class="primary" id="editVerticesBtn">Edit polygon</button>
+<button id="duplicateBtn">Duplicate</button>
+<button class="danger" id="deletePolygonBtn">Delete</button>
+<button id="zoomBtn">Zoom</button>
+<select id="geometryActionSelect" title="Geometry tools — selecting a tool opens its preview panel">
+<option value="">Geometry tools…</option>
+<optgroup label="Transform">
+<option title="Expand or inset the selected polygon by a real-world distance." value="offset">Offset / inset active</option>
+<option title="Round selected polygon coordinates to a fixed decimal precision." value="truncate">Truncate precision active</option>
+</optgroup>
+<optgroup label="Cut / combine">
+<option title="Combines picked polygons into one polygon/multipolygon." value="merge">Merge / dissolve selected</option>
+<option title="Removes picked polygon area from the active polygon." value="cut">Cut active with picked</option>
+<option title="Keeps only overlapping area between active and picked polygons." value="intersect">Intersect / keep overlap</option>
+<option title="Trims picked polygons to inside the active polygon." value="clip">Clip picked to active</option>
+<option title="Uses active polygon to erase from picked polygons." value="erase">Erase active from picked</option>
+<option title="Cuts active polygon with a drawn line." value="splitLine">Split active by drawn line</option>
+</optgroup>
+<optgroup label="Holes">
+<option title="Draws a new hole inside the active polygon." value="drawHole">Draw hole in active</option>
+<option title="Inspect, delete, zoom, or convert individual holes in the active polygon." value="holeManager">Hole manager active</option>
+<option title="Convert picked polygon(s) into hole rings inside the active polygon." value="polygonToHole">Convert picked polygons to holes</option>
+<option title="Removes all holes from the active polygon." value="fillHoles">Fill all holes in active</option>
+</optgroup>
+<optgroup label="Clean / repair">
+<option title="Repairs rings, duplicate vertices, and broken geometry." value="repair">Repair active</option>
+<option title="Reduces vertex count on the active polygon." value="simplify">Simplify active</option>
+<option title="Rounds jagged edges on the active polygon." value="smooth">Smooth active</option>
+</optgroup>
+</select>
+<button aria-hidden="true" class="primary geometry-run-legacy" hidden="" id="runGeometryBtn" tabindex="-1" type="button">Preview</button>
+<span class="geom-info-btn" id="geometryInfoBtn" title="Hover over a geometry tool to see what it does.">?</span>
+<div class="geom-tooltip" id="geometryTooltip"></div>
+<button id="clearMergeBtn">Clear picks</button><button id="globalSnapToggleBtn" title="Hold Alt to temporarily disable snapping.">Snapping on</button><button id="globalTopologyToggleBtn" title="Move coincident vertices in other visible polygons.">Topology off</button>
+</div>
+<div class="geometry-preview-panel" id="geometryPreviewPanel">
+<div class="geometry-preview-head">
+<strong id="geometryPreviewTitle">Geometry preview</strong>
+<button class="icon-btn" id="geometryPreviewCloseBtn">×</button>
+</div>
+<div class="geometry-preview-desc" id="geometryPreviewDesc"></div>
+<div class="geometry-inline-controls" id="geometryInlineControls"></div>
+<div class="geometry-preview-summary" id="geometryPreviewSummary">Choose a geometry tool to preview.</div>
+<div class="geometry-preview-warning" id="geometryPreviewWarning"></div>
+<div class="geometry-preview-actions">
+<button aria-hidden="true" hidden="" id="geometryPreviewUpdateBtn" tabindex="-1">Update preview</button>
+<button class="primary" id="geometryPreviewApplyBtn">Run</button>
+</div>
+</div>
+<div class="float-toolbar mode-float-toolbar" id="drawFloatToolbar">
+<strong class="draw-toolbar-label" id="drawModeLabel">Draw polygon</strong>
+<span class="draw-toolbar-chip" id="drawModeHint">Shift snaps angles</span>
+<label class="draw-setting hidden" id="drawSegmentsWrap" title="Used only when exporting to a format without curves, or explicitly converting the true circle to a polygon.">Fallback vertices <input id="drawSegmentsInput" max="720" min="12" step="1" type="number" value="72"/></label>
+<label class="draw-setting hidden" id="drawSidesWrap">Sides <input id="drawSidesInput" max="64" min="3" step="1" type="number" value="6"/></label>
+<label class="draw-setting hidden" id="drawBufferWrap">Width m <input id="drawBufferWidthInput" min="0.1" step="0.1" type="number" value="50"/></label>
+<button class="primary" id="finishDrawBtn">Finish</button>
+<button id="undoDrawBtn">Undo</button>
+<button id="cancelDrawBtn">Cancel</button>
+</div>
+<div class="float-toolbar mode-float-toolbar image-overlay-toolbar" id="imageOverlayToolbar">
+<strong id="imageOverlayTitle">Image overlay</strong>
+<button class="active" id="imageOverlayMoveBtn">Move</button>
+<button id="imageOverlayResizeBtn" title="Corner drag keeps the original aspect ratio">Resize</button>
+<button id="imageOverlayStretchBtn" title="Corner drag can change the aspect ratio">Stretch</button>
+<button id="imageOverlayRotateBtn">Rotate</button>
+<button id="imageOverlayPerspectiveBtn" title="Four-corner perspective fitting">Perspective</button>
+<label class="image-move-behaviour-control" title="How this image moves across the map projection">Move <select id="imageOverlayMoveBehavior"><option value="geographic">Geo</option><option value="screen">Screen</option></select></label>
+<button id="imageOverlayLockBtn">Lock</button>
+<button id="imageOverlayHideBtn">Hide</button>
+<button class="danger" id="imageOverlayDeleteBtn">Delete</button>
+<label class="subtle">Opacity</label>
+<input id="imageOverlayOpacity" max="1" min="0.05" step="0.05" type="range" value="0.65"/>
+<button id="imageOverlayFitBtn">Zoom</button>
+<button id="imageOverlayDeselectBtn">Done</button>
+</div>
+<div class="float-toolbar mode-float-toolbar measure-toolbar" id="measureFloatToolbar">
+<strong id="measureModeLabel">Measure</strong>
+<input id="measureLabelInput" placeholder="Label / note" type="text"/>
+<input id="measureColorInput" title="Colour" type="color" value="#1664d6"/>
+<button id="measureStyleToggleBtn" title="Text style">Text style</button>
+<button class="primary" id="finishMeasureBtn">Finish</button>
+<button id="saveMeasureBtn">Save overlay</button>
+<button class="danger" id="deleteMeasureBtn">Delete</button>
+<button id="cancelMeasureBtn">Cancel</button>
+</div>
+<div class="measure-style-panel" id="measureStylePanel">
+<label>Size <input id="measureSizeInput" max="48" min="8" type="number" value="14"/></label>
+<label>Font <select id="measureFontSelect"><option value="Arial">Arial</option><option value="Verdana">Verdana</option><option value="Georgia">Georgia</option><option value="Times New Roman">Times</option><option value="Courier New">Courier</option></select></label>
+<button id="measureBoldBtn" title="Bold">B</button>
+<button id="measureItalicBtn" title="Italic"><em>I</em></button>
+</div>
+<div class="float-toolbar mode-float-toolbar" id="vertexFloatToolbar">
+<button id="lassoBtn">Lasso select</button>
+<button id="addVertexModeBtn" title="Show or hide green midpoint controls. Green controls insert a vertex only when clicked directly; dragging red vertices remains move-only.">Midpoints</button>
+<button class="active" id="snapToggleBtn" title="Snap moved/drawn vertices to nearby vertices and edges. Hold Alt to temporarily disable.">Snapping on</button>
+<button id="topologyToggleBtn" title="Move matching shared vertices in other visible polygons at the same time.">Topology off</button>
+<label class="subtle">Snap px</label>
+<input class="snap-tolerance" id="snapToleranceInput" max="40" min="2" title="Snap tolerance in screen pixels" type="number" value="12"/>
+<span class="vertex-scale-group" id="vertexScaleGroup" title="Scale the whole selected polygon from its centre.">
+<span class="subtle">Scale</span>
+<button class="vertex-scale-mini" id="polygonScaleDownBtn" title="Scale selected polygon down from centre">−</button>
+<input class="vertex-scale-input" id="polygonScalePercentInput" max="1000" min="1" step="1" title="Scale percent to apply to the selected polygon" type="number" value="105"/>
+<span class="subtle">%</span>
+<button class="vertex-scale-apply" id="polygonScaleApplyBtn" title="Apply scale percent to selected polygon">Apply</button>
+<button class="vertex-scale-mini" id="polygonScaleUpBtn" title="Scale selected polygon up from centre">+</button>
+</span>
+<button id="clearVerticesBtn">Clear vertices</button>
+<button class="danger" id="deleteVerticesBtn" style="min-width:132px">Delete vertices</button>
+<button id="doneVerticesBtn">Done</button>
+</div>
+<div id="editOverlay"><svg id="editSvg"><path d="" fill="rgba(22,100,214,0.10)" id="drawFillPath" stroke="none"></path><path d="" fill="none" id="drawLinePath" stroke="#1664d6" stroke-width="2.5"></path><path d="" fill="none" id="drawPreviewPath" stroke="#1664d6" stroke-dasharray="6 4" stroke-width="2"></path><path d="" fill="rgba(217,119,6,0.08)" id="lassoPath" stroke="#d97706" stroke-dasharray="6 4" stroke-width="2"></path></svg></div>
+<div id="mouseCoords">Lat: — · Lng: —</div>
+<div class="pick-menu" id="pickMenu"></div>
+<div class="layer-menu" id="layerMenu"></div>
+<div class="modal-backdrop" id="importPreviewModal">
+<div aria-modal="true" class="modal" role="dialog">
+<div class="modal-head">
+<span>Import preview</span>
+<button id="importPreviewCloseBtn">Cancel</button>
+</div>
+<div class="modal-body">
+<div class="coord-help">Review detected files and features before adding them to the project.</div>
+<div class="geom-op-summary" id="importPreviewSummary">No files prepared.</div>
+<div class="import-preview-list" id="importPreviewList"></div>
+</div>
+<div class="modal-foot">
+<button id="importPreviewCancelBtn">Cancel</button>
+<button class="primary" id="importPreviewImportBtn">Import</button>
+</div>
+</div>
+</div>
+<div class="modal-backdrop" id="converterModal">
+<div aria-labelledby="converterTitle" aria-modal="true" class="modal" role="dialog">
+<div class="modal-head">
+<span id="converterTitle">Convert polygon formats</span>
+<button id="converterCloseBtn">Close</button>
+</div>
+<div class="modal-body">
+<div class="coord-help">Convert GML, KML, KMZ, GeoJSON, JSON, CSV, WKT/TXT, zipped Shapefile, or the current project polygons into another polygon format. This does not change the current map unless you separately import the result.</div>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject" hidden="" id="converterFileInput" multiple="" type="file"/>
+<div class="converter-grid">
+<div class="converter-panel">
+<h4>Source</h4>
+<div class="converter-dropzone" id="converterDropzone">Drop polygon files here or click to choose files</div>
+<div class="converter-actions">
+<button id="converterChooseBtn">Choose files</button>
+<button id="converterUseProjectBtn">Use current project polygons</button>
+<button id="converterClearBtn">Clear</button>
+</div>
+<div class="converter-list" id="converterFileList"></div>
+</div>
+<div class="converter-panel">
+<h4>Output</h4>
+<label class="coord-help" for="converterFormatSelect">Convert to</label>
+<select id="converterFormatSelect">
+<option value="geojson">GeoJSON</option>
+<option value="kml">KML</option>
+<option value="kmz">KMZ</option>
+<option value="gml">GML</option>
+<option value="csv">CSV</option>
+<option value="wkt">WKT</option>
+<option value="topojson">TopoJSON</option>
+<option value="shp">Shapefile ZIP</option>
+</select>
+<div class="converter-output-row">
+<label class="coord-help" for="converterNameInput">Output file name</label>
+<input aria-label="Output file name" id="converterNameInput" type="text" value="converted_polygons"/>
+<button class="primary" id="converterRunBtn">Convert</button>
+</div>
+<div class="geom-op-summary" id="converterSummary">No source selected.</div>
+<div class="converter-status" id="converterStatus"></div>
+</div>
+</div>
+</div>
+<div class="modal-foot">
+<button id="converterCancelBtn">Cancel</button>
+<button class="primary" id="converterRunFooterBtn">Convert &amp; download</button>
+</div>
+</div>
+</div>
+<div class="modal-backdrop" id="validatorModal">
+<div aria-labelledby="validatorTitle" aria-modal="true" class="modal validator-modal" role="dialog">
+<div class="modal-head">
+<span id="validatorTitle">Legacy file geometry validator</span>
+<button id="validatorCloseBtn">Close</button>
+</div>
+<div class="modal-body">
+<div class="coord-help">Legacy file-based validator for compatibility and separate-file workflows. For project layers, use GIS → Check &amp; fix geometry (Geometry Health), which provides guided review, robust topology checks and repaired-layer outputs. Legacy Recommended fixes are intentionally conservative.</div>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject" hidden="" id="validatorFileInput" multiple="" type="file"/>
+<div class="validator-grid">
+<div class="validator-panel">
+<h4>Source</h4>
+<div class="validator-dropzone" id="validatorDropzone"><div><strong>Drop polygon files here</strong><br/><span>or click to choose files</span></div></div>
+<div class="validator-actions">
+<button id="validatorChooseBtn">Choose files</button>
+<button id="validatorUseProjectBtn">Use current project polygons</button>
+<button id="validatorClearBtn">Clear</button>
+</div>
+<div class="validator-list" id="validatorFileList"></div>
+<h4 style="margin-top:12px">Issues</h4>
+<div class="validator-issue-list" id="validatorIssueList"><div class="coord-help" style="margin:auto;text-align:center">Upload a file or use current project polygons to see issues.</div></div>
+</div>
+<div class="validator-panel">
+<h4>Overview</h4>
+<div class="validator-overview" id="validatorOverview"><span class="validator-chip">No source</span></div>
+<div class="geom-op-summary" id="validatorSummary">No source selected.</div>
+<h4 style="margin-top:12px">Fix options</h4>
+<div class="validator-actions" style="margin-top:0">
+<button id="validatorRecommendedBtn">Recommended</button>
+<button id="validatorAllBtn">All</button>
+<button id="validatorNoneBtn">None</button>
+</div>
+<div class="validator-options">
+<label><input data-validator-fix="closeRings" type="checkbox"/> Close open rings</label>
+<label><input checked="" data-validator-fix="removeDupes" type="checkbox"/> Remove consecutive duplicate vertices</label>
+<label><input data-validator-fix="dropZeroArea" type="checkbox"/> Drop zero-area rings</label>
+<label><input checked="" data-validator-fix="enforceWinding" type="checkbox"/> Enforce GeoJSON/RFC 7946 winding</label>
+<label><input data-validator-fix="dropDuplicateRings" type="checkbox"/> Drop duplicate rings</label>
+<label><input data-validator-fix="dropDuplicateFeatures" type="checkbox"/> Drop duplicate / likely duplicate polygon features</label>
+<label><input data-validator-fix="dropInvalidHoles" type="checkbox"/> Drop holes outside the outer ring</label>
+<label><input data-validator-fix="repairSelfIntersections" type="checkbox"/> Attempt self-intersection repair</label>
+</div>
+<h4 style="margin-top:12px">Output settings</h4>
+<div class="validator-output-row">
+<label class="coord-help" for="validatorFormatSelect">Export fixed result as</label>
+<select id="validatorFormatSelect">
+<option value="geojson">GeoJSON</option>
+<option value="kml">KML</option>
+<option value="kmz">KMZ</option>
+<option value="gml">GML</option>
+<option value="csv">CSV</option>
+<option value="wkt">WKT</option>
+<option value="topojson">TopoJSON</option>
+<option value="shp">Shapefile ZIP</option>
+</select>
+<label class="coord-help" for="validatorNameInput">Output file name</label>
+<input aria-label="Output file name" id="validatorNameInput" type="text" value="polygons_fixed"/>
+<button class="primary" id="validatorFixBtn">Apply selected fixes</button>
+</div>
+<div class="validator-status" id="validatorStatus"></div>
+</div>
+</div>
+<div style="margin-top:12px">
+<div class="coord-help" id="validatorOutputLabel">Fixed GeoJSON preview</div>
+<textarea class="validator-output-text" id="validatorOutputText" placeholder="Apply fixes to generate a preview." readonly=""></textarea>
+</div>
+</div>
+<div class="modal-foot">
+<button id="validatorCancelBtn">Cancel</button>
+<button id="validatorImportBtn">Import fixed result</button>
+<button class="primary" id="validatorDownloadBtn">Download fixed file</button>
+</div>
+</div>
+</div>
+<div class="import-overlay" id="importOverlay">
+<div class="import-title">Importing files…</div>
+<div class="import-message" id="importMessage">Preparing import…</div>
+<div class="import-bar"><div class="import-bar-fill" id="importBarFill"></div></div>
+</div>
+<div class="modal-backdrop" id="coordModal">
+<div aria-modal="true" class="modal" role="dialog">
+<div class="modal-head">
+<span>Add polygon by latitude/longitude</span>
+<button id="coordCloseBtn">Close</button>
+</div>
+<div class="modal-body">
+<div class="input-row">
+<input id="coordNameInput" placeholder="Polygon name (optional)" type="text"/>
+<select id="coordOrderSelect">
+<option value="latlng">lat, lng</option>
+<option value="lnglat">lng, lat</option>
+</select>
+</div>
+<div class="coord-help">
+          Enter one coordinate pair per line. Accepted separators: comma, space, tab, or semicolon.<br/>
+          Example:<br/>
+<code>-27.4698, 153.0251<br/>-27.4703, 153.0274<br/>-27.4721, 153.0268</code>
+</div>
+<textarea id="coordText" placeholder="-27.4698, 153.0251
+-27.4703, 153.0274
+-27.4721, 153.0268" spellcheck="false"></textarea>
+<div class="coord-preview" id="coordPreview">0 valid points.</div>
+<div class="coord-error" id="coordError"></div>
+</div>
+<div class="modal-foot">
+<button id="coordClearBtn">Clear</button>
+<button class="primary" id="coordCreateBtn">Create polygon</button>
+</div>
+</div>
+</div>
+<div class="modal-backdrop" id="geometryOpModal">
+<div aria-modal="true" class="modal" role="dialog">
+<div class="modal-head">
+<span id="geometryOpTitle">Geometry operation</span>
+<button id="geometryOpCloseBtn">Close</button>
+</div>
+<div class="modal-body">
+<div class="coord-help" id="geometryOpDescription"></div>
+<div class="geom-op-grid" id="geometryOpControls"></div>
+<div class="geom-op-summary" id="geometryOpSummary">Preview not generated yet.</div>
+<div class="geom-op-warning" id="geometryOpWarning"></div>
+<div class="geom-op-note">Preview is temporary. The project is not changed until you click Run.</div>
+</div>
+<div class="modal-foot">
+<button aria-hidden="true" hidden="" id="geometryOpPreviewBtn" tabindex="-1">Update preview</button>
+<button id="geometryOpCancelBtn">Cancel</button>
+<button class="primary" id="geometryOpApplyBtn">Run</button>
+</div>
+</div>
+</div>
+<div class="recovery-overlay" id="recoveryOverlay">
+<div class="recovery-card">
+<div class="recovery-title">Recover unsaved work?</div>
+<div class="recovery-body" id="recoveryBody">An autosaved project was found.</div>
+<div class="recovery-actions">
+<button id="discardRecoveryBtn">Discard autosave</button>
+<button class="primary" id="loadRecoveryBtn">Restore autosave</button>
+</div>
+</div>
+</div>
+<div class="mini-help" id="miniHelp">Tip: Ctrl+K opens commands · Ctrl+Z undoes image and polygon edits</div>
+<div class="command-backdrop" id="commandBackdrop">
+<div aria-label="Command palette" aria-modal="true" class="command-palette" role="dialog">
+<input autocomplete="off" id="commandInput" placeholder="Search commands…" type="text"/>
+<div class="command-list" id="commandList"></div>
+</div>
+</div>
+<details class="seo-info-drawer" id="aboutEditPolygon">
+  <summary aria-controls="editPolygonInfoContent">About &amp; help</summary>
+  <div class="seo-info-card" id="editPolygonInfoContent" tabindex="-1">
+    <div class="seo-info-head">
+      <div>
+        <p class="seo-eyebrow">Free browser-based GIS tool</p>
+        <h2>About EditPolygon</h2>
+      </div>
+      <button class="seo-info-close" id="closeEditPolygonInfoBtn" type="button" aria-label="Close About and help panel">×</button>
+    </div>
+    <p class="seo-lead"><strong>EditPolygon</strong> is a user-friendly but powerful online polygon editor for GIS professionals, emergency-management users and casual map users. Draw new geometry or import existing files to edit, inspect, validate, repair, simplify, compare and convert polygon data.</p>
+
+    <section aria-labelledby="editPolygonCapabilitiesTitle">
+      <h3 id="editPolygonCapabilitiesTitle">What you can do</h3>
+      <ul class="seo-feature-grid">
+        <li>Draw polygons, rectangles, circles, lines and points.</li>
+        <li>Edit vertices, edges, coordinates, holes and MultiPolygon parts.</li>
+        <li>Validate geometry and apply guided polygon repairs.</li>
+        <li>Simplify, merge, cut, intersect, clip, erase and split geometry.</li>
+        <li>Inspect feature properties and manually edit geometry code.</li>
+        <li>Convert and export common GIS polygon formats.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="editPolygonFormatsTitle">
+      <h3 id="editPolygonFormatsTitle">Supported geospatial formats</h3>
+      <p>Work with GML, KML, KMZ, GeoJSON, TopoJSON, ESRI Shapefile ZIP, WKT and CSV polygon data. EditPolygon also supports its own project files and includes tools for image and GeoTIFF reference workflows.</p>
+    </section>
+
+    <section id="editPolygonPrivacy" aria-labelledby="editPolygonPrivacyTitle">
+      <h3 id="editPolygonPrivacyTitle">Privacy and local file processing</h3>
+      <p>Your imported geometry files are processed locally in your browser. They are not uploaded to or stored by EditPolygon. The application connects to third-party services when it loads map tiles, basemaps or place-search results, and those providers may receive normal web-request information such as your IP address.</p>
+    </section>
+
+    <section aria-labelledby="editPolygonDesktopTitle">
+      <h3 id="editPolygonDesktopTitle">Desktop recommended</h3>
+      <p>EditPolygon can be opened on a phone or tablet, but detailed geometry editing works best on a desktop or laptop with a larger screen, mouse or trackpad.</p>
+    </section>
+
+    <section aria-labelledby="editPolygonFaqTitle">
+      <h3 id="editPolygonFaqTitle">Frequently asked questions</h3>
+      <details class="seo-faq"><summary>Is EditPolygon free?</summary><p>Yes. EditPolygon is completely free to use and does not require an account.</p></details>
+      <details class="seo-faq"><summary>Are my polygon files uploaded?</summary><p>No. Imported geometry is processed in your browser and is not uploaded to EditPolygon.</p></details>
+      <details class="seo-faq"><summary>Can EditPolygon edit MultiPolygon files?</summary><p>Yes. Polygon and MultiPolygon geometry can be imported, inspected and edited, including files containing multiple features or polygon parts.</p></details>
+      <details class="seo-faq"><summary>How do I report a problem or suggest a feature?</summary><p>Email <a href="mailto:feedback@editpolygon.com">feedback@editpolygon.com</a>. Do not attach sensitive geometry unless you have permission to share it.</p></details>
+    </section>
+
+    <section aria-labelledby="editPolygonTermsTitle">
+      <h3 id="editPolygonTermsTitle">Important use information</h3>
+      <p>EditPolygon is provided as a general-purpose editing tool. You remain responsible for checking geometry, coordinate reference assumptions, file compatibility and exported results before using them for operational, legal, safety-critical or emergency-management decisions. Basemaps and search results are supplied by third-party providers and may be incomplete or inaccurate.</p>
+    </section>
+
+    <div class="seo-info-actions">
+      <a class="seo-primary-link" href="/guides/">Open full guides</a>
+      <a href="mailto:feedback@editpolygon.com">Send feedback</a>
+      <button id="closeEditPolygonInfoBottomBtn" type="button">Close</button>
+    </div>
+  </div>
+</details>
+
+<div class="mobile-desktop-notice" id="mobileDesktopNotice" hidden>
+  <div class="mobile-desktop-card" role="dialog" aria-modal="true" aria-labelledby="mobileDesktopTitle" aria-describedby="mobileDesktopDescription">
+    <img src="icon-192.png" alt="" width="72" height="72"/>
+    <h2 id="mobileDesktopTitle">EditPolygon works best on desktop</h2>
+    <p id="mobileDesktopDescription">The mobile layout is fully functional for opening files, managing layers, selecting, inspecting, drawing and exporting. Detailed geometry editing is still easier on a desktop or laptop.</p>
+    <div class="mobile-desktop-actions">
+      <button class="primary" id="continueOnMobileBtn" type="button">Continue on this device</button>
+      <a href="mailto:feedback@editpolygon.com">Send feedback</a>
+    </div>
+  </div>
+</div>
+
+<footer class="statusbar" aria-label="Application status"><span id="statusText">Ready.</span><span class="status-pill" id="dirtyState">Saved</span><span class="status-pill" id="modeState">Mode: Select</span><span class="status-pill" id="vertexState">No vertex editor</span><span class="status-pill" id="mergeState">0 picked</span><span class="status-pill" id="selectionState">No selection</span><span class="status-pill perf-pill" id="perfState">Performance: normal</span><button class="status-info-link" id="privacyInfoBtn" type="button" title="About local file processing">Files stay in your browser</button></footer>
+</div>
+<script crossorigin="" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.9.0/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js"></script>
+<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260809-openlayers-compat-free-audit-1553">
+<script src="assets/editpolygon-map-adapter.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/@tmcw/togeojson@6.0.1/dist/togeojson.umd.js"></script>
+<script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
+<script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
+<script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
+<script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
+<script src="assets/gis-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-data-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-schema-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-analysis-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-join-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-style-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-crs-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-remote-source.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/editpolygon-app.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-workspace.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-data-tools.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-ui-integration.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/gis-geometry-health.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+<script src="assets/editpolygon-mobile.js?v=20260809-openlayers-compat-free-audit-1553"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- v125 geometry-code implementation is integrated into the main app closure above. -->
+
+
+</body>
+</html>
