@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.4.9 — History transaction and edit-lifecycle hardening
+
+- Completed a full undo/redo and edit-lifecycle review after extended live testing still found occasional geometry changes only becoming visible after deselection.
+- Removed the stale v1.16 `VStop` compatibility wrapper. It silently discarded the `{render:false}` option added in v1.55.4.8, so the deployed runtime could still paint pre-history geometry even though the authoritative `VStop` implementation supported a no-render shutdown.
+- `VStop` is now a single stable runtime function. It cancels pending vertex/edge/centre edit animation frames, pointer listeners, midpoint timers and delayed geometry guards; restores any unfinished live drag to its pointer-down geometry; and cannot be reassigned by later compatibility code.
+- Vertex and edge drag history is now created only after the pointer actually crosses the movement threshold. Clicking a red vertex or edge without changing geometry no longer consumes the next Ctrl+Z as a no-op history entry.
+- The delayed extra-vertex safety guard is explicitly owned by the vertex editor and cancelled when the editor/history closes, preventing an old timeout from mutating a newly restored historical geometry.
+- Point and true-circle drag editors now also avoid pointer-down-only history entries and ignore cancelled DOM-overlay drag-end callbacks, reducing false history states during lifecycle transitions.
+- Extended the architecture audit so any future `VStop` reassignment fails CI, and expanded history regressions to cover final source-order authority, no-op drag history, delayed callbacks and cancelled point/circle overlays. The new regression suite fails against v1.55.4.8 at the exact stale-wrapper/no-op sites.
+
 ## v1.55.4.8 — Undo/redo render-authority hotfix
 
 - Fixed undo/redo restoring the project model while a selected polygon could continue displaying the pre-history geometry until the next map click or deselection.

@@ -19,12 +19,27 @@ function functionSource(name){
   throw new Error(`${name} unterminated`);
 }
 
-test('history restoration closes vertex editing without painting pre-history geometry',()=>{
+function block(startToken,endToken){
+  const start=app.indexOf(startToken);assert.ok(start>=0,`${startToken} missing`);
+  const end=app.indexOf(endToken,start);assert.ok(end>start,`${endToken} missing after ${startToken}`);
+  return app.slice(start,end);
+}
+
+test('VStop has one stable history-aware implementation and no late compatibility wrapper',()=>{
   const stop=functionSource('VStop');
   assert.match(stop,/options=\{\}/);
   assert.match(stop,/const render=options\?\.render!==false/);
   assert.match(stop,/if\(render\)renderAll\(\)/);
+  assert.match(stop,/geometryGuardTimer/);
+  assert.match(stop,/cancelAnimationFrame\(PERF\.vertexDragMapRaf\)/);
+  assert.match(stop,/unbindVertexDragEvents\(\)/);
+  assert.match(stop,/unbindEdgeDragEvents\(\)/);
+  assert.match(stop,/unbindCentreMoveEvents\(\)/);
+  assert.doesNotMatch(app,/VStop\s*=\s*\(function\s*\(/);
+  assert.doesNotMatch(app,/VStop\s*=\s*function\s*\(/);
+});
 
+test('history restoration closes vertex editing without painting pre-history geometry',()=>{
   const featureRestore=functionSource('restoreFeatureHistoryEntry');
   assert.match(featureRestore,/VStop\(true,\{render:false\}\)/);
   assert.ok(featureRestore.indexOf('VStop(true,{render:false})')<featureRestore.indexOf('file.features[index]=saved'));
@@ -50,12 +65,46 @@ test('restored model invalidates caches after replacement and before the authori
   const render=restore.indexOf('renderAll()');
   assert.ok(replace>=0&&invalidate>replace&&render>invalidate);
 
-  // Why this matters: live editing can mutate native geometry while a cache
-  // signature still carries the historical revision. Selection changes used
-  // to be the next thing that changed the signature and exposed the undo.
   const stale='view|generation:4|selection:f1|rev:12';
   const restoredSameRevision='view|generation:4|selection:f1|rev:12';
   const restoredNewGeneration='view|generation:5|selection:f1|rev:12';
   assert.equal(stale,restoredSameRevision);
   assert.notEqual(stale,restoredNewGeneration);
+});
+
+test('vertex and edge pointerdown do not create no-op undo entries',()=>{
+  const vertexDown=functionSource('vertexDown');
+  assert.doesNotMatch(vertexDown,/pushHistory\(/);
+  assert.match(vertexDown,/history:false/);
+  const vertexApply=functionSource('applyVertexDragPosition');
+  assert.match(vertexApply,/drag\.moved&&!drag\.history/);
+  assert.match(vertexApply,/pushHistory\(vertexEditIds\(\)\)/);
+
+  const edgeDown=functionSource('edgeDown');
+  assert.doesNotMatch(edgeDown,/pushHistory\(/);
+  assert.match(edgeDown,/history:false/);
+  const edgeApply=functionSource('applyEdgeDragPosition');
+  assert.match(edgeApply,/drag\.moved&&!drag\.history/);
+  assert.match(edgeApply,/pushHistory\(\[drag\.featureId\|\|drag\.feature\?\.id\]\)/);
+});
+
+test('delayed vertex guard cannot survive editor shutdown into an undo restore',()=>{
+  const finish=functionSource('finishVertexDrag');
+  assert.match(finish,/V\.geometryGuardTimer=setTimeout/);
+  const stop=functionSource('VStop');
+  assert.match(stop,/clearTimeout\(V\.geometryGuardTimer\)/);
+});
+
+test('point and circle drag history starts on movement rather than pointerdown and cancelled overlays do not commit',()=>{
+  const circleBlock=block('function buildCircleEditHandles(){','function startCircleEditMode(){');
+  assert.doesNotMatch(circleBlock,/const begin=\(\)=>\{pushHistory/);
+  assert.match(circleBlock,/const beginHistory=\(\)=>\{if\(!CIRCLE_EDIT\.historyStarted\)\{pushHistory\(\[f\.id\]\)/);
+  assert.match(circleBlock,/onDragEnd:event=>\{CIRCLE_EDIT\.moveDrag=null;if\(event\?\.cancelled\)return/);
+  assert.match(circleBlock,/onDragEnd:event=>\{if\(event\?\.cancelled\)return/);
+
+  const pointBlock=block('function rebuildPointEditMarkers(){','function startPointEditMode(){');
+  assert.doesNotMatch(pointBlock,/onDragStart:\(\)=>\{pushHistory/);
+  assert.match(pointBlock,/onDrag:event=>\{if\(!POINT_EDIT\.historyStarted\)\{pushHistory\(\[r\.feature\.id\]\)/);
+  assert.match(pointBlock,/if\(event\?\.cancelled\)return/);
+  assert.match(pointBlock,/if\(!POINT_EDIT\.changed\)/);
 });

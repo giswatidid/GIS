@@ -86,10 +86,10 @@ for(const token of ['MAP_RUNTIME.createEditableVectorLayer','MAP_RUNTIME.addDisp
 if(/\b(?:L|ol)\./.test(finalRenderer))fail('authoritative cached renderer contains engine-specific map calls');
 if(finalRenderer.includes("MAP_RUNTIME.engine==='openlayers'"))fail('authoritative cached renderer still branches by map engine');
 if(!app.includes('RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;'))fail('final cached renderer is not installed through the stable renderMap delegate');
-for(const forbidden of [/\brenderMap\s*=\s*(?:async\s*)?function\b/,/\bselectFeature\s*=\s*(?:async\s*)?function\b/,/\bselectFeatureMulti\s*=\s*(?:async\s*)?function\b/,/\bclearSelection\s*=\s*(?:async\s*)?function\b/,/\bdeletePolygon\s*=\s*(?:async\s*)?function\b/,/\bundo\s*=\s*(?:async\s*)?function\b/,/\bredo\s*=\s*(?:async\s*)?function\b/]){
+for(const forbidden of [/\brenderMap\s*=\s*(?:async\s*)?function\b/,/\bselectFeature\s*=\s*(?:async\s*)?function\b/,/\bselectFeatureMulti\s*=\s*(?:async\s*)?function\b/,/\bclearSelection\s*=\s*(?:async\s*)?function\b/,/\bdeletePolygon\s*=\s*(?:async\s*)?function\b/,/\bundo\s*=\s*(?:async\s*)?function\b/,/\bredo\s*=\s*(?:async\s*)?function\b/,/\bVStop\s*=\s*(?:async\s*)?function\b/,/\bVStop\s*=\s*\(function\b/]){
   if(forbidden.test(app))fail(`critical public runtime function is reassigned instead of using a stable identity: ${forbidden}`);
 }
-for(const required of ['let RENDER_MAP_IMPL=bootstrapRenderMap','SELECT_FEATURE_IMPL=baseSelectFeature','SELECT_FEATURE_MULTI_IMPL=baseSelectFeatureMulti','CLEAR_SELECTION_IMPL=baseClearSelection','registerRuntimeTransition(\'history\',()=>{invalidateSpatialIndex();invalidateRenderCache();})']){
+for(const required of ['let RENDER_MAP_IMPL=bootstrapRenderMap','SELECT_FEATURE_IMPL=baseSelectFeature','SELECT_FEATURE_MULTI_IMPL=baseSelectFeatureMulti','CLEAR_SELECTION_IMPL=baseClearSelection','function VStop(silent=false,options={})','registerRuntimeTransition(\'history\',()=>{invalidateSpatialIndex();invalidateRenderCache();})']){
   if(!app.includes(required))fail(`stable runtime delegation/lifecycle hook is missing: ${required}`);
 }
 

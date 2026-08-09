@@ -2187,7 +2187,7 @@ const JOURNAL={
 };
 
 
-const V={active:false,featureId:null,featureIds:[],selected:new Set(),lasso:false,addMode:true,lassoDrawing:false,lassoPts:[],lassoLL:[],drag:null,edgeDrag:null,moveDrag:null,suppressMidpointClickUntil:0,blockMidpointAddsUntil:0,lastVertexDragEndedAt:0,restoreMidpointsTimer:null,midpointPointer:null,blockPointerAfterVertexDragUntil:0};
+const V={active:false,featureId:null,featureIds:[],selected:new Set(),lasso:false,addMode:true,lassoDrawing:false,lassoPts:[],lassoLL:[],drag:null,edgeDrag:null,moveDrag:null,suppressMidpointClickUntil:0,blockMidpointAddsUntil:0,lastVertexDragEndedAt:0,restoreMidpointsTimer:null,geometryGuardTimer:null,midpointPointer:null,blockPointerAfterVertexDragUntil:0};
 const MOVE={active:false,drag:null,renderRaf:0};
 function suppressVertexMidpointClicks(ms=700){
   const until=performance.now()+ms;
@@ -3813,6 +3813,10 @@ function applyVertexDragPosition(e,drag=V.drag){
   // untouched neighbours become connected by a world-spanning segment.
   const editCoord=unwrapCoordNear(snapped.coord,drag.originalCoord||snapped.coord);
   const editLatLng=MAP_ADAPTER.latLng(editCoord);
+  // A click on a red vertex is selection, not an edit.  Snapshot history only
+  // after the pointer has crossed the movement threshold so Ctrl+Z always
+  // targets a real geometry change rather than a no-op pointerdown.
+  if(drag.moved&&!drag.history){pushHistory(vertexEditIds());drag.history=true;}
 
   // Move-only by construction: every move is applied to the immutable geometry
   // captured on pointerdown, with exactly one existing coordinate replaced.
@@ -3926,7 +3930,9 @@ function finishVertexDrag(e,{cancel=false,fromFallback=false}={}){
   logOperation('vertex-moved',{featureId:drag.feature.id,editFeatureIds:vertexEditIds(),sharedMoved:shared,snapped:!!SNAP.last,finishFallback:!!fromFallback});
   setStatus(shared?`Vertex moved. ${shared} shared vertice${shared===1?'':'s'} moved across ${touched.size} edited polygon${touched.size===1?'':'s'}.`:'Vertex moved.');
 
-  setTimeout(()=>{
+  if(V.geometryGuardTimer)clearTimeout(V.geometryGuardTimer);
+  V.geometryGuardTimer=setTimeout(()=>{
+    V.geometryGuardTimer=null;
     const f=ref(guard.featureId)?.feature;
     if(f && vertexCount(f.geometry)!==guard.count){
       restoreMoveOnlyGeometry(f,guard.baseGeometry,guard.path,guard.coord);
@@ -3973,9 +3979,9 @@ function vertexDown(e,path){
     linked,
     linkedBaseGeometries:makeLinkedBaseMap(linked),
     baseGeometry:clone(normalizedBase),
-    originalVertexCount:vertexCount(normalizedBase)
+    originalVertexCount:vertexCount(normalizedBase),
+    history:false
   };
-  pushHistory(vertexEditIds());
   try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){ }
   hideVertexMidpointsForDrag();
   suppressVertexMidpointClicks(700);
@@ -4137,6 +4143,29 @@ function VStart(){
 }
 function VStop(silent=false,options={}){
   const render=options?.render!==false;
+  // VStop is the single authority for ending vertex/edge/centre editing.  It is
+  // also used by history restoration, so it must leave no pointer listener,
+  // animation frame or delayed geometry guard capable of writing after the
+  // historical model has been installed.
+  const vertexDrag=V.drag,edgeDrag=V.edgeDrag,moveDrag=V.moveDrag;
+  if(V.restoreMidpointsTimer){clearTimeout(V.restoreMidpointsTimer);V.restoreMidpointsTimer=null;}
+  if(V.geometryGuardTimer){clearTimeout(V.geometryGuardTimer);V.geometryGuardTimer=null;}
+  if(PERF.dragRenderRaf){cancelAnimationFrame(PERF.dragRenderRaf);PERF.dragRenderRaf=0;}
+  if(PERF.vertexDragMapRaf){cancelAnimationFrame(PERF.vertexDragMapRaf);PERF.vertexDragMapRaf=0;}
+  if(PERF.edgeDragMapRaf){cancelAnimationFrame(PERF.edgeDragMapRaf);PERF.edgeDragMapRaf=0;}
+  try{if(vertexDrag){unbindVertexDragEvents();releaseVertexPointerCapture(vertexDrag);}}catch(_){ }
+  try{if(edgeDrag){unbindEdgeDragEvents();releaseEdgePointerCapture(edgeDrag);}}catch(_){ }
+  try{if(moveDrag){unbindCentreMoveEvents();releaseCentreMovePointerCapture(moveDrag);}}catch(_){ }
+  try{MAP_RUNTIME.setPanEnabled(true)}catch(_){ }
+  // An edit session can be closed while a pointer is still down (Esc, history,
+  // selection changes).  Revert that uncommitted live geometry before dropping
+  // the drag state.  Completed edits have already cleared these drag objects.
+  if(vertexDrag?.feature&&vertexDrag.baseGeometry){
+    vertexDrag.feature.geometry=clone(vertexDrag.baseGeometry);clearFeatureCaches(vertexDrag.feature);
+    for(const [id,geometry] of Object.entries(vertexDrag.linkedBaseGeometries||{})){const linked=ref(id)?.feature;if(linked){linked.geometry=clone(geometry);clearFeatureCaches(linked);}}
+  }
+  if(edgeDrag?.feature&&edgeDrag.baseGeometry){edgeDrag.feature.geometry=clone(edgeDrag.baseGeometry);clearFeatureCaches(edgeDrag.feature);}
+  if(moveDrag?.feature&&moveDrag.baseGeometry){moveDrag.feature.geometry=clone(moveDrag.baseGeometry);clearFeatureCaches(moveDrag.feature);}
   V.active=false;
   V.featureId=null;
   V.featureIds=[];
@@ -4146,15 +4175,14 @@ function VStop(silent=false,options={}){
   V.drag=null;
   V.edgeDrag=null;
   V.moveDrag=null;
-  document.body.classList.remove('vertex-centre-move-active','vertex-drag-active');
-  overlay().classList.remove('lasso','vertex-dragging');
+  V.midpointPointer=null;
+  SNAP.last=null;
+  document.body.classList.remove('vertex-centre-move-active','vertex-drag-active','edge-drag-active');
+  overlay().classList.remove('lasso','vertex-dragging','edge-dragging');
   renderOverlay();
-  setNotice('Select one or more polygons, then click <strong>Edit polygon</strong>.');
+  setNotice('Select one or more polygons or lines, then click <strong>Edit polygon</strong>.');
   // History restoration replaces the authoritative feature model immediately
-  // after closing the editor. Do not paint the pre-undo geometry in between:
-  // that intermediate paint can repopulate the cached OpenLayers vector layer
-  // with geometry that is about to be replaced and make the first history
-  // frame disagree with the next selection/map interaction.
+  // after closing the editor. Do not paint the pre-undo geometry in between.
   if(render)renderAll();
   if(!silent)setStatus('Vertex editor closed.');
 }
@@ -7944,6 +7972,7 @@ function restoreEdgeDragGeometry(feature,baseGeometry,pathA,coordA,pathB,coordB)
 function applyEdgeDragPosition(e,drag=V.edgeDrag){
   if(!drag||!e||typeof e.clientX!=='number'||typeof e.clientY!=='number')return null;
   const now=MAP_ADAPTER.point(e.clientX,e.clientY);
+  if(drag.moved&&!drag.history){pushHistory([drag.featureId||drag.feature?.id]);drag.history=true;}
   const dx=now.x-drag.start.x;
   const dy=now.y-drag.start.y;
   let amount=dx*drag.normal.x+dy*drag.normal.y;
@@ -8052,11 +8081,11 @@ function edgeDown(e,edge){
   const normal={x:-vy/len,y:vx/len};
   const pathA={featureId:f.id,polygonIndex:edge.polygonIndex,ringIndex:edge.ringIndex,coordIndex:edge.startIndex};
   const pathB={featureId:f.id,polygonIndex:edge.polygonIndex,ringIndex:edge.ringIndex,coordIndex:edge.endIndex};
-  pushHistory([f.id]);
   V.midpointPointer=null;
   overlay().querySelectorAll('.mid').forEach(n=>n.remove());
   V.edgeDrag={
     feature:f,
+    featureId:f.id,
     pointerId:e.pointerId,
     target:e.currentTarget,
     handle:e.currentTarget,
@@ -8071,7 +8100,8 @@ function edgeDown(e,edge){
     originalCoordB:clone(b),
     lastCoordA:clone(a),
     lastCoordB:clone(b),
-    lastAmount:0
+    lastAmount:0,
+    history:false
   };
   e.currentTarget.classList.add('dragging');
   try{e.currentTarget.setPointerCapture(e.pointerId)}catch(_){ }
@@ -12768,7 +12798,6 @@ initUxRehaul();
     setNotice(`Vertex editor: editing ${polyCount?`${polyCount} polygon${polyCount===1?'':'s'}`:''}${polyCount&&lineCount?' and ':''}${lineCount?`${lineCount} line${lineCount===1?'':'s'}`:''}. Drag red vertices, click green midpoints to insert vertices, drag segments parallel, or use the centre handle to move the whole feature.`);
     renderAll();setStatus(`Vertex editor started for ${refs.length} feature${refs.length===1?'':'s'}.`);
   };
-  VStop=(function(base){return function(silent=false){base(silent);if(!silent)setNotice('Select one or more polygons or lines, then click <strong>Edit polygon</strong>.');};})(VStop);
   const v116BaseVDelete=VDelete;
   VDelete=function(){
     if(!V.active||!V.selected.size)return v116BaseVDelete();
@@ -19627,7 +19656,7 @@ renderSelected=function(){const r=ref();if(!r||!isParametricCircleFeature(r.feat
 
 
 /* v1.37 — direct map selection, parametric circle handles, explicit polygon-operation conversion and export notices. */
-const CIRCLE_EDIT={active:false,featureId:null,guideLayer:MAP_RUNTIME.createVectorOverlayLayer({zIndex:1550}),centerMarker:null,radiusMarker:null,bearing:90,changed:false,moveDrag:null};
+const CIRCLE_EDIT={active:false,featureId:null,guideLayer:MAP_RUNTIME.createVectorOverlayLayer({zIndex:1550}),centerMarker:null,radiusMarker:null,bearing:90,changed:false,historyStarted:false,moveDrag:null};
 window.__editPolygonCircleEditState=CIRCLE_EDIT;
 function circleEditRef(){const r=CIRCLE_EDIT.featureId?ref(CIRCLE_EDIT.featureId):null;return r&&isParametricCircleFeature(r.feature)?r:null;}
 function circleRadiusLatLng(circle,bearing=CIRCLE_EDIT.bearing){
@@ -19654,20 +19683,23 @@ function circleRadiusForScreenSize(center,pixelRadius){return circleMetresForScr
 function buildCircleEditHandles(){
   clearCircleEditLayers();const r=circleEditRef();if(!r)return;
   const f=r.feature,c=normaliseParametricCircle(f.parametricGeometry),center=circleDisplayCenterLatLng(c),radius=circleRadiusLatLng(c);
-  const begin=()=>{pushHistory([f.id]);CIRCLE_EDIT.changed=false;};
+  const begin=()=>{CIRCLE_EDIT.changed=false;CIRCLE_EDIT.historyStarted=false;};
+  const beginHistory=()=>{if(!CIRCLE_EDIT.historyStarted){pushHistory([f.id]);CIRCLE_EDIT.historyStarted=true;}};
   CIRCLE_EDIT.centerMarker=MAP_RUNTIME.createDomOverlay({coordinate:[center.lng,center.lat],className:'v137-circle-edit-div-icon',html:circleEditHandleHtml('center'),anchor:[14,14],draggable:true,zIndex:3300,title:'Move circle',
     onDragStart:()=>{begin();CIRCLE_EDIT.moveDrag={base:normaliseParametricCircle(f.parametricGeometry),pixelRadius:circleScreenRadiusAt(f.parametricGeometry),behavior:polygonMoveBehavior()};},
     onDrag:event=>{
       const ll=event.latLng,drag=CIRCLE_EDIT.moveDrag;
+      beginHistory();
       const centerCoord=unwrapCoordNear([ll.lng,Math.max(-90,Math.min(90,ll.lat))],drag?.base?.center||f.parametricGeometry.center);
       const radiusMetres=drag?.behavior==='screen'?circleRadiusForScreenSize(centerCoord,drag.pixelRadius):(drag?.base.radiusMetres||f.parametricGeometry.radiusMetres);
       f.parametricGeometry=normaliseParametricCircle({...drag.base,center:centerCoord,radiusMetres});CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
     },
-    onDragEnd:()=>{CIRCLE_EDIT.moveDrag=null;invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-moved',{featureId:f.id,moveBehavior:polygonMoveBehavior()});setStatus(polygonMoveBehavior()==='screen'?'Circle moved with its screen shape preserved.':'Circle moved with its geographic radius preserved.');}
+    onDragEnd:event=>{CIRCLE_EDIT.moveDrag=null;if(event?.cancelled)return;invalidateParametricGeometryCache(f);renderAllLight();if(CIRCLE_EDIT.changed){setDirty(true);logOperation('circle-moved',{featureId:f.id,moveBehavior:polygonMoveBehavior()});setStatus(polygonMoveBehavior()==='screen'?'Circle moved with its screen shape preserved.':'Circle moved with its geographic radius preserved.');}}
   });
   CIRCLE_EDIT.radiusMarker=MAP_RUNTIME.createDomOverlay({coordinate:[radius.lng,radius.lat],className:'v137-circle-edit-div-icon',html:circleEditHandleHtml('radius'),anchor:[12,12],draggable:true,zIndex:3301,title:'Change radius',
     onDragStart:begin,
     onDrag:event=>{
+      beginHistory();
       const ll=event.latLng,centerNow=circleDisplayCenterLatLng(f.parametricGeometry,ll.lng);let radiusMetres;
       if(polygonMoveBehavior()==='screen'){
         const centerPoint=MAP_RUNTIME.latLngToPixel(centerNow),edgePoint=MAP_RUNTIME.latLngToPixel(ll),dx=edgePoint.x-centerPoint.x,dy=edgePoint.y-centerPoint.y;
@@ -19677,7 +19709,7 @@ function buildCircleEditHandles(){
       }
       f.parametricGeometry=normaliseParametricCircle({...f.parametricGeometry,radiusMetres});CIRCLE_EDIT.changed=true;updateCircleEditGuide();circleEditLiveRefresh(f);
     },
-    onDragEnd:()=>{invalidateParametricGeometryCache(f);renderAllLight();setDirty(true);logOperation('circle-radius-changed',{featureId:f.id,radiusMetres:f.parametricGeometry.radiusMetres});setStatus('Circle radius updated.');}
+    onDragEnd:event=>{if(event?.cancelled)return;invalidateParametricGeometryCache(f);renderAllLight();if(CIRCLE_EDIT.changed){setDirty(true);logOperation('circle-radius-changed',{featureId:f.id,radiusMetres:f.parametricGeometry.radiusMetres});setStatus('Circle radius updated.');}}
   });
   updateCircleEditGuide();
 }
@@ -19690,7 +19722,7 @@ function startCircleEditMode(){
   renderMap();renderSelected();updateStatus();updateButtons();setStatus('Circle editor active. Drag the centre or radius handle.');
 }
 function stopCircleEditMode(silent=false){
-  if(!CIRCLE_EDIT.active)return;clearCircleEditLayers();CIRCLE_EDIT.active=false;CIRCLE_EDIT.featureId=null;CIRCLE_EDIT.changed=false;if(project.mode==='editCircle')project.mode='select';
+  if(!CIRCLE_EDIT.active)return;clearCircleEditLayers();CIRCLE_EDIT.active=false;CIRCLE_EDIT.featureId=null;CIRCLE_EDIT.changed=false;CIRCLE_EDIT.historyStarted=false;if(project.mode==='editCircle')project.mode='select';
   setNotice('Select a polygon or circle, then choose its editing control.');renderMap();renderSelected();updateStatus();updateButtons();if(!silent)setStatus('Circle editing finished.');
 }
 function refreshCircleEditHandles(){if(CIRCLE_EDIT.active)buildCircleEditHandles();}
@@ -21047,7 +21079,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__v146PointEditing=true;
 
   const pointSupported=type=>type==='Point'||type==='MultiPoint';
-  const POINT_EDIT={active:false,featureId:null,markers:[],changed:false};
+  const POINT_EDIT={active:false,featureId:null,markers:[],changed:false,historyStarted:false};
 
   function pointEditRef(){
     const r=ref(POINT_EDIT.featureId||project.selectedFeatureId);
@@ -21083,9 +21115,11 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       const marker=MAP_RUNTIME.createDomOverlay({
         coordinate:[coordinate[0],coordinate[1]],className:'editpolygon-point-edit-icon',html:'<div class="editpolygon-point-edit-handle" aria-hidden="true"></div>',anchor:[9,9],draggable:true,zIndex:3200,
         title:`Move ${r.feature.name}${pointCoordinates(getDisplayGeometry(r.feature)).length>1?` point ${index+1}`:''}`,
-        onDragStart:()=>{pushHistory([r.feature.id]);POINT_EDIT.changed=false;setStatus('Moving point. Release to save the new location.');},
-        onDrag:event=>{setPointCoordinate(r.feature,index,event.latLng);POINT_EDIT.changed=true;window.__editpolygonLiveGeometryUpdate?.([r.feature.id]);},
+        onDragStart:()=>{POINT_EDIT.changed=false;POINT_EDIT.historyStarted=false;setStatus('Moving point. Release to save the new location.');},
+        onDrag:event=>{if(!POINT_EDIT.historyStarted){pushHistory([r.feature.id]);POINT_EDIT.historyStarted=true;}setPointCoordinate(r.feature,index,event.latLng);POINT_EDIT.changed=true;window.__editpolygonLiveGeometryUpdate?.([r.feature.id]);},
         onDragEnd:event=>{
+          if(event?.cancelled)return;
+          if(!POINT_EDIT.changed){const current=pointCoordinates(getDisplayGeometry(r.feature))[index]||pointCoordinates(getDisplayGeometry(r.feature))[0];if(current)marker.setCoordinate([current[0],current[1]]);return;}
           let ll=event.latLng;
           try{const snap=snappedLatLng(ll,{event:event.originalEvent||null,excludeFeatureId:r.feature.id});if(snap?.latlng){ll=snap.latlng;marker.setCoordinate([ll.lng,ll.lat]);}}catch(_){ }
           setPointCoordinate(r.feature,index,ll);commitManualGeometry(r.feature);renderAllLight();setDirty(true);gisNotify?.();
@@ -21102,14 +21136,14 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(D.active)DCancel(true);if(V.active)VStop(true);if(MOVE.active)stopPolygonMoveMode(true);if(MEASURE.active&&typeof finishMeasure==='function')finishMeasure(true);
     if(typeof stopCircleEditMode==='function'&&typeof CIRCLE_EDIT!=='undefined'&&CIRCLE_EDIT.active)stopCircleEditMode(true);
     wakeFeature(r.file,r.feature);if((r.feature.editStack||[]).length)flattenEdits(r.feature);commitManualGeometry(r.feature);
-    POINT_EDIT.active=true;POINT_EDIT.featureId=r.feature.id;POINT_EDIT.changed=false;project.mode='editPoint';
+    POINT_EDIT.active=true;POINT_EDIT.featureId=r.feature.id;POINT_EDIT.changed=false;POINT_EDIT.historyStarted=false;project.mode='editPoint';
     rebuildPointEditMarkers();
     setNotice(pointCoordinates(getDisplayGeometry(r.feature)).length>1?'Edit points: drag any red point handle to move that member of the MultiPoint feature.':'Edit point: drag the red point handle to move it. Snapping is applied when you release it.');
     renderSelected();updateStatus();updateButtons();setStatus('Point editor active. Drag the red handle to move the point.');
   }
   function stopPointEditMode(silent=false){
     if(!POINT_EDIT.active)return;
-    clearPointEditMarkers();POINT_EDIT.active=false;POINT_EDIT.featureId=null;POINT_EDIT.changed=false;
+    clearPointEditMarkers();POINT_EDIT.active=false;POINT_EDIT.featureId=null;POINT_EDIT.changed=false;POINT_EDIT.historyStarted=false;
     if(project.mode==='editPoint')project.mode='select';
     setNotice('Select a point, line or polygon, then choose its editing control.');
     renderMap();renderSelected();updateStatus();updateButtons();
