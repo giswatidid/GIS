@@ -1,6 +1,6 @@
 # EditPolygon v1.55.4 quality baseline
 
-v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch.
+v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.1** keeps this architecture baseline and incorporates the first deployed parity correction: map-shape true circles now use projection-aware display materialisation so the final circle exactly matches the live preview, while geographic export/conversion materialisation remains separate.
 
 ## What was reviewed
 
@@ -65,13 +65,13 @@ Cross-cutting point/circle editor cleanup no longer monkey-patches selection, de
 
 ### Historical wrapper debt
 
-The binding audit is intentionally conservative: it counts repeated named declarations/reassignments even when some occur in separate local scopes. It therefore measures **source-order complexity**, not necessarily 200 global collisions.
+The binding audit is intentionally conservative: it counts repeated named declarations/reassignments even when some occur in separate local scopes. It therefore measures **source-order complexity**, not necessarily 207 global collisions.
 
 Current v1.55.4 ceiling after cleanup:
 
-- 1,676 named function bindings identified;
-- 200 names occurring at more than one source site;
-- 374 extra binding sites beyond the first occurrence;
+- 1,672 named function bindings identified;
+- 207 names occurring at more than one source site;
+- 381 extra binding sites beyond the first occurrence;
 - largest historical chains: `renderSelected` 15, `renderSidebar` 13, `renderAll` 10, `showFileLayerMenu` 8, `showFeatureLayerMenu` 7, `updateButtons` 7, `importFile` 7.
 
 The generic local name `wrapped` appears 21 times in independent enhancement scopes and is not itself one global 21-stage wrapper chain.
@@ -79,8 +79,6 @@ The generic local name `wrapped` appears 21 times in independent enhancement sco
 v1.55.4 does **not** flatten all historical wrappers in one release. Doing that while simultaneously proving map parity would be a high-risk rewrite. Instead:
 
 - known high-risk selection/history monkey patches were removed;
-- `renderMap`, `selectFeature`, `selectFeatureMulti`, `clearSelection`, `deletePolygon`, `undo` and `redo` now keep one stable public function identity instead of being replaced by later enhancement blocks;
-- later rendering/selection enhancements swap private delegates or register lifecycle hooks rather than monkey-patching those public functions;
 - the stale label-era `renderMap` wrapper was removed;
 - critical click-selection functions must each have exactly one binding;
 - major wrapper chains have no-growth ceilings;
@@ -137,7 +135,7 @@ Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngin
 1. Confirm `EditPolygonMap.engine === "openlayers"` and no fallback reason.
 2. Pan/zoom repeatedly with several polygons visible; vectors must not flash away.
 3. Click-select point, line, polygon and true circle; Shift-click multiple; click empty map to clear.
-4. Draw point, line, polygon and true circle.
+4. Draw point, line, polygon and true circle. For a true circle over Australia/southern mid-latitudes, the final circle must remain centred on the first click and keep the same apparent circular shape/diameter as the live preview.
 5. Edit polygon/line vertices and midpoint handles; verify live geometry follows the pointer and undo/redo.
 6. Edit a point and true circle centre/radius.
 7. Test snapping and topology mode against adjacent geometry.
@@ -150,7 +148,7 @@ Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngin
 14. Test a larger FeatureServer/import and pan/zoom for stability/performance.
 15. On a touch device, check pan/zoom, drawers, selection and one edit workflow.
 
-Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch.
+Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch found during this checklist is fixed in v1.55.4.1 and now has an automated southern-hemisphere regression.
 
 ## CRS validation retained from earlier releases
 
@@ -167,9 +165,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-`npm run check` executes repository integration checks, the runtime/repository audit, the source-binding/architecture audit and the complete Node test suite. The validated v1.55.4 working tree currently passes **204 / 204 Node tests**.
+`npm run check` executes repository integration checks, the runtime/repository audit, the source-binding/architecture audit and the complete Node test suite.
 
-The browser-smoke command exercises both map adapters plus CRS, remote-source, typed-data, join/summary and Geometry Health browser harnesses. All **seven browser smoke suites** pass in the validated working tree.
+The browser-smoke command exercises both map adapters plus CRS, remote-source, typed-data, join/summary and Geometry Health browser harnesses.
 
 ## Release decision
 

@@ -96,7 +96,7 @@ for(const required of ['let RENDER_MAP_IMPL=bootstrapRenderMap','SELECT_FEATURE_
 const circleStart=app.indexOf('function parametricCircleHitAtMapPoint');
 const circleEnd=app.indexOf('function featureHitAtMapPoint',circleStart);
 const circleBlock=app.slice(circleStart,circleEnd);
-if(!circleBlock.includes('const rendered=featJSON(feature)?.geometry'))fail('true-circle click selection no longer follows materialised display geometry');
+if(!circleBlock.includes('const rendered=mapFeatureJSON(feature)?.geometry'))fail('true-circle click selection no longer follows the exact projection-aware map display geometry');
 if(/MAP_RUNTIME\.engine/.test(circleBlock))fail('true-circle click selection diverges by map engine again');
 
 for(const stale of ['v137BaseSelectFeature','v137BaseSelectFeatureMulti','v137BaseClearSelection','v137BaseUndo','v137BaseRedo','v146BaseSelectFeature','v146BaseSelectFeatureMulti','v146BaseClearSelection','v146BaseUndo','v146BaseRedo']){

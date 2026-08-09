@@ -1,6 +1,6 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.55.4",
+  "version": "1.55.4.1",
   "private": true,
   "description": "Static privacy-first browser GIS editor with a dual-engine parity baseline, authoritative map-runtime rendering, guarded runtime bindings, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
   "scripts": {

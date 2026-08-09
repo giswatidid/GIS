@@ -44,7 +44,7 @@ test('click selection tests true circles against the exact materialised geometry
   const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
   assert.ok(start>=0);
   assert.match(block,/function parametricCircleHitAtMapPoint\(feature,file,latlng,pixel\)/);
-  assert.match(block,/const rendered=featJSON\(feature\)\?\.geometry/);
+  assert.match(block,/const rendered=mapFeatureJSON\(feature\)\?\.geometry/);
   assert.match(block,/turf\.booleanPointInPolygon\(pointFeature,renderedFeature\)/);
   assert.match(block,/polygonBoundaryHitPixel\(rendered\.coordinates/);
   assert.match(block,/editableFeatureIdsAtPixel\(hitPixel,\{hitTolerance:10\}\)/);

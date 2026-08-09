@@ -3152,10 +3152,11 @@ function polygonBoundaryHitPixel(coords,pixel,tolerance){
 function parametricCircleHitAtMapPoint(feature,file,latlng,pixel){
   if(!isParametricCircleFeature(feature)||!latlng)return false;
   // The authoritative cached renderer materialises CircleByCenterPoint through
-  // featJSON() for both map engines. Click selection therefore tests the same
-  // polygon geometry the user sees, avoiding renderer-specific circle maths.
+  // mapFeatureJSON() for both map engines. Click selection therefore tests the
+  // exact projection-aware polygon the user sees, while export/processing can
+  // continue to use the canonical geographic fallback representation.
   try{
-    const rendered=featJSON(feature)?.geometry;
+    const rendered=mapFeatureJSON(feature)?.geometry;
     if(rendered?.type==='Polygon'||rendered?.type==='MultiPolygon'){
       const pointFeature=turf.point([latlng.lng,latlng.lat]),renderedFeature={type:'Feature',properties:{},geometry:rendered};
       if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
@@ -3196,7 +3197,7 @@ function featuresAtLatLng(latlng,pixel=null){
     const id=String(row.feature.id);if(hits.has(id))continue;
     // Locked geometry remains selectable; locking prevents edits, not inspection.
     const tolerance=mapHitTolerancePx(row.feature,row.file),nw=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x-tolerance,hitPixel.y-tolerance)),se=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(hitPixel.x+tolerance,hitPixel.y+tolerance));
-    const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng)),latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat)),fb=featureBBox(row.feature);
+    const lngPad=Math.max(Math.abs(latlng.lng-nw.lng),Math.abs(se.lng-latlng.lng)),latPad=Math.max(Math.abs(latlng.lat-nw.lat),Math.abs(se.lat-latlng.lat)),fb=mapFeatureBBox(row.feature);
     if(fb&&(latlng.lng<fb[0]-lngPad||latlng.lng>fb[2]+lngPad||latlng.lat<fb[1]-latPad||latlng.lat>fb[3]+latPad))continue;
     if(featureHitAtMapPoint(row.feature,row.file,latlng,hitPixel))hits.set(id,row);
   }
@@ -3474,7 +3475,7 @@ function bootstrapRenderMap(){
       if(isFeatureSleeping(file,f))continue;
       let fb=featureBBox(f);
       if(fb&&!MAP_ADAPTER.bboxIntersects(b,fb))continue;
-      let gj=featJSON(f);
+      let gj=mapFeatureJSON(f);
       L.geoJSON(gj,{style:styleWithOpacity(f,file),smoothFactor:V.active?2.5:1.2,interactive:false,pointToLayer:(feature,latlng)=>{const st=styleWithOpacity(f,file);return L.circleMarker(latlng,{radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),color:st.color,fillColor:st.color,fillOpacity:st.opacity??1,weight:2})}}).eachLayer(layer=>{
         layer.featureId=f.id;
         layer.addTo(featureGroup);
@@ -5703,11 +5704,11 @@ function cutSelectedFromActive(){
 function zoomFeature(fid){
   const r=ref(fid);
   if(!r)return;
-  try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(r.feature)),{padding:[24,24]})}catch{}
+  try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(r.feature)),{padding:[24,24]})}catch{}
 }
-function zoomSelected(){const f=selectedFeature();if(!f)return;try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(f)),{padding:[24,24]})}catch{}}
-function zoomFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features:file.features.map(featJSON)}),{padding:[24,24]})}catch{}}
-function fitAll(){const p=projectFC({visibleOnly:true});if(!p.features.length)return;try{MAP_RUNTIME.fitExtent(turf.bbox(p),{padding:[24,24]})}catch{}}
+function zoomSelected(){const f=selectedFeature();if(!f)return;try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(f)),{padding:[24,24]})}catch{}}
+function zoomFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features:file.features.map(mapFeatureJSON)}),{padding:[24,24]})}catch{}}
+function fitAll(){const features=[];for(const file of project.files||[]){if(file.visible===false)continue;for(const feature of file.features||[]){if(feature.visible===false)continue;features.push(mapFeatureJSON(feature));}}if(!features.length)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features}),{padding:[24,24]})}catch{}}
 function removeFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;if(!confirm(`Remove "${file.name}"?`))return;pushHistory();project.files=project.files.filter(f=>f.id!==fid);sidebarState.collapsedFiles.delete(fid);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true)}
 function setImportLoading(active,message='',progress=null){
   const overlay=$('importOverlay');
@@ -7742,7 +7743,7 @@ function hidePolygonContextToolbar(){
 }
 function selectedPolygonToolbarAnchor(r){
   try{
-    const bbox=turf.bbox(featJSON(r.feature));
+    const bbox=turf.bbox(mapFeatureJSON(r.feature));
     const corners=[
       MAP_RUNTIME.latLngToPixel([bbox[1],bbox[0]]),
       MAP_RUNTIME.latLngToPixel([bbox[1],bbox[2]]),
@@ -8396,22 +8397,37 @@ function rectangleRing(startCoord,endCoord,forceSquare=false){
   if(pointDistance(a,b)<4)return null;
   return closeRingCopy([pointToCoord(a),pointToCoord(MAP_ADAPTER.point(b.x,a.y)),pointToCoord(b),pointToCoord(MAP_ADAPTER.point(a.x,b.y))]);
 }
-function circleRing(centerCoord,edgeCoord,segments=getDrawSegments()){
-  if(!centerCoord||!edgeCoord)return null;
-  // Draw circles in projected map/screen space, not as geodesic Turf circles.
-  // A geodesic circle is geographically correct but appears as an ellipse on
-  // a Web Mercator map. For this editor the Circle tool should create what the
-  // user sees: a true visual circle on the map canvas.
-  const center=coordToPoint(centerCoord);
-  const edge=coordToPoint(edgeCoord);
-  const radius=pointDistance(center,edge);
-  if(!Number.isFinite(radius)||radius<4)return null;
+function circleScreenRing(centerCoord,pixelRadius,segments=getDrawSegments()){
+  if(!centerCoord)return null;
+  const center=coordToPoint(centerCoord),radius=Number(pixelRadius);
+  if(!Number.isFinite(radius)||radius<=0)return null;
   const ring=[];
   for(let i=0;i<segments;i++){
     const a=(i/segments)*Math.PI*2;
     ring.push(pointToCoord(MAP_ADAPTER.point(center.x+Math.cos(a)*radius,center.y+Math.sin(a)*radius)));
   }
   return closeRingCopy(ring);
+}
+function circleDrawRadiusMetres(centerCoord,edgeCoord,behavior=polygonMoveBehavior()){
+  if(!centerCoord||!edgeCoord)return NaN;
+  if(behavior==='geographic'){
+    const center=MAP_ADAPTER.latLng(centerCoord),edge=MAP_ADAPTER.latLng(edgeCoord);
+    return MAP_RUNTIME.distanceLatLng(center,edge);
+  }
+  return circleMetresForScreenRadius(centerCoord,pointDistance(coordToPoint(centerCoord),coordToPoint(edgeCoord)));
+}
+function circleRing(centerCoord,edgeCoord,segments=getDrawSegments()){
+  if(!centerCoord||!edgeCoord)return null;
+  const pixelRadius=pointDistance(coordToPoint(centerCoord),coordToPoint(edgeCoord));
+  if(!Number.isFinite(pixelRadius)||pixelRadius<4)return null;
+  const radiusMetres=circleDrawRadiusMetres(centerCoord,edgeCoord);
+  if(!(radiusMetres>0))return null;
+  if(polygonMoveBehavior()==='geographic'){
+    try{
+      return materialiseCirclePolygon({center:centerCoord,radiusMetres,fallbackSegments:segments},segments).coordinates[0];
+    }catch(_){return null;}
+  }
+  return circleScreenRing(centerCoord,pixelRadius,segments);
 }
 function regularPolygonRing(centerCoord,edgeCoord,sides=getRegularSides(),shiftSnap=false){
   if(!centerCoord||!edgeCoord)return null;
@@ -8690,7 +8706,7 @@ function updateDrawStatus(){
   if(!D.active)return;
   const m=drawMetrics();
   const parts=[`${drawKindLabel(D.kind).replace(/^Draw /,'Drawing ')} · ${D.points.length} point${D.points.length===1?'':'s'}`];
-  if(D.kind==='circle'&&D.points[0]&&D.cursor){const r=circleMetresForScreenRadius(D.points[0],pointDistance(coordToPoint(D.points[0]),coordToPoint(D.cursor)));if(Number.isFinite(r))parts.push(`${lenLabel(r)} radius`);}
+  if(D.kind==='circle'&&D.points[0]&&D.cursor){const r=circleDrawRadiusMetres(D.points[0],D.cursor);if(Number.isFinite(r))parts.push(`${lenLabel(r)} radius`);}
   if(D.kind==='buffer')parts.push(`${getBufferWidthMetres()} m width`);
   if(m.area!=null)parts.push(areaLabel(m.area));
   if(m.perim!=null)parts.push(lenLabel(m.perim)+(D.kind==='buffer'?' outline':' perimeter'));
@@ -19380,6 +19396,29 @@ function materialiseCirclePolygon(value,segments){
   try{Object.defineProperty(owner,'_materialised',{value:{key,geometry},writable:true,configurable:true});}catch(_){}
   return clone(geometry);
 }
+function materialiseCircleDisplayPolygon(value,segments,behavior=polygonMoveBehavior()){
+  const c=normaliseParametricCircle({...value,fallbackSegments:segments??value.fallbackSegments}),n=c.fallbackSegments;
+  if(behavior==='geographic')return materialiseCirclePolygon(c,n);
+  try{
+    const pixelRadius=circleScreenRadiusPixels(value);
+    const ring=circleScreenRing(c.center,pixelRadius,n);
+    if(ring?.length>=4)return {type:'Polygon',coordinates:[ring]};
+  }catch(_){ }
+  // Never leave a canonical circle unrenderable because the map runtime was
+  // temporarily unavailable; the geographic fallback is still valid GeoJSON.
+  return materialiseCirclePolygon(c,n);
+}
+function mapFeatureJSON(feature){
+  if(!isParametricCircleFeature(feature))return featJSON(feature);
+  const geometry=materialiseCircleDisplayPolygon(feature.parametricGeometry,feature.parametricGeometry.fallbackSegments);
+  return {type:'Feature',properties:{...(clone(feature.properties||{})),name:feature.name},geometry};
+}
+function mapFeatureBBox(feature){
+  if(isParametricCircleFeature(feature)){
+    try{return turf.bbox(mapFeatureJSON(feature));}catch(_){ }
+  }
+  return featureBBox(feature);
+}
 function circleMetrics(value){const c=normaliseParametricCircle(value);return{area:Math.PI*c.radiusMetres*c.radiusMetres,perim:2*Math.PI*c.radiusMetres,bbox:circleBBox(c),vertices:0};}
 function circleBBox(value){
   const c=normaliseParametricCircle(value),lat=c.center[1],latDelta=c.radiusMetres/6371008.8*180/Math.PI;
@@ -19426,7 +19465,7 @@ function finishCircleFromPreview(){
   if(!D.points[0]||!D.cursor)return setStatus('Click a radius point to complete the circle.','error');
   const centerPoint=coordToPoint(D.points[0]),edgePoint=coordToPoint(D.cursor),pixelRadius=pointDistance(centerPoint,edgePoint);
   if(!Number.isFinite(pixelRadius)||pixelRadius<4)return setStatus('Circle radius is too small. Drag at least 4 pixels from the centre.','error');
-  const radius=circleMetresForScreenRadius(D.points[0],pixelRadius);if(!(radius>0))return setStatus('Circle radius must be greater than zero.','error');
+  const radius=circleDrawRadiusMetres(D.points[0],D.cursor);if(!(radius>0))return setStatus('Circle radius must be greater than zero.','error');
   pushHistory();const file=(typeof v135ActiveDrawingFile==='function'?v135ActiveDrawingFile():null)||ensureScratch(),f=createParametricCircleFeature(D.points[0],radius,getDrawSegments(),`Circle ${file.features.length+1}`,file);file.features.push(f);
   D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.stage=0;MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:'circle'});setStatus(`${f.name} created as a true curve.`);return f;
 }
@@ -20404,7 +20443,7 @@ function gisProcess(fileId,operation,params={}){const file=gisEditableFile(fileI
   return gisCreateOutputFile(name,output,params.color||'#7c3aed',{operation,sourceFileId:fileId,parameters:gisClone(params)});
 }
 function gisSelectFeatureById(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;project.selectedFileId=fileId;selectFeature(featureId);return true;}
-function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;try{MAP_RUNTIME.fitExtent(turf.bbox(featJSON(f)),{padding:[40,40],maxZoom:17});return true;}catch(_){return false;}}
+function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(f)),{padding:[40,40],maxZoom:17});return true;}catch(_){return false;}}
 function gisSetFeatureVisibility(fileId,featureId,visible){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;f.visible=visible!==false;renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`${f.visible?'Shown':'Hidden'} ${gisFeatureTitle(file,f)}.`);return true;}
 function gisShowAllHidden(fileId){const file=gisEditableFile(fileId);if(!file)return 0;let count=0;for(const f of file.features||[])if(f.visible===false){f.visible=true;count++;}if(count){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Shown ${count} hidden feature${count===1?'':'s'} in ${file.name}.`);}return count;}
 function gisClearFeatureOverrides(fileId){const file=gisEditableFile(fileId);if(!file)return {shown:0,unlocked:0};let shown=0,unlocked=0;for(const f of file.features||[]){if(f.visible===false){f.visible=true;shown++;}if(f.locked){f.locked=false;unlocked++;}}if(shown||unlocked){renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`Cleared feature overrides in ${file.name}.`);}return {shown,unlocked};}
@@ -21110,7 +21149,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const core=analysisCore();if(!core||!file)return null;
     const signature=fileIndexSignature(file),cached=ANALYSIS_RUNTIME.indexes.get(file.id);
     if(!force&&cached?.signature===signature)return cached;
-    const features=(file.features||[]).map(feature=>({id:feature.id,geometry:clone(getDisplayGeometry(feature)),bbox:featureBBox(feature)}));
+    const features=(file.features||[]).map(feature=>({id:feature.id,geometry:clone(getDisplayGeometry(feature)),bbox:mapFeatureBBox(feature)}));
     const entry={signature,index:core.buildSpatialIndex(features),builtAt:Date.now(),count:features.length};
     ANALYSIS_RUNTIME.indexes.set(file.id,entry);return entry;
   }
@@ -21123,7 +21162,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     try{
       if(geometry.type==='Point')return turf.booleanPointInPolygon(turf.point(geometry.coordinates),selectionFeature);
       if(geometry.type==='MultiPoint')return (geometry.coordinates||[]).some(coord=>turf.booleanPointInPolygon(turf.point(coord),selectionFeature));
-      return turf.booleanIntersects(featJSON(feature),selectionFeature);
+      return turf.booleanIntersects(isParametricCircleFeature(feature)?mapFeatureJSON(feature):featJSON(feature),selectionFeature);
     }catch(_){return false;}
   }
   function geometryMatchesForFile(file,selectionFeature){
@@ -21358,7 +21397,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function buildRuntimeCachedLayer(file,features){
     const labels=file.gisLabels;
     const descriptors=features.map(feature=>{
-      const raw=featJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
+      const raw=mapFeatureJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
       if(labels?.enabled&&labels.field){const value=feature.properties?.[labels.field];if(value!=null&&value!=='')try{descriptor.label={text:String(value),coordinate:turf.pointOnFeature(raw).geometry.coordinates};}catch(_){ }}
       if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates,style:{...(feature.annotationStyle||{}),annotation:true}};}
       return descriptor;

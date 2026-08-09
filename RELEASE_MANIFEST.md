@@ -1,58 +1,49 @@
-# Current release manifest — v1.55.4
+# Current release manifest — v1.55.4.1
 
-This file is the single current-repository update manifest. It replaces accumulating `Vx.y.z_CHANGED_FILES.md` files.
+This is the current repository update manifest. v1.55.4.1 is a focused live-parity hotfix on top of the clean v1.55.4 architecture baseline.
 
 ## Upgrade basis
 
-Upgrade from the clean **v1.55.3.1** repository.
+Upgrade from **v1.55.4**.
 
 ## Files to update
 
 - `ARCHITECTURE.md`
 - `CHANGELOG.md`
+- `QUALITY_BASELINE.md`
 - `README.md`
+- `RELEASE_MANIFEST.md`
 - `docs/assets/editpolygon-app.js`
 - `docs/assets/editpolygon-map-adapter.js`
-- `docs/assets/editpolygon-openlayers.css`
 - `docs/index.html`
 - `package.json`
+- `scripts/audit-bindings.mjs`
 - `scripts/audit-runtime.mjs`
-- `scripts/check-repo.mjs`
 - `tests/browser-map-adapter-smoke.py`
-- `tests/browser-openlayers-parity-smoke.py`
 - `tests/circle-click-selection-runtime.test.mjs`
 - `tests/gis-crs-integration.test.mjs`
 - `tests/gis-remote-source-integration.test.mjs`
-- `tests/map-abstraction-integration.test.mjs`
 - `tests/map-adapter.test.mjs`
 - `tests/map-click-selection.test.mjs`
-- `tests/openlayers-native-overlays.test.mjs`
-- `tests/openlayers-reference-overlays.test.mjs`
 - `tests/release-cache.test.mjs`
 - `tests/render-performance.test.mjs`
+- `tests/runtime-authority.test.mjs`
 - `tests/typed-fields-integration.test.mjs`
 
 ## Files to add
 
-- `QUALITY_BASELINE.md`
-- `RELEASE_MANIFEST.md`
-- `scripts/audit-bindings.mjs`
-- `tests/runtime-authority.test.mjs`
+- `tests/circle-draw-display-parity.test.mjs`
 
 ## Files to delete
 
-- `CRS_VALIDATION.md`
-- `V1.55.3_AUDIT.md`
-- `V1.55.3_CHANGED_FILES.md`
-
-The still-relevant CRS validation details and the current audit/parity findings are consolidated into `QUALITY_BASELINE.md`. Historical release detail remains in Git history and `CHANGELOG.md`.
+None.
 
 ## Repository actions
 
 If applying the GitHub patch ZIP through the web UI:
 
 1. upload/replace every file contained in the patch ZIP at repository root;
-2. manually delete the three files listed above;
-3. do not delete any other file.
+2. do not delete any files;
+3. do not manually edit any code.
 
-No other manual code edits are required. Alternatively, the complete v1.55.4 repository ZIP can be used as the authoritative clean tree.
+The complete v1.55.4.1 repository ZIP may instead be used as the authoritative clean tree.

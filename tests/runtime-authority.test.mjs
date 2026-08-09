@@ -61,7 +61,7 @@ test('authoritative cached editable rendering is engine-neutral at application l
 
 test('true-circle click testing is shared by both renderers',()=>{
   const circle=block('function parametricCircleHitAtMapPoint','function featureHitAtMapPoint');
-  assert.match(circle,/const rendered=featJSON\(feature\)\?\.geometry/);
+  assert.match(circle,/const rendered=mapFeatureJSON\(feature\)\?\.geometry/);
   assert.match(circle,/booleanPointInPolygon/);
   assert.match(circle,/polygonBoundaryHitPixel/);
   assert.doesNotMatch(circle,/MAP_RUNTIME\.engine/);

@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.4.1 — True-circle projection parity hotfix
+
+- Fixed true circles changing apparent centre/shape after the radius click in screen/map-shape mode, most visibly at Australian and southern mid-latitudes.
+- Separated projection-aware map-display materialisation from geographic export/conversion materialisation.
+- Made the committed map circle use the same screen-space ring maths as the live draw preview, eliminating the preview-to-final jump.
+- Made geographic-size mode compute its draw radius geodesically and preview the same geographic circle that will be committed.
+- Updated circle click hit-testing, spatial selection bounds, map zoom-to-feature/file/all and context-toolbar anchoring to use the exact displayed circle geometry.
+- Added southern-hemisphere regression tests that verify the committed circle stays centred, circular and pixel-identical to the preview over Australia.
+
 ## v1.55.4 — OpenLayers parity and architecture baseline
 
 - Unified the final cached editable-vector renderer across Leaflet and OpenLayers through `EditPolygonMap.createEditableVectorLayer()`.
@@ -7,7 +16,6 @@
 - Made selection-highlight redraws engine-neutral and protected the replacement-before-removal cache swap on both engines.
 - Moved normal reference GeoJSON, tiles, GeoTIFF/static-image state and GIS service visibility/opacity/z-order further behind the map adapter; removed the obsolete custom Leaflet GeoTIFF image layer.
 - Added a central runtime-transition registry so point/circle editors no longer monkey-patch selection/delete/undo/redo late in source order.
-- Stabilised the public identities of `renderMap`, selection, delete and undo/redo entry points; later enhancement stages now use private delegates/lifecycle hooks instead of replacing those functions.
 - Removed another obsolete label-era `renderMap` wrapper and established an explicit final runtime-authority boundary.
 - Added `audit-bindings.mjs` with no-growth budgets for historical wrapper debt, direct Leaflet calls and app-level engine branching; direct OpenLayers calls in application code are prohibited.
 - Expanded both map-adapter test harnesses and added runtime-authority regression tests.

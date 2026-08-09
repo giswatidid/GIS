@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-openlayers-parity-baseline-1554';
+const RELEASE_KEY='20260809-circle-projection-parity-15541';
 
-function fail(message){throw new Error(`v1.55.4 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.1 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4')fail(`package version is ${pkg.version}, expected 1.55.4`);
+if(pkg.version!=='1.55.4.1')fail(`package version is ${pkg.version}, expected 1.55.4.1`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -128,4 +128,4 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');
+console.log('v1.55.4.1 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');

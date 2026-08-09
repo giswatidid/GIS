@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-const RELEASE_KEY='20260809-openlayers-parity-baseline-1554';
+const RELEASE_KEY='20260809-circle-projection-parity-15541';
 
-test('all local runtime assets use the v1.55.4 release cache key',()=>{
+test('all local runtime assets use the v1.55.4.1 release cache key',()=>{
   const refs=[...html.matchAll(/(?:href|src)="(assets\/[^"]+\.(?:css|js))\?v=([^"]+)"/g)];
   assert.ok(refs.length>=15,`Expected the complete local asset set, found ${refs.length}.`);
   const stale=refs.filter(([,asset,key])=>key!==RELEASE_KEY).map(([,asset,key])=>`${asset}: ${key}`);
