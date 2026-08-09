@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.3';
+  const VERSION='1.55.3.1';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -151,12 +151,17 @@
     function hasDisplayLayer(layer){try{return !!(layer&&nativeMap.hasLayer?.(layer));}catch(_){return false;}}
     function createEmptyLayerGroup(){const group=L.layerGroup();group.__editpolygonEngine='leaflet';return group;}
     function createTileLayer(spec={}){
-      const layer=L.tileLayer(String(spec.url||spec.urlTemplate||''),{
+      const options={
         opacity:spec.opacity??1,attribution:spec.attribution||'',minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,
-        tms:spec.tms===true,crossOrigin:true,tileSize:spec.tileSize||256,
-        subdomains:Array.isArray(spec.subdomains)&&spec.subdomains.length?spec.subdomains:undefined,
-        pane:spec.pane||undefined
-      });
+        tms:spec.tms===true,crossOrigin:true,tileSize:spec.tileSize||256
+      };
+      // Do not pass undefined optional values into Leaflet. L.setOptions() copies
+      // them over class defaults; in particular `subdomains: undefined` erases
+      // TileLayer's built-in `abc` value and breaks URLs containing `{s}`.
+      if(Array.isArray(spec.subdomains)&&spec.subdomains.length)options.subdomains=spec.subdomains;
+      else if(typeof spec.subdomains==='string'&&spec.subdomains)options.subdomains=spec.subdomains;
+      if(spec.pane)options.pane=spec.pane;
+      const layer=L.tileLayer(String(spec.url||spec.urlTemplate||''),options);
       layer.__editpolygonEngine='leaflet';return layer;
     }
     function createWmsLayer(spec={}){

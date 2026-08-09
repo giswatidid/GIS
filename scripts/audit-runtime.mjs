@@ -12,7 +12,7 @@ function fail(message){throw new Error(`v1.55.3 runtime audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete compatibility token ${token}`);}
 
-if(pkg.version!=='1.55.3')fail(`package version is ${pkg.version}, expected 1.55.3`);
+if(pkg.version!=='1.55.3.1')fail(`package version is ${pkg.version}, expected 1.55.3.1`);
 
 const compatibilityTokens=[
   'editpolygon-leaflet-compat',
@@ -79,7 +79,7 @@ const v130Anchor=app.indexOf('function v130BringLayerForward');
 const v130Render=app.slice(app.indexOf('renderMap=function(){',v130Anchor),app.indexOf('// Geometry changes are recomputed',v130Anchor));
 if(!/MAP_RUNTIME\.engine==='openlayers'\)return/.test(v130Render))fail('v1.30 Leaflet renderer is not guarded from OpenLayers');
 
-if(!html.includes('20260809-openlayers-compat-free-audit-1553'))fail('index does not use the v1.55.3 cache key');
+if(!html.includes('20260809-leaflet-basemap-hotfix-15531'))fail('index does not use the v1.55.3 cache key');
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition engine was removed too early');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
 

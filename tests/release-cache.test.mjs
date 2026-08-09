@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-const RELEASE_KEY='20260809-openlayers-compat-free-audit-1553';
+const RELEASE_KEY='20260809-leaflet-basemap-hotfix-15531';
 
 test('all local runtime assets use the v1.55.3 release cache key',()=>{
   const refs=[...html.matchAll(/(?:href|src)="(assets\/[^"]+\.(?:css|js))\?v=([^"]+)"/g)];

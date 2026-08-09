@@ -65,12 +65,15 @@ function load(){
   const documentElement={classList:classList()};
   const context={console,Math,Number,Object,Array,JSON,Date,URLSearchParams,document:{body,documentElement}};
   context.globalThis=context;context.window=context;
+  const tileLayerCalls=[];
   context.L={
     map:()=>new FakeMap(),
     canvas:()=>({renderer:true}),
     latLng:(lat,lng)=>({lat,lng}),
+    tileLayer:(url,options)=>{const layer={url,options,addTo(){return this;}};tileLayerCalls.push(layer);return layer;},
     DomEvent:{stop:()=>{}}
   };
+  context.__tileLayerCalls=tileLayerCalls;
   vm.createContext(context);
   vm.runInContext(source,context,{filename:'editpolygon-map-adapter.js'});
   return context;
@@ -80,12 +83,21 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.3');
+  assert.equal(runtime.version,'1.55.3.1');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
   assert.deepEqual([...runtime.getCenter()],[151,-33]);
   assert.equal(runtime.getZoom(),9);
+});
+
+test('Leaflet tile layers preserve Leaflet subdomain defaults unless explicitly overridden',()=>{
+  const context=load(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:new FakeMap()});
+  runtime.createTileLayer({url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'});
+  assert.equal(context.__tileLayerCalls.length,1);
+  assert.equal(Object.prototype.hasOwnProperty.call(context.__tileLayerCalls[0].options,'subdomains'),false);
+  runtime.createTileLayer({url:'https://{s}.example.test/{z}/{x}/{y}.png',subdomains:['a','b']});
+  assert.deepEqual([...context.__tileLayerCalls[1].options.subdomains],['a','b']);
 });
 
 test('pixel and projection conversions stay behind the map contract',()=>{

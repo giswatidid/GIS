@@ -1,3 +1,9 @@
+
+## 1.55.3.1 — Leaflet basemap hotfix
+
+- Fixed the Leaflet map adapter passing `subdomains: undefined` into `L.tileLayer`, which erased Leaflet’s default subdomain set and prevented `{s}` OSM/CARTO basemap URLs from resolving.
+- Added regression coverage ensuring optional tile-layer settings are omitted unless explicitly configured.
+
 # EditPolygon changelog
 
 This file replaces the large collection of one-release and one-hotfix markdown files that previously accumulated at the repository root. Git history remains the source for file-by-file historical detail.

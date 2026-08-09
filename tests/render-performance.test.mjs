@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-openlayers-compat-free-audit-1553/);
+  assert.match(html,/editpolygon-app\.js\?v=20260809-leaflet-basemap-hotfix-15531/);
 });
 
 
