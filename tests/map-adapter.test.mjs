@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.10');
+  assert.equal(runtime.version,'1.55.4.11');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -370,15 +370,35 @@ test('OpenLayers runtime owns display layers and GIS tile/WMS/vector primitives'
   const {context}=openLayersContext();
   const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol});
   const xyz=runtime.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png',tms:true});
-  const wms=runtime.createWmsLayer({url:'https://example.test/wms',layers:'roads'});
+  const wms=runtime.createWmsLayer({url:'https://example.test/geoserver/wms',layers:'roads'});
   const vector=runtime.createEditableVectorLayer({features:[{id:'a',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:6},label:{text:'A',coordinate:[153,-27]}}]});
   runtime.addDisplayLayer(xyz);runtime.addDisplayLayer(wms);runtime.addDisplayLayer(vector);
   assert.equal(runtime.hasDisplayLayer(xyz),true);
+  assert.equal(wms.getSource().opts.params.LAYERS,'roads');
+  assert.equal(wms.getSource().opts.params.TILED,true);
+  assert.equal(wms.getSource().opts.serverType,'geoserver');
+  assert.equal('crossOrigin' in wms.getSource().opts,false);
   assert.equal(vector.__editpolygonFeatureCount,1);
+  assert.equal(vector.__editpolygonStyleCacheSize,1);
+  assert.equal(vector.__editpolygonDeclutter,true);
   assert.equal(runtime.updateEditableFeatureGeometry(vector,'a',{type:'Point',coordinates:[154,-28]}),true);
   assert.equal(vector.__editpolygonGeometryFeatures.get('a').geometry.coordinates[0],154);
   assert.equal(vector.getSource().changedCount,1);
   runtime.removeDisplayLayer(wms);assert.equal(runtime.hasDisplayLayer(wms),false);
+});
+
+test('OpenLayers editable vectors share identical styles and skip decluttering when no text is present',()=>{
+  const {context}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol});
+  const layer=runtime.createEditableVectorLayer({features:[
+    {id:'a',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5}},
+    {id:'b',geometry:{type:'Point',coordinates:[154,-28]},style:{color:'#123456',radius:5}}
+  ]});
+  assert.equal(layer.__editpolygonStyleCacheSize,1);
+  assert.equal(layer.__editpolygonDeclutter,false);
+  assert.equal(layer.getSource().opts.wrapX,true);
+  assert.equal(layer.getSource().opts.useSpatialIndex,true);
+  assert.equal(layer.__editpolygonGeometryFeatures.get('a').style,layer.__editpolygonGeometryFeatures.get('b').style);
 });
 
 test('OpenLayers runtime owns reference GeoJSON and static-image layers',()=>{

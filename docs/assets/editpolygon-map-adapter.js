@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.10';
+  const VERSION='1.55.4.11';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -234,13 +234,19 @@
       layer.__editpolygonEngine='leaflet';return layer;
     }
     function createWmsLayer(spec={}){
-      const layer=L.tileLayer.wms(String(spec.url||''),{
+      const options={
         opacity:spec.opacity??1,attribution:spec.attribution||'',minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,
         layers:spec.layers||spec.wmsLayers||'',styles:spec.styles||spec.wmsStyles||'',
         format:spec.format||spec.wmsFormat||'image/png',version:spec.version||spec.wmsVersion||'1.3.0',
-        transparent:spec.transparent!==false,crossOrigin:true,pane:spec.pane||undefined,zIndex:spec.zIndex!=null?finite(spec.zIndex,0):undefined
-      });
-      layer.__editpolygonEngine='leaflet';return layer;
+        transparent:spec.transparent!==false,pane:spec.pane||undefined,zIndex:spec.zIndex!=null?finite(spec.zIndex,0):undefined
+      };
+      // WMS imagery does not need CORS permission merely to display. Forcing
+      // anonymous CORS makes otherwise valid public WMS images fail when the
+      // provider omits Access-Control-Allow-Origin. Keep it opt-in for callers
+      // that explicitly need canvas-safe image access.
+      if(spec.crossOrigin!=null)options.crossOrigin=spec.crossOrigin;
+      const layer=L.tileLayer.wms(String(spec.url||''),options);
+      layer.__editpolygonEngine='leaflet';layer.__editpolygonWmsCrossOrigin=options.crossOrigin??null;return layer;
     }
     function createGeoJsonLayer(spec={}){
       const descriptor={...(spec.style||{}),radius:Math.max(1,Number(spec.pointRadius??spec.style?.radius??5))};
@@ -406,7 +412,16 @@
     function createEmptyLayerGroup(){return new ol.layer.Group({layers:[]});}
     function normalizeTileUrl(url,tms=false){let out=String(url||'').replace(/\{s\}/g,'{a-c}').replace(/\{r\}/g,'');if(tms)out=out.replace(/\{y\}/g,'{-y}');return out;}
     function createTileLayer(spec={}){const sourceMaxZoom=Number.isFinite(Number(spec.maxNativeZoom))?Number(spec.maxNativeZoom):(spec.maxZoom??22);const source=new ol.source.XYZ({url:normalizeTileUrl(spec.url||spec.urlTemplate,spec.tms),attributions:spec.attribution||undefined,minZoom:spec.minZoom??0,maxZoom:sourceMaxZoom,tileSize:spec.tileSize||256,crossOrigin:'anonymous'});const layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??0});layer.__editpolygonEngine='openlayers';layer.__editpolygonMaxNativeZoom=sourceMaxZoom;return layer;}
-    function createWmsLayer(spec={}){const source=new ol.source.TileWMS({url:spec.url,params:{LAYERS:spec.layers||spec.wmsLayers||'',STYLES:spec.styles||spec.wmsStyles||'',FORMAT:spec.format||spec.wmsFormat||'image/png',VERSION:spec.version||spec.wmsVersion||'1.3.0',TRANSPARENT:spec.transparent!==false},attributions:spec.attribution||undefined,crossOrigin:'anonymous'});const layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??20});layer.__editpolygonEngine='openlayers';return layer;}
+    function createWmsLayer(spec={}){
+      const url=String(spec.url||''),geoserver=spec.serverType==='geoserver'||(!spec.serverType&&/\/geoserver(?:\/|$)/i.test(url));
+      const params={LAYERS:spec.layers||spec.wmsLayers||'',STYLES:spec.styles||spec.wmsStyles||'',FORMAT:spec.format||spec.wmsFormat||'image/png',VERSION:spec.version||spec.wmsVersion||'1.3.0',TRANSPARENT:spec.transparent!==false};
+      if(spec.tiled===true||geoserver)params.TILED=true;
+      const sourceOptions={url,params,attributions:spec.attribution||undefined,transition:spec.transition??0};
+      if(spec.crossOrigin!=null)sourceOptions.crossOrigin=spec.crossOrigin;
+      if(spec.serverType)sourceOptions.serverType=spec.serverType;else if(geoserver)sourceOptions.serverType='geoserver';
+      const source=new ol.source.TileWMS(sourceOptions),layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??20});
+      layer.__editpolygonEngine='openlayers';layer.__editpolygonWmsCrossOrigin=sourceOptions.crossOrigin??null;layer.__editpolygonWmsServerType=sourceOptions.serverType||null;return layer;
+    }
     function parseDash(value){if(Array.isArray(value))return value.map(Number).filter(Number.isFinite);if(!value)return undefined;const out=String(value).split(/[ ,]+/).map(Number).filter(Number.isFinite);return out.length?out:undefined;}
     function olStyle(style={},labelText=null){const color=style.color||'#1664d6',fillColor=style.fillColor||color,opacity=style.opacity??1,fillOpacity=style.fillOpacity??.18,weight=style.weight??2,radius=Math.max(1,Number(style.radius??5));const text=labelText==null?undefined:new ol.style.Text({text:String(labelText),font:'600 11px Arial, sans-serif',fill:new ol.style.Fill({color:'#1f2937'}),stroke:new ol.style.Stroke({color:'rgba(255,255,255,.95)',width:3}),overflow:true});return new ol.style.Style({stroke:new ol.style.Stroke({color,width:weight,lineDash:parseDash(style.dashArray)}),fill:new ol.style.Fill({color:fillColor}),image:new ol.style.Circle({radius,stroke:new ol.style.Stroke({color,width:weight}),fill:new ol.style.Fill({color:fillColor})}),text});}
     function withAlphaColor(color,alpha){if(alpha==null||alpha>=1)return color;if(/^#([0-9a-f]{6})$/i.test(color)){const m=color.slice(1),r=parseInt(m.slice(0,2),16),g=parseInt(m.slice(2,4),16),b=parseInt(m.slice(4,6),16);return `rgba(${r},${g},${b},${alpha})`;}return color;}
@@ -446,14 +461,16 @@
       try{layer.setStyle?.(styleFromDescriptor(descriptor));layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
     function createEditableVectorLayer(spec={}){
-      const format=new ol.format.GeoJSON(),source=new ol.source.Vector(),olFeatures=[],geometryFeatures=new Map(),geometrySignatures=new Map();
+      const format=new ol.format.GeoJSON(),source=new ol.source.Vector({wrapX:true,useSpatialIndex:true}),olFeatures=[],geometryFeatures=new Map(),geometrySignatures=new Map(),styleCache=new Map();
+      let hasDeclutterContent=false;
+      const sharedStyle=descriptor=>{const key=JSON.stringify(descriptor||{});let style=styleCache.get(key);if(!style){style=styleFromDescriptor(descriptor||{});styleCache.set(key,style);}return style;};
       for(const item of spec.features||[]){
         if(!item?.geometry)continue;
-        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(styleFromDescriptor(item.style||{}));geometryFeatures.set(item.id,f);geometrySignatures.set(item.id,geometryFingerprint(item.geometry));olFeatures.push(f);}catch(_){ }
-        if(item.label?.coordinate&&item.label?.text!=null){try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
-        if(item.annotation?.coordinate&&item.annotation?.text){try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
+        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(sharedStyle(item.style||{}));geometryFeatures.set(item.id,f);geometrySignatures.set(item.id,geometryFingerprint(item.geometry));olFeatures.push(f);}catch(_){ }
+        if(item.label?.coordinate&&item.label?.text!=null){hasDeclutterContent=true;try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
+        if(item.annotation?.coordinate&&item.annotation?.text){hasDeclutterContent=true;try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
-      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;return layer;
+      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:hasDeclutterContent,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1,renderBuffer:spec.renderBuffer??100,updateWhileAnimating:false,updateWhileInteracting:false});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;layer.__editpolygonStyleCacheSize=styleCache.size;layer.__editpolygonDeclutter=hasDeclutterContent;return layer;
     }
     function updateEditableFeatureGeometry(layer,featureId,geometry){
       if(!layer||!featureId||!geometry)return false;

@@ -1,10 +1,10 @@
-# Current release manifest — v1.55.4.10
+# Current release manifest — v1.55.4.11
 
-v1.55.4.10 is a focused undo/redo render-authority release on top of v1.55.4.9. Live testing showed that, despite transaction-safe editor shutdown, a selected OpenLayers feature could still display live-mutated geometry until a selection change forced another renderer pass. This release removes that implicit dual authority: native live geometry is transient pointer feedback only, while committed/history rendering is rematerialised from the project model under explicit content and ownership checks.
+v1.55.4.11 is an external-source parity and large-vector responsiveness hotfix on top of v1.55.4.10. Deployed OpenLayers testing found two blockers: a valid remote ecoregions GeoJSON loaded but made the application lag, and a GeoServer WMS source was accepted but displayed no imagery. This release fixes the source/runtime causes without simplifying imported geometry or adding application-level OpenLayers branches.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.9**.
+Upgrade from **v1.55.4.10**.
 
 ## Files to update
 
@@ -22,7 +22,6 @@ Upgrade from **v1.55.4.9**.
 - `tests/browser-openlayers-parity-smoke.py`
 - `tests/gis-crs-integration.test.mjs`
 - `tests/gis-remote-source-integration.test.mjs`
-- `tests/history-render-authority.test.mjs`
 - `tests/map-adapter.test.mjs`
 - `tests/release-cache.test.mjs`
 - `tests/render-performance.test.mjs`
@@ -30,7 +29,7 @@ Upgrade from **v1.55.4.9**.
 
 ## Files to add
 
-None.
+- `tests/wms-runtime-parity.test.mjs`
 
 ## Files to delete
 
@@ -39,8 +38,9 @@ None.
 ## Deployment
 
 1. Replace every file listed above.
-2. Do not delete unrelated repository files.
-3. Wait for GitHub Pages to finish deploying.
-4. Hard-refresh the OpenLayers URL before testing.
+2. Add `tests/wms-runtime-parity.test.mjs`.
+3. Do not delete unrelated repository files.
+4. Wait for GitHub Pages to finish deploying.
+5. Hard-refresh the OpenLayers URL before testing.
 
-The complete v1.55.4.10 repository ZIP can instead be used as the authoritative clean tree.
+The complete v1.55.4.11 repository ZIP can instead be used as the authoritative clean tree.

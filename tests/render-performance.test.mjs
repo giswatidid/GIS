@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-history-render-authority-1554410/);
+  assert.match(html,/editpolygon-app\.js\?v=20260809-wms-large-vector-1554411/);
 });
 
 
@@ -29,4 +29,26 @@ test('cached vector swaps add the replacement before removing the old layer on b
   assert.ok(start>=0);
   assert.match(block,/addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\);/s);
   assert.doesNotMatch(block,/MAP_RUNTIME\.engine==='openlayers'/);
+});
+
+
+test('cached editable renderer does not rebuild solely because viewport coordinates changed',()=>{
+  const start=app.indexOf('function renderCandidateFeatures(file)');
+  const end=app.indexOf('function invalidateRenderCache',start);
+  const block=app.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/function renderSignature\(file,features\)/);
+  assert.doesNotMatch(block,/renderViewKey/);
+  assert.doesNotMatch(block,/viewKey/);
+  assert.match(block,/const features=renderCandidateFeatures\(file\),signature=renderSignature\(file,features\)/);
+});
+
+test('large remote editable layers are performance-managed without simplifying their geometry',()=>{
+  assert.match(app,/coordinateCount=models\.reduce\(\(sum,feature\)=>sum\+vertexCount\(getDisplayGeometry\(feature\)\),0\)/);
+  assert.match(app,/performanceManaged=models\.length>200\|\|coordinateCount>=50000/);
+  assert.match(app,/file\.performanceManaged=true/);
+  assert.match(app,/fullGeometry:true/);
+  assert.match(app,/sidebarState\.collapsedFiles\.add\(file\.id\)/);
+  assert.match(app,/!file\.largeImport&&!file\.performanceManaged&&featureCount<=V96\.sidebarRowLimit/);
+  assert.match(app,/sidebarRowLimit:200/);
 });

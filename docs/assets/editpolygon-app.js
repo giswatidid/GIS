@@ -11340,7 +11340,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     kmlTextThreshold:18_000_000,
     coordThreshold:150_000,
     placemarkThreshold:1200,
-    sidebarRowLimit:320,
+    sidebarRowLimit:200,
     referenceRowLimit:240,
     yieldEvery:80
   };
@@ -12040,12 +12040,13 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     const swaps=[];
     const searchText=($('layerSearch')?.value||'').trim();
     for(const file of project.files){
-      if(!file.largeImport||!(file.features||[]).length)continue;
+      const featureCount=(file.features||[]).length;
+      if(!featureCount||(!file.largeImport&&!file.performanceManaged&&featureCount<=V96.sidebarRowLimit))continue;
       const collapsed=sidebarState.collapsedFiles.has(file.id);
       let limit=collapsed?0:V96.sidebarRowLimit;
       if(searchText)limit=V96.sidebarRowLimit;
-      if((file.features||[]).length>limit){
-        swaps.push({file,features:file.features,limit,collapsed});
+      if(featureCount>limit){
+        swaps.push({file,features:file.features,limit,collapsed,performanceManaged:!!file.performanceManaged});
         file.features=file.features.slice(0,limit);
       }
     }
@@ -12057,9 +12058,11 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
       const card=menu?.closest('.file-card');
       const meta=card?.querySelector('.file-meta');
       if(meta){
-        const st=s.file.largeImportStats||{};
-        meta.innerHTML=`${esc(String(s.file.sourceFormat||'').toUpperCase())} · ${v96Fmt(s.features.length)} features · large optimised${s.collapsed?' · collapsed':''}${s.limit&&s.features.length>s.limit?' · showing first '+v96Fmt(s.limit):''}`;
-        if(st.optimizedVertices||st.coordinateCount)meta.innerHTML+=` · ${v96Fmt(st.optimizedVertices||0)} rendered / ${v96Fmt(st.coordinateCount||0)} source coords`;
+        const st=s.file.largeImportStats||s.file.performanceManagedStats||{};
+        const mode=s.file.largeImport?'large optimised':s.performanceManaged?'performance managed · full geometry':'large layer';
+        meta.innerHTML=`${esc(String(s.file.sourceFormat||'').toUpperCase())} · ${v96Fmt(s.features.length)} features · ${mode}${s.collapsed?' · collapsed':''}${s.limit&&s.features.length>s.limit?' · showing first '+v96Fmt(s.limit):''}`;
+        if(s.file.largeImport&&(st.optimizedVertices||st.coordinateCount))meta.innerHTML+=` · ${v96Fmt(st.optimizedVertices||0)} rendered / ${v96Fmt(st.coordinateCount||0)} source coords`;
+        else if(s.performanceManaged&&st.coordinateCount)meta.innerHTML+=` · ${v96Fmt(st.coordinateCount)} coordinates`;
       }
       if(card&&!s.collapsed&&s.features.length>s.limit){
         const note=document.createElement('div');note.className='feature-row v96-large-layer-note';
@@ -20025,6 +20028,40 @@ function gisBasemapName(key){
   }
   return {none:'No basemap',osm:'OpenStreetMap',light:'Light',dark:'Dark',sat:'Satellite'}[key.replace(/^builtin:/,'')]||'Basemap';
 }
+function gisWmsDirectChildText(node,name){
+  if(!node)return '';
+  for(const child of node.children||[])if(String(child.localName||child.nodeName||'').split(':').pop()===name)return String(child.textContent||'').trim();
+  return '';
+}
+function gisWmsAdvertisedBounds(layerNode){
+  for(const child of layerNode?.children||[]){
+    const local=String(child.localName||child.nodeName||'').split(':').pop();
+    if(local==='EX_GeographicBoundingBox'){
+      const west=Number(gisWmsDirectChildText(child,'westBoundLongitude')),east=Number(gisWmsDirectChildText(child,'eastBoundLongitude')),south=Number(gisWmsDirectChildText(child,'southBoundLatitude')),north=Number(gisWmsDirectChildText(child,'northBoundLatitude'));
+      if([west,south,east,north].every(Number.isFinite))return [west,south,east,north];
+    }
+    if(local==='LatLonBoundingBox'){
+      const west=Number(child.getAttribute?.('minx')),south=Number(child.getAttribute?.('miny')),east=Number(child.getAttribute?.('maxx')),north=Number(child.getAttribute?.('maxy'));
+      if([west,south,east,north].every(Number.isFinite))return [west,south,east,north];
+    }
+  }
+  return null;
+}
+async function gisDiscoverWmsBounds(source){
+  if(!source?.url||typeof DOMParser!=='function')return null;
+  const wanted=new Set(String(source.wmsLayers||'').split(',').map(value=>value.trim()).filter(Boolean));if(!wanted.size)return null;
+  let url;try{url=new URL(source.url,location.href);url.searchParams.set('service','WMS');url.searchParams.set('request','GetCapabilities');url.searchParams.set('version',source.wmsVersion||'1.3.0');}catch(_){return null;}
+  const controller=typeof AbortController==='function'?new AbortController():null,timer=controller?setTimeout(()=>controller.abort(),3500):0;
+  try{
+    const response=await fetch(url.href,{credentials:'omit',referrerPolicy:'no-referrer',signal:controller?.signal});if(!response.ok)return null;
+    const xml=new DOMParser().parseFromString(await response.text(),'application/xml');if(xml.querySelector?.('parsererror'))return null;
+    for(const layer of xml.getElementsByTagNameNS?.('*','Layer')||xml.getElementsByTagName('Layer')){
+      const name=gisWmsDirectChildText(layer,'Name');if(!wanted.has(name))continue;
+      let node=layer;while(node){const bounds=gisWmsAdvertisedBounds(node);if(bounds)return {bounds,layerName:name,capabilitiesUrl:url.href};node=node.parentElement?.localName==='Layer'?node.parentElement:null;}
+    }
+  }catch(_){ }finally{if(timer)clearTimeout(timer);}
+  return null;
+}
 async function gisAddRemoteLayer(definition){
   const core=gisCore();
   if(!core)throw Error('GIS core is unavailable.');
@@ -20058,6 +20095,20 @@ async function gisAddRemoteLayer(definition){
   state.layers.push(layer);
   if(layer.role==='basemap')state.activeBasemap=`custom:${layer.id}`;
   gisSetState(state,{dirty:true,status:`Added ${layer.role==='basemap'?'custom basemap':'remote layer'}: ${layer.name}.`});
+  if(source.type==='wms'&&!source.bounds){
+    // WMS tiles may render without CORS-readable capabilities. Discovery is
+    // therefore best-effort and never blocks adding the service. When the
+    // provider does expose GetCapabilities to browsers, persist and zoom to
+    // the advertised geographic extent so a regional WMS cannot appear blank
+    // merely because the current view is somewhere else in the world.
+    gisDiscoverWmsBounds(source).then(info=>{
+      if(!info?.bounds)return;
+      const next=gisState(),stored=next.sources.find(item=>item.id===source.id);if(!stored||stored.bounds)return;
+      stored.bounds=info.bounds;stored.metadata={...(stored.metadata||{}),wmsCapabilitiesUrl:info.capabilitiesUrl,wmsAdvertisedLayer:info.layerName};
+      gisSetState(next,{dirty:true});try{MAP_RUNTIME.fitExtent(info.bounds,{padding:[40,40],maxZoom:12});}catch(_){ }
+      setStatus(`WMS ready: ${layer.name}. Zoomed to the advertised layer extent.`);
+    }).catch(()=>{});
+  }else if(source.type==='wms'&&source.bounds){try{MAP_RUNTIME.fitExtent(source.bounds,{padding:[40,40],maxZoom:12});}catch(_){ }}
   return {source:gisClone(source),layer:gisClone(layer)};
 }
 function gisRemoveCustomLayer(layerId){
@@ -20804,8 +20855,10 @@ window.EditPolygonGIS.importRemoteGeoJson=async function({url,name,mode='editabl
     store.items.push(item);store.selectedId=item.id;renderAll();setDirty(true);writeAutosaveNow?.('remote-geojson-reference');gisNotify();try{MAP_RUNTIME.fitExtent(turf.bbox(fc),{padding:[36,36]});}catch(_){ }setStatus(`Added remote GeoJSON reference: ${safeName}.`);return {mode,item};
   }
   const models=[];flattenSupportedFeatures(fc.features||[]).forEach((raw,index)=>{const model=normalize(raw,featureName(raw,`${safeName} ${index+1}`));if(model){applyColor(model,color);models.push(model);}});if(!models.length)throw Error('The remote source contains no supported Point, LineString or Polygon features.');
-  const nativeCrs=gisCrsCore().supported(sourceCrs)?sourceCrs:'EPSG:4326';const file={id:uid('file'),name:safeName,sourceFormat:'remote-geojson',sourceUrl:target,visible:true,color,features:models,gisStorageCrs:'EPSG:4326',gisSourceCrs:sourceCrs,gisCrs:nativeCrs,gisExportCrs:nativeCrs};
-  project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('remote-geojson-imported',{url:target,features:models.length,sourceCrs});gisNotify();fitAllProjectElements();setStatus(`Imported ${models.length} remote feature${models.length===1?'':'s'} into an editable browser-local layer.`);return {mode,file};
+  const nativeCrs=gisCrsCore().supported(sourceCrs)?sourceCrs:'EPSG:4326',coordinateCount=models.reduce((sum,feature)=>sum+vertexCount(getDisplayGeometry(feature)),0),performanceManaged=models.length>200||coordinateCount>=50000;
+  const file={id:uid('file'),name:safeName,sourceFormat:'remote-geojson',sourceUrl:target,visible:true,color,features:models,gisStorageCrs:'EPSG:4326',gisSourceCrs:sourceCrs,gisCrs:nativeCrs,gisExportCrs:nativeCrs};
+  if(performanceManaged){file.performanceManaged=true;file.performanceManagedStats={featureCount:models.length,coordinateCount,fullGeometry:true};sidebarState.collapsedFiles.add(file.id);}
+  project.files.push(file);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('remote-geojson-imported',{url:target,features:models.length,coordinateCount,performanceManaged,sourceCrs});gisNotify();fitAllProjectElements();setStatus(performanceManaged?`Imported ${models.length} remote features with full geometry. The large layer starts collapsed to keep the editor responsive.`:`Imported ${models.length} remote feature${models.length===1?'':'s'} into an editable browser-local layer.`);return {mode,file};
 };
 // Processing outputs remain stored in WGS84 but inherit the source layer's native/export CRS.
 const v144BaseCreateOutputFile=gisCreateOutputFile;
@@ -21591,13 +21644,12 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     else if(MAP_SELECT.kind==='polygon'&&(event.key==='Backspace'||event.key==='Delete')){event.preventDefault();undoMapSelectionPoint();}
   });
 
-  function renderViewKey(){const b=MAP_RUNTIME.getExtent(.35);return [MAP_RUNTIME.getZoom(),...b.map(value=>value.toFixed(4))].join('|');}
   function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
-  function renderSignature(file,features,viewKey){
+  function renderSignature(file,features){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `${viewKey}|generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
   function buildRuntimeCachedLayer(file,features){
     const labels=file.gisLabels;
@@ -21635,9 +21687,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return true;
   }
   function cachedRenderMap(){
-    const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
+    const live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
-      if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
+      if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
       if(cached?.signature===signature&&cachedEditableGeometryMatchesModel(cached.group,features)){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
       const group=buildRuntimeCachedLayer(file,features);
       // Both engines now use the same adapter-owned editable-vector primitive.

@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.4.11 — External-source parity and large-vector responsiveness
+
+- Fixed WMS sources being accepted into the project but remaining blank when a provider allows image display without anonymous CORS. Leaflet/OpenLayers WMS creation no longer forces cross-origin mode; `crossOrigin` is opt-in per source.
+- Added OpenLayers GeoServer detection at the adapter boundary. GeoServer WMS sources receive `serverType: geoserver` and tiled-request hints without leaking engine-specific code into the application.
+- Added best-effort WMS GetCapabilities discovery for advertised geographic bounds. WMS creation remains immediate and non-blocking; when capabilities are browser-readable, the source bounds are persisted and the view fits to the requested layer.
+- Reduced large editable-vector rebuild churn by removing raw viewport coordinates from the authoritative cached-render signature. A pan no longer rebuilds a native editable layer when the candidate feature/content set has not changed.
+- Large Remote GeoJSON imports now enter a performance-managed mode without simplifying or dropping geometry. Their Layers tree starts collapsed and limits feature-row DOM construction to 200 rows while retaining all features for map rendering, selection, tables and export.
+- OpenLayers editable-vector layers now share identical style objects per layer, keep spatial indexing/wrap enabled explicitly, disable update-during-interaction/animation, and enable decluttering only when labels/annotations require it.
+- Added WMS/runtime and large-vector performance regressions covering no-forced-CORS construction, GeoServer hints, capabilities extent handling, viewport-independent cache identity, sidebar limits, style sharing and conditional declutter.
+
 ## v1.55.4.10 — Hard history/render geometry authority
 
 - Reworked undo/redo rendering after live testing proved that the project model and a live-mutated native editable layer could still disagree until a later selection redraw. History restoration is now a hard model/native boundary rather than a best-effort cache invalidation.

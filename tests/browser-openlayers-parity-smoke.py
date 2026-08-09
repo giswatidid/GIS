@@ -52,7 +52,7 @@ with sync_playwright() as p:
       const liveGeometry=vec.__editpolygonGeometryFeatures.get('p1').geometry;
       const purgeProbe=r.createEditableVectorLayer({layerKey:'purge-probe',features:[{id:'probe',geometry:initialGeometry,style:{color:'#333'}}]});r.addDisplayLayer(purgeProbe);const purgeCount=r.clearEditableVectorLayers('purge-probe'),purgeGone=!r.hasDisplayLayer(purgeProbe);
       const transient=r.createVectorOverlayLayer({zIndex:1700});r.setVectorOverlayFeatures(transient,[{id:'t1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#b42318',radius:7}}]);
-      const wms=r.createWmsLayer({url:'https://example.test/wms',layers:'demo',opacity:.6,zIndex:25});r.addDisplayLayer(wms);
+      const wms=r.createWmsLayer({url:'https://example.test/geoserver/wms',layers:'demo',opacity:.6,zIndex:25});r.addDisplayLayer(wms);
       const ref=r.createGeoJsonLayer({data:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]},style:{color:'#d92c32'},zIndex:40.01});r.addDisplayLayer(ref);
       const raster=r.createStaticImageLayer({url:'data:image/png;base64,AA==',bounds:[[-28,152],[-26,154]],opacity:.7,zIndex:40.02});r.addDisplayLayer(raster);r.setDisplayLayerOpacity(raster,.5);
       const handle=r.createDomOverlay({coordinate:[153,-27],className:'native-handle',anchor:[4,4]});
@@ -62,7 +62,7 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),styleCacheSize:vec.__editpolygonStyleCacheSize,disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['center']==[873,-27],result
@@ -74,6 +74,10 @@ with sync_playwright() as p:
     assert result['featureCount']==1,result
     assert result['hitIds']==['p1'],result
     assert result['wmsParams']['LAYERS']=='demo',result
+    assert result['wmsParams']['TILED'] is True,result
+    assert result['wmsServerType']=='geoserver',result
+    assert result['wmsHasCrossOrigin'] is False,result
+    assert result['styleCacheSize']==1,result
     assert result['disabled'] is True,result
     assert result['leafletMapCalls']==0,result
     assert result['hasLegacyMap'] is False,result

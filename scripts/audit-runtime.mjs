@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-history-render-authority-1554410';
+const RELEASE_KEY='20260809-wms-large-vector-1554411';
 
-function fail(message){throw new Error(`v1.55.4.10 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.11 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.10')fail(`package version is ${pkg.version}, expected 1.55.4.10`);
+if(pkg.version!=='1.55.4.11')fail(`package version is ${pkg.version}, expected 1.55.4.11`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -45,6 +45,23 @@ for(const method of [
   if(!leafRuntime.includes(method)||!olRuntime.includes(method))fail(`map-runtime contract is asymmetric for ${method}`);
 }
 
+
+// WMS display must not require anonymous CORS merely to paint provider images.
+// GeoServer sources receive only safe tiled/server hints, while capability
+// discovery remains best-effort and outside the map-engine implementation.
+for(const runtime of [leafRuntime,olRuntime]){
+  const start=runtime.indexOf('function createWmsLayer(spec={})');
+  const end=runtime.indexOf(runtime===leafRuntime?'function createGeoJsonLayer':'function parseDash',start);
+  const block=runtime.slice(start,end);
+  if(start<0||end<start)fail('could not isolate WMS runtime primitive');
+  if(/crossOrigin:(?:true|'anonymous'|"anonymous")/.test(block))fail('WMS runtime still forces anonymous CORS');
+  requireToken(block,'spec.crossOrigin!=null','WMS runtime crossOrigin opt-in');
+}
+requireToken(olRuntime,"sourceOptions.serverType='geoserver'",'OpenLayers GeoServer WMS hint');
+requireToken(olRuntime,'params.TILED=true','OpenLayers GeoServer tiled WMS hint');
+requireToken(app,'async function gisDiscoverWmsBounds(source)','WMS capabilities discovery');
+requireToken(app,"stored.bounds=info.bounds",'WMS advertised extent persistence');
+
 // Application-level OpenLayers calls are prohibited. Remaining direct Leaflet
 // calls are explicit transition debt and are budgeted by audit-bindings.mjs.
 if(/\bol\.[A-Za-z_$][\w$]*/.test(app))fail('application code calls OpenLayers directly instead of EditPolygonMap');
@@ -52,6 +69,22 @@ for(const direct of [/\bmap\.removeLayer\(/,/\bmap\.addLayer\(/,/\bmap\.hasLayer
   if(direct.test(app))fail(`direct native-map escape hatch remains: ${direct}`);
 }
 if((app.match(/getNativeMap/g)||[]).length!==0)fail('application code must not escape to a native map object');
+
+
+// Large editable layers must not rebuild solely because the viewport numeric
+// extent changed. Candidate membership already encodes the spatial change.
+// Remote GeoJSON keeps full editable geometry but large layers start collapsed
+// and use bounded sidebar rows so the DOM cannot dominate interaction latency.
+const cachedRendererStart=app.indexOf('function renderCandidateFeatures(file)');
+const cachedRendererEnd=app.indexOf('function invalidateRenderCache',cachedRendererStart);
+const cachedRendererBlock=app.slice(cachedRendererStart,cachedRendererEnd);
+requireToken(cachedRendererBlock,'function renderSignature(file,features)','stable candidate-set render signature');
+if(/renderViewKey|viewKey/.test(cachedRendererBlock))fail('authoritative cached renderer still invalidates on raw viewport coordinates');
+requireToken(app,'performanceManaged=models.length>200||coordinateCount>=50000','remote large-layer classification');
+requireToken(app,'file.performanceManaged=true','remote large-layer metadata');
+requireToken(app,'sidebarRowLimit:200','bounded Layers-panel rows');
+requireToken(adapter,'layer.__editpolygonStyleCacheSize=styleCache.size','OpenLayers shared style cache');
+requireToken(adapter,'layer.__editpolygonDeclutter=hasDeclutterContent','OpenLayers conditional decluttering');
 
 // Repeated horizontal world copies are a supported map-view state. Candidate
 // culling must be longitude-periodic and pixel overlays must target the world
@@ -197,4 +230,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.10 runtime/repository audit passed. History restore now has a hard model/native render boundary with content fingerprints and editable-layer purge; OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.11 runtime/repository audit passed. WMS construction avoids forced CORS, large editable vectors retain full geometry with bounded UI/render churn, OpenLayers remains adapter-confined and deployment assets are clean.');
