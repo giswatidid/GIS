@@ -3509,14 +3509,24 @@ function scheduleOverlayRender(){
 }
 function hideOverlayForZoom(){
   if(!V.active&&!D.active)return;
+  // Drawing must remain interactive through a wheel/pinch zoom. The overlay is
+  // cheap to redraw and scheduleOverlayRender() keeps its vertices aligned.
+  // Only vertex-edit handles need the old temporary hide during zoom.
+  if(D.active){
+    overlay().classList.remove('zooming');
+    scheduleOverlayRender();
+    return;
+  }
   overlay().classList.add('zooming');
   if(zoomHideTimer) clearTimeout(zoomHideTimer);
   zoomHideTimer = setTimeout(showOverlayAfterZoom, 350);
 }
 function showOverlayAfterZoom(){
   if(zoomHideTimer){clearTimeout(zoomHideTimer);zoomHideTimer=null;}
-  renderOverlay();
+  // Restore pointer interaction before rebuilding. If a later overlay renderer
+  // ever fails, the editor still cannot become permanently click-through.
   overlay().classList.remove('zooming');
+  renderOverlay();
 }
 MAP_RUNTIME.on('zoomstart',hideOverlayForZoom);
 MAP_RUNTIME.on('zoomend viewreset',showOverlayAfterZoom);
@@ -7152,10 +7162,12 @@ window.addEventListener('beforeunload',e=>{writeAutosaveNow('beforeunload');writ
 setInterval(()=>{if(project.dirty){writeAutosaveNow('interval');writeJournalNow();}},5000);
 $('importPreviewCloseBtn').onclick=closeImportPreview;$('importPreviewCancelBtn').onclick=closeImportPreview;$('importPreviewImportBtn').onclick=commitImportPreview;
 
-function updateShiftPanState(e){
+function updateShiftPanState(){
+  // Historical builds used Shift to make the draw overlay click-through so the
+  // base map could pan. Modern drawing uses Shift to constrain/snap geometry.
+  // Keeping the old class would make Shift-click silently fail to add a vertex.
   const ov=overlay();
-  if(!ov)return;
-  ov.classList.toggle('shift-pan', !!(D.active && e && e.shiftKey));
+  if(ov)ov.classList.remove('shift-pan');
 }
 
 document.addEventListener('keydown',e=>{
@@ -7169,9 +7181,9 @@ document.addEventListener('keyup',e=>{
   if(e.code==='Space'){IMAGE.tempHide=false;renderImageOverlays();}
   if(e.key&&e.key.toLowerCase()==='t'){IMAGE.tempLowOpacity=false;renderImageOverlays();}
 });
-document.addEventListener('keydown',e=>{if(e.key==='Shift')updateShiftPanState(e);if(e.key==='Alt'){SNAP.altDown=true;SNAP.last=null;renderOverlay();}}, true);
-document.addEventListener('keyup',e=>{if(e.key==='Shift')updateShiftPanState({shiftKey:false});if(e.key==='Alt'){SNAP.altDown=false;renderOverlay();}}, true);
-window.addEventListener('blur',()=>{const ov=overlay();if(ov)ov.classList.remove('shift-pan');SNAP.altDown=false;SNAP.last=null});
+document.addEventListener('keydown',e=>{if(e.key==='Alt'){SNAP.altDown=true;SNAP.last=null;renderOverlay();}}, true);
+document.addEventListener('keyup',e=>{if(e.key==='Alt'){SNAP.altDown=false;renderOverlay();}}, true);
+window.addEventListener('blur',()=>{const ov=overlay();if(ov)ov.classList.remove('shift-pan','zooming');SNAP.altDown=false;SNAP.last=null});
 
 document.addEventListener('keydown',e=>{
   if($('coordModal').classList.contains('active')){
@@ -8552,7 +8564,10 @@ function finishBufferCorridor(){
 }
 function DStart(kind=null){
   if(MOVE.active)stopPolygonMoveMode(true);
-  overlay().classList.remove('shift-pan');
+  // Drawing owns the edit overlay. Never let a stale zoom/pan compatibility
+  // class leave it click-through when a new draw session starts. Shift is now
+  // reserved for angle/shape constraints rather than the old Shift-pan mode.
+  overlay().classList.remove('shift-pan','zooming');
   if(V.active)VStop(true);
   const nextKind=kind||D.kind||'polygon';
   project.mode='draw';
@@ -12459,13 +12474,11 @@ initUxRehaul();
   drawKindHint=function(kind){if(kind==='line')return 'Click points · double-click or Enter to finish';return v116BaseDrawKindHint(kind);};
   const v116BaseDrawCanFinish=drawCanFinish;
   drawCanFinish=function(){if(D.active&&D.kind==='line')return D.points.length>=2;return v116BaseDrawCanFinish();};
-  const v116BaseConstrainedDrawCoord=constrainedDrawCoord;
-  constrainedDrawCoord=function(latlng,ev=null){
-    if(D.kind!=='line')return v116BaseConstrainedDrawCoord(latlng,ev);
-    const snap=snappedLatLng(latlng,{event:ev});let c=snap.coord;
-    if(ev?.shiftKey&&D.points.length)c=angleSnapCoord(D.points[D.points.length-1],c,45);
-    return {coord:c,latlng:MAP_ADAPTER.latLng(c),target:snap.target};
-  };
+  // LineString drawing deliberately uses the authoritative
+  // constrainedDrawCoord() above. That implementation already handles line
+  // angle snapping *and* continuous longitudes across the antimeridian. Do not
+  // reintroduce the old v1.16 line-only override here: it discarded the
+  // longitude branch and caused 170E -> 170W segments to go around the world.
   const v116BaseDrawPreviewGeometry=drawPreviewGeometry;
   drawPreviewGeometry=function(){
     if(D.active&&D.kind==='line'){

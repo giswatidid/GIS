@@ -9,7 +9,7 @@ const workspace=fs.readFileSync(new URL('../docs/assets/gis-workspace.js',import
  test('remote-source resolver loads before the application and workspace',()=>{
   assert.ok(html.indexOf('gis-remote-source.js')<html.indexOf('editpolygon-app.js'));
   assert.ok(html.indexOf('editpolygon-app.js')<html.indexOf('gis-workspace.js'));
-  assert.match(html,/gis-remote-source\.js\?v=20260809-world-wrap-parity-15542/);
+  assert.match(html,/gis-remote-source\.js\?v=20260809-draw-dateline-parity-15543/);
 });
 
 test('application exposes discovery and batch ArcGIS import APIs',()=>{

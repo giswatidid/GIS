@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.4.3 — Drawing interaction and dateline parity hotfix
+
+- Fixed polygon/LineString vertices crossing the International Date Line being normalised into opposite longitude branches, which could render a short dateline segment as a line around most of the world.
+- Removed the stale v1.16 LineString `constrainedDrawCoord` override so all draw tools use the authoritative continuous-longitude coordinate path.
+- Removed the obsolete Shift-pan keyboard behaviour that made the draw overlay click-through even though modern drawing uses Shift for angle/shape constraints.
+- Drawing now clears stale zoom/click-through overlay state when it starts and stays pointer-interactive during zoom; CSS provides a second safety guard.
+- Added executable regressions for eastward/westward dateline crossing, repeated-world first-click placement, late draw-coordinate overrides and stale overlay interaction state.
+- Tightened the historical binding-debt ceiling from 200/374 to 199/373 after removing the obsolete LineString wrapper.
+
 ## v1.55.4.2 — Repeated-world rendering parity hotfix
 
 - Fixed editable vectors disappearing after panning horizontally around the repeated world multiple times in OpenLayers.

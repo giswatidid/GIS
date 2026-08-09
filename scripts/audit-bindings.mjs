@@ -23,8 +23,8 @@ const extraBindings=[...bindings.values()].reduce((sum,sites)=>sum+Math.max(0,si
 // v1.55.4 establishes a no-growth ceiling for historical wrapper debt. Future
 // releases should lower these numbers as sections are modularised, never raise
 // them casually by appending another wrapper.
-if(duplicateNames.length>200)fail(`duplicate function-binding names grew to ${duplicateNames.length} (baseline ceiling 200)`);
-if(extraBindings>374)fail(`extra historical function bindings grew to ${extraBindings} (baseline ceiling 374)`);
+if(duplicateNames.length>199)fail(`duplicate function-binding names grew to ${duplicateNames.length} (baseline ceiling 199)`);
+if(extraBindings>373)fail(`extra historical function bindings grew to ${extraBindings} (baseline ceiling 373)`);
 
 const bindingCeilings={
   renderMap:1,

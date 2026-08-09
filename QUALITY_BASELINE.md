@@ -1,6 +1,6 @@
 # EditPolygon v1.55.4 quality baseline
 
-v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.2** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, and viewport culling now treats horizontally repeated world copies as longitude-periodic so editable vectors do not disappear after multiple globe rotations.
+v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.3** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, viewport culling treats horizontally repeated world copies as longitude-periodic, and drawing keeps polygon/LineString vertices in a continuous longitude branch across the International Date Line. Drawing also remains pointer-interactive through zooms and uses Shift only for geometry constraints rather than the obsolete Shift-pan click-through mode.
 
 ## What was reviewed
 
@@ -103,6 +103,7 @@ OpenLayers controls are instantiated explicitly (`ol.control.Zoom` and `ol.contr
 | Editable point/line/polygon rendering | Pass | Pass | Required |
 | Multi-geometry rendering | Pass | Pass | Required |
 | True-circle rendering and click selection | Pass | Pass | Required |
+| Polygon / LineString drawing across International Date Line | Shared continuous-longitude path pass | Shared continuous-longitude path pass | Required |
 | Click / Shift / Ctrl selection semantics | Pass | Pass | Required |
 | Rectangle / polygon / lasso selection | Shared app path pass | Shared app path pass | Required |
 | Immediate selection highlight redraw | Pass | Pass | Required |
@@ -133,9 +134,9 @@ OpenLayers controls are instantiated explicitly (`ol.control.Zoom` and `ol.contr
 Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngine=openlayers` in a normal browser with representative data:
 
 1. Confirm `EditPolygonMap.engine === "openlayers"` and no fallback reason.
-2. Pan/zoom repeatedly with several polygons visible, including several complete horizontal rotations around the repeated world; vectors must not flash away or disappear after crossing world copies.
+2. Pan/zoom repeatedly with several polygons visible; vectors must not flash away.
 3. Click-select point, line, polygon and true circle; Shift-click multiple; click empty map to clear.
-4. Draw point, line, polygon and true circle. For a true circle over Australia/southern mid-latitudes, the final circle must remain centred on the first click and keep the same apparent circular shape/diameter as the live preview.
+4. Draw point, line, polygon and true circle. Cross the International Date Line with both a LineString and polygon; each edge must take the short local route and every click must register immediately, including after zooming. For a true circle over Australia/southern mid-latitudes, the final circle must remain centred on the first click and keep the same apparent circular shape/diameter as the live preview.
 5. Edit polygon/line vertices and midpoint handles; verify live geometry follows the pointer and undo/redo.
 6. Edit a point and true circle centre/radius.
 7. Test snapping and topology mode against adjacent geometry.
@@ -148,7 +149,7 @@ Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngin
 14. Test a larger FeatureServer/import and pan/zoom for stability/performance.
 15. On a touch device, check pan/zoom, drawers, selection and one edit workflow.
 
-Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. Both now have dedicated automated regressions.
+Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. The dateline drawing and intermittent click-through issues are fixed in v1.55.4.3. All now have dedicated automated regressions.
 
 ## CRS validation retained from earlier releases
 

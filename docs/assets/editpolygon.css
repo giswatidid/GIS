@@ -84,6 +84,10 @@ select{height:30px;border:1px solid var(--line);border-radius:4px;background:#ff
 #editOverlay.drawing{pointer-events:auto;cursor:crosshair}
 #editOverlay.shift-pan{pointer-events:none}
 #editOverlay.zooming{opacity:0;pointer-events:none}
+/* Drawing must never become click-through because a zoom lifecycle event was
+   delayed or missed. The JS runtime also clears this state; this is a final
+   interaction-safety guard. */
+#editOverlay.drawing.zooming{opacity:1;pointer-events:auto}
 #editSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .vtx,.mid{position:absolute;border-radius:50%;transform:translate(-50%,-50%);pointer-events:auto;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 4px rgba(0,0,0,.4)}
 .vtx{width:15px;height:15px;background:#b42318;cursor:move}.vtx.selected{width:18px;height:18px;background:#ff9f1c;box-shadow:0 0 0 2px #9a5b00,0 1px 5px rgba(0,0,0,.45)}.vtx.lasso-passive{pointer-events:none;cursor:crosshair}

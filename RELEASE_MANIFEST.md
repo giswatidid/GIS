@@ -1,10 +1,10 @@
-# Current release manifest — v1.55.4.2
+# Current release manifest — v1.55.4.3
 
-This is the current repository update manifest. v1.55.4.2 is a focused live-parity hotfix on top of the v1.55.4 architecture baseline. It fixes editable vectors disappearing after repeated horizontal world wraps without disabling viewport culling.
+This is the current repository update manifest. v1.55.4.3 is a focused live-parity hotfix on top of the v1.55.4 architecture baseline. It fixes intermittent polygon drawing clicks that could fall through the edit overlay and makes polygon/LineString drawing preserve the short continuous-longitude branch across the International Date Line.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.1**.
+Upgrade from **v1.55.4.2**.
 
 ## Files to update
 
@@ -15,12 +15,12 @@ Upgrade from **v1.55.4.1**.
 - `RELEASE_MANIFEST.md`
 - `docs/assets/editpolygon-app.js`
 - `docs/assets/editpolygon-map-adapter.js`
-- `docs/assets/gis-analysis-core.js`
+- `docs/assets/editpolygon.css`
 - `docs/index.html`
 - `package.json`
+- `scripts/audit-bindings.mjs`
 - `scripts/audit-runtime.mjs`
 - `tests/browser-map-adapter-smoke.py`
-- `tests/browser-openlayers-parity-smoke.py`
 - `tests/gis-crs-integration.test.mjs`
 - `tests/gis-remote-source-integration.test.mjs`
 - `tests/map-adapter.test.mjs`
@@ -30,7 +30,7 @@ Upgrade from **v1.55.4.1**.
 
 ## Files to add
 
-- `tests/world-wrap-rendering.test.mjs`
+- `tests/draw-interaction-world-wrap.test.mjs`
 
 ## Files to delete
 
@@ -44,4 +44,4 @@ If applying the GitHub patch ZIP through the web UI:
 2. do not delete any files;
 3. do not manually edit any code.
 
-The complete v1.55.4.2 repository ZIP may instead be used as the authoritative clean tree.
+The complete v1.55.4.3 repository ZIP may instead be used as the authoritative clean tree.
