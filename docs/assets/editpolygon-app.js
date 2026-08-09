@@ -2440,6 +2440,10 @@ function sleepingStatusText(){
 
 
 const D={active:false,points:[],cursor:null,kind:'polygon'};
+// Live drawing preview state must exist before the first startup renderAll().
+// renderOverlay() is part of that initial render and calls renderDrawRuntimePreview();
+// declaring this later in the file creates a temporal-dead-zone startup failure.
+let DRAW_RUNTIME_PREVIEW_LAYER=null;
 const SNAP={
   enabled:true,
   topology:false,
@@ -8653,7 +8657,6 @@ function DFinish(){
   const ring=closeRingCopy(D.points);
   addDrawnGeometry({type:'Polygon',coordinates:[ring]},'Polygon',{drawKind:'polygon'});
 }
-let DRAW_RUNTIME_PREVIEW_LAYER=null;
 function ensureDrawRuntimePreviewLayer(){
   if(DRAW_RUNTIME_PREVIEW_LAYER)return DRAW_RUNTIME_PREVIEW_LAYER;
   try{DRAW_RUNTIME_PREVIEW_LAYER=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1750,interactive:false});}catch(_){DRAW_RUNTIME_PREVIEW_LAYER=null;}

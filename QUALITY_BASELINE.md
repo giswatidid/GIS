@@ -1,6 +1,6 @@
 # EditPolygon v1.55.4 quality baseline
 
-v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.4** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, viewport culling and inverse pixel conversion preserve horizontally repeated world copies, polygon/LineString vertices use a continuous longitude branch across the International Date Line, and in-progress drawing is visibly mirrored through the engine-neutral transient-vector runtime. Drawing remains pointer-interactive through zooms and now uses Pointer Events for live cursor tracking, with Shift reserved for geometry constraints rather than the obsolete Shift-pan click-through mode.
+v1.55.4 is a parity, architecture and quality-control release. It does not make OpenLayers the default map engine. Its purpose is to establish a professional baseline before that switch. **v1.55.4.5** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, viewport culling and inverse pixel conversion preserve horizontally repeated world copies, polygon/LineString vertices use a continuous longitude branch across the International Date Line, and in-progress drawing is visibly mirrored through the engine-neutral transient-vector runtime. Drawing remains pointer-interactive through zooms and uses Pointer Events for live cursor tracking, with Shift reserved for geometry constraints rather than the obsolete Shift-pan click-through mode. The v1.55.4.5 startup-order guard also requires the drawing-preview layer state to be initialized before the first `renderAll()`, preventing late lexical state from aborting application initialization.
 
 ## What was reviewed
 
@@ -65,13 +65,13 @@ Cross-cutting point/circle editor cleanup no longer monkey-patches selection, de
 
 ### Historical wrapper debt
 
-The binding audit is intentionally conservative: it counts repeated named declarations/reassignments even when some occur in separate local scopes. It therefore measures **source-order complexity**, not necessarily 207 global collisions.
+The binding audit is intentionally conservative: it counts repeated named declarations/reassignments even when some occur in separate local scopes. It therefore measures **source-order complexity**, not necessarily 199 global collisions.
 
 Current v1.55.4 ceiling after cleanup:
 
-- 1,672 named function bindings identified;
-- 207 names occurring at more than one source site;
-- 381 extra binding sites beyond the first occurrence;
+- 1,686 named function bindings identified;
+- 199 names occurring at more than one source site;
+- 373 extra binding sites beyond the first occurrence;
 - largest historical chains: `renderSelected` 15, `renderSidebar` 13, `renderAll` 10, `showFileLayerMenu` 8, `showFeatureLayerMenu` 7, `updateButtons` 7, `importFile` 7.
 
 The generic local name `wrapped` appears 21 times in independent enhancement scopes and is not itself one global 21-stage wrapper chain.
@@ -149,7 +149,7 @@ Before v1.55.5 makes OpenLayers the default, deploy v1.55.4 and check `?mapEngin
 14. Test a larger FeatureServer/import and pan/zoom for stability/performance.
 15. On a touch device, check pan/zoom, drawers, selection and one edit workflow.
 
-Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. The dateline LineString/polygon drawing and intermittent click-through issues are fixed in v1.55.4.3. The missing live draw preview and true-circle/repeated-world inverse-coordinate seam are fixed in v1.55.4.4. All now have dedicated automated regressions.
+Any live failure is a v1.55.4 parity defect and should be fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. The dateline LineString/polygon drawing and intermittent click-through issues are fixed in v1.55.4.3. The missing live draw preview and true-circle/repeated-world inverse-coordinate seam were implemented in v1.55.4.4; v1.55.4.5 fixes the startup source-order error that prevented that code from completing initialization in the deployed app. All now have dedicated automated regressions.
 
 ## CRS validation retained from earlier releases
 

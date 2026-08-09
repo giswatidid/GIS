@@ -49,8 +49,18 @@ test('runtime preview layer is engine-neutral and clears when drawing stops',()=
   assert.match(functionSource('ensureDrawRuntimePreviewLayer'),/MAP_RUNTIME\.createVectorOverlayLayer/);
   assert.match(functionSource('renderDrawRuntimePreview'),/MAP_RUNTIME\.setVectorOverlayFeatures/);
   assert.match(functionSource('renderDrawRuntimePreview'),/MAP_RUNTIME\.clearVectorOverlayLayer/);
-  const previewStart=app.indexOf('let DRAW_RUNTIME_PREVIEW_LAYER');
-  const previewEnd=app.indexOf('function renderDrawOverlay',previewStart);
-  const block=app.slice(previewStart,previewEnd);
+  const block=[functionSource('ensureDrawRuntimePreviewLayer'),functionSource('drawRuntimePreviewItems'),functionSource('renderDrawRuntimePreview')].join('\n');
   assert.doesNotMatch(block,/MAP_RUNTIME\.engine|\b(?:L|ol)\./);
+});
+
+test('draw preview layer state is initialized before startup can enter renderOverlay',()=>{
+  const matches=[...app.matchAll(/\blet DRAW_RUNTIME_PREVIEW_LAYER\s*=\s*null\s*;/g)];
+  assert.equal(matches.length,1,'preview layer state must have one authoritative binding');
+  const stateIndex=matches[0].index;
+  const drawStateIndex=app.indexOf("const D={active:false,points:[],cursor:null,kind:'polygon'};");
+  const overlayIndex=app.indexOf('function renderOverlay(){');
+  const startupIndex=app.indexOf('initResizers();renderAll();setDirty(false);updateUndo();');
+  assert.ok(drawStateIndex>=0&&stateIndex>drawStateIndex,'preview layer state should live beside drawing state');
+  assert.ok(stateIndex<overlayIndex,'preview layer state must be initialized before renderOverlay is reachable');
+  assert.ok(stateIndex<startupIndex,'preview layer state must be initialized before the first startup renderAll');
 });

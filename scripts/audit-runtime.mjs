@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-live-draw-circle-wrap-15544';
+const RELEASE_KEY='20260809-draw-preview-init-155445';
 
-function fail(message){throw new Error(`v1.55.4.4 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.5 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.4')fail(`package version is ${pkg.version}, expected 1.55.4.4`);
+if(pkg.version!=='1.55.4.5')fail(`package version is ${pkg.version}, expected 1.55.4.5`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -79,6 +79,13 @@ requireToken(app,'function continuousClosedRing','continuous screen-shape ring')
 requireToken(app,'function renderDrawRuntimePreview','engine-neutral live draw preview');
 requireToken(app,"overlay().addEventListener('pointermove',updateDrawCursorFromPointer,true)",'live draw pointer input');
 requireToken(app,'MAP_RUNTIME.createVectorOverlayLayer({zIndex:1750,interactive:false})','live draw runtime preview');
+const drawPreviewStateMatches=[...app.matchAll(/\blet DRAW_RUNTIME_PREVIEW_LAYER\s*=\s*null\s*;/g)];
+if(drawPreviewStateMatches.length!==1)fail(`live draw preview layer state has ${drawPreviewStateMatches.length} bindings; expected exactly one`);
+const drawPreviewStateIndex=drawPreviewStateMatches[0].index;
+const renderOverlayIndex=app.indexOf('function renderOverlay(){');
+const startupRenderIndex=app.indexOf('initResizers();renderAll();setDirty(false);updateUndo();');
+if(drawPreviewStateIndex<0||renderOverlayIndex<0||startupRenderIndex<0)fail('could not verify live draw preview startup ordering');
+if(drawPreviewStateIndex>renderOverlayIndex||drawPreviewStateIndex>startupRenderIndex)fail('live draw preview layer state is initialized after renderOverlay/startup render and can enter the temporal dead zone');
 requireToken(app,"if(D.active){\n    overlay().classList.remove('zooming');\n    scheduleOverlayRender();",'draw zoom lifecycle');
 if(/e\.key==='Shift'\)updateShiftPanState/.test(app))fail('legacy Shift-pan key binding makes Shift-click drawing non-interactive');
 
@@ -157,4 +164,4 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4.4 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');
+console.log('v1.55.4.5 runtime/repository audit passed. OpenLayers is adapter-confined; the final editable renderer and selection refresh are engine-neutral; deployment assets are clean.');

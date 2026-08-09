@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.4.4**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
+This document describes the current application architecture as of **v1.55.4.5**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
 
 ## Product boundary
 
@@ -39,7 +39,7 @@ Long-running analysis, joins and Geometry Health use web workers.
 
 `docs/assets/editpolygon-app.js` remains the historical application controller and UI integration layer. It is still large and contains older enhancement sections, so v1.55.4 treats **source order as an explicit engineering risk** rather than assuming the last patch is harmless.
 
-New work must not append another late compatibility wrapper merely to alter a core runtime function. v1.55.4 publishes a final runtime-authority boundary and automatically rejects function patches after it.
+New work must not append another late compatibility wrapper merely to alter a core runtime function. v1.55.4 publishes a final runtime-authority boundary and automatically rejects function patches after it. v1.55.4.5 additionally treats lexical initialization order as part of that source-order contract: state read by startup rendering must be initialized before the first `renderAll()` can reach it.
 
 ### Map abstraction
 

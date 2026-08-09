@@ -1,10 +1,10 @@
-# Current release manifest — v1.55.4.4
+# Current release manifest — v1.55.4.5
 
-This is the current repository update manifest. v1.55.4.4 is a focused live-parity hotfix on top of the v1.55.4 architecture baseline. It restores visible in-progress drawing feedback and fixes true-circle/world-seam behaviour by preserving the active continuous longitude branch through OpenLayers screen-to-map conversion.
+This is the current repository update manifest. v1.55.4.5 is a focused startup-order hotfix on top of v1.55.4.4. It fixes the `DRAW_RUNTIME_PREVIEW_LAYER` temporal-dead-zone failure visible in the browser console, which caused the application's initial `renderAll()` to abort before the remainder of `editpolygon-app.js` could finish evaluating.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.3**.
+Upgrade from **v1.55.4.4**.
 
 ## Files to update
 
@@ -19,9 +19,7 @@ Upgrade from **v1.55.4.3**.
 - `package.json`
 - `scripts/audit-runtime.mjs`
 - `tests/browser-map-adapter-smoke.py`
-- `tests/browser-openlayers-parity-smoke.py`
-- `tests/circle-draw-display-parity.test.mjs`
-- `tests/draw-interaction-world-wrap.test.mjs`
+- `tests/draw-runtime-preview.test.mjs`
 - `tests/gis-crs-integration.test.mjs`
 - `tests/gis-remote-source-integration.test.mjs`
 - `tests/map-adapter.test.mjs`
@@ -31,7 +29,7 @@ Upgrade from **v1.55.4.3**.
 
 ## Files to add
 
-- `tests/draw-runtime-preview.test.mjs`
+None.
 
 ## Files to delete
 
@@ -42,8 +40,7 @@ None.
 If applying the GitHub patch ZIP through the web UI:
 
 1. upload/replace every file contained in the patch ZIP at repository root;
-2. add `tests/draw-runtime-preview.test.mjs`;
-3. do not delete any files;
-4. do not manually edit any code.
+2. do not delete any files;
+3. do not manually edit any code.
 
-The complete v1.55.4.4 repository ZIP may instead be used as the authoritative clean tree.
+The complete v1.55.4.5 repository ZIP may instead be used as the authoritative clean tree.

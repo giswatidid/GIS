@@ -1,5 +1,11 @@
 # EditPolygon changelog
 
+## v1.55.4.5 — Drawing preview startup-order hotfix
+
+- Fixed a temporal-dead-zone startup crash introduced by v1.55.4.4: the live drawing preview layer state is now initialized beside the core drawing state before the application's first `renderAll()` can enter `renderOverlay()`.
+- This prevents `ReferenceError: Cannot access 'DRAW_RUNTIME_PREVIEW_LAYER' before initialization`, allows the remainder of `editpolygon-app.js` to finish evaluating, and restores the v1.55.4.4 live polygon/circle preview and dateline fixes in the deployed application.
+- Added a source-order regression that requires exactly one preview-layer state binding and proves it is initialized before both `renderOverlay()` and the startup render call.
+
 ## v1.55.4.4 — Live drawing preview and circle dateline parity hotfix
 
 - Restored visible in-progress drawing feedback by mirroring the active draw geometry, clicked vertices and live cursor through the engine-neutral transient-vector map runtime; the existing DOM overlay remains as an interaction/handle layer and visual fallback.
