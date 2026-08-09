@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.3 OpenLayers reference vectors, tiles and GeoTIFF previews use map-runtime primitives',()=>{
+test('v1.55.4 OpenLayers reference vectors, tiles and GeoTIFF previews use map-runtime primitives',()=>{
   const start=app.indexOf('const REF=window.REFERENCE_OVERLAYS');
   const end=app.indexOf('function serializeRefs()',start);
   assert.ok(start>0&&end>start);

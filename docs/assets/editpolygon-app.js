@@ -18,6 +18,22 @@ function ringCount(r){return Math.max(0,r.length-(closed(r)?1:0))}
 function supported(t){return ['Polygon','MultiPolygon','LineString','MultiLineString','Point','MultiPoint'].includes(t)}
 function polygonSupported(t){return t==='Polygon'||t==='MultiPolygon'}
 
+// v1.55.4 runtime transition registry.  Cross-cutting edit-mode cleanup belongs
+// here rather than in late monkey-patches of selection/history functions.  New
+// editors register lifecycle callbacks; authoritative actions call the registry.
+const RUNTIME_TRANSITIONS=new Map();
+function registerRuntimeTransition(kind,handler){
+  if(typeof handler!=='function')return ()=>{};
+  const key=String(kind||'').trim();if(!key)return ()=>{};
+  if(!RUNTIME_TRANSITIONS.has(key))RUNTIME_TRANSITIONS.set(key,new Set());
+  const bucket=RUNTIME_TRANSITIONS.get(key);bucket.add(handler);
+  return ()=>bucket.delete(handler);
+}
+function runRuntimeTransition(kind,detail={}){
+  const bucket=RUNTIME_TRANSITIONS.get(String(kind||''));if(!bucket?.size)return;
+  for(const handler of [...bucket]){try{handler(detail);}catch(error){console.warn(`EditPolygon ${kind} transition failed`,error);}}
+}
+
 function flattenSupportedFeatures(rawFeatures){
   const out=[];
   for(const raw of rawFeatures||[]){
@@ -2804,6 +2820,7 @@ function notifyHistoryRestored(direction){
   try{window.dispatchEvent(new CustomEvent('editpolygon:history-restored',{detail:{direction}}));}catch(_){ }
 }
 function undo(){
+  runRuntimeTransition('history',{action:'undo'});
   if(imageOverlayById(IMAGE.selectedId)&&IMAGE.history.length){imageUndo();return;}
   if(!project.history.length)return;
   const prev=project.history.pop();
@@ -2822,6 +2839,7 @@ function undo(){
   }
 }
 function redo(){
+  runRuntimeTransition('history',{action:'redo'});
   if(imageOverlayById(IMAGE.selectedId)&&IMAGE.future.length){imageRedo();return;}
   if(!project.future.length)return;
   const next=project.future.pop();
@@ -2879,7 +2897,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.3: Leaflet remains the default engine while ?mapEngine=openlayers
+// v1.55.4: Leaflet remains the default engine while ?mapEngine=openlayers
 // activates a compatibility-map-free OpenLayers runtime. Both engines use the
 // same map adapter contract; OpenLayers no longer instantiates a hidden Leaflet map.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
@@ -2892,9 +2910,6 @@ const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   L:window.L,
   ol:window.ol
 });
-// Keep a native Leaflet handle only when Leaflet is the selected engine. Old
-// Leaflet-only helpers must never receive the OpenLayers Map instance.
-const map=MAP_RUNTIME.engine==='leaflet'?MAP_RUNTIME.getNativeMap():null;
 try{
   window.EditPolygonMap=MAP_RUNTIME;
   document.body.dataset.mapEngine=MAP_RUNTIME.engine;
@@ -2915,7 +2930,7 @@ function makeBuiltinBasemaps(){
 const basemaps=makeBuiltinBasemaps();mapLayerAdd(basemaps.osm);
 // The legacy featureGroup exists only for the Leaflet renderer. OpenLayers
 // editable vectors are normal OL layers owned by the final cached renderer.
-const featureGroup=MAP_RUNTIME.engine==='leaflet'?L.featureGroup().addTo(map):null;
+const featureGroup=MAP_RUNTIME.engine==='leaflet'?MAP_RUNTIME.createEmptyLayerGroup():null;if(featureGroup)MAP_RUNTIME.addDisplayLayer(featureGroup);
 const geometryPreviewGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:850});const locationSearchOverlays=[];const measurementGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1250,interactive:true});const measurementDomOverlays=[],measurementEditHandleOverlays=[];let drawLayer=null,drawPoints=[];
 
 
@@ -3136,33 +3151,20 @@ function polygonBoundaryHitPixel(coords,pixel,tolerance){
 }
 function parametricCircleHitAtMapPoint(feature,file,latlng,pixel){
   if(!isParametricCircleFeature(feature)||!latlng)return false;
-  // OpenLayers never renders the canonical centre+radius object directly. It
-  // renders featJSON(feature), which materialises that circle as a polygon.
-  // Click selection must test that exact same geometry; using a separate
-  // centre/radius screen calculation can disagree with both the pixels the user
-  // sees and the geometry used by rectangle/polygon/lasso selection.
-  if(MAP_RUNTIME.engine==='openlayers'){
-    try{
-      const rendered=featJSON(feature)?.geometry;
-      if(rendered?.type==='Polygon'){
-        const pointFeature=turf.point([latlng.lng,latlng.lat]);
-        const renderedFeature={type:'Feature',properties:{},geometry:rendered};
-        if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
-        if(pixel&&polygonBoundaryHitPixel(rendered.coordinates,MAP_ADAPTER.point(pixel),mapHitTolerancePx(feature,file)))return true;
-        return false;
-      }
-      if(rendered?.type==='MultiPolygon'){
-        const pointFeature=turf.point([latlng.lng,latlng.lat]);
-        const renderedFeature={type:'Feature',properties:{},geometry:rendered};
-        if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
-        if(pixel&&(rendered.coordinates||[]).some(poly=>polygonBoundaryHitPixel(poly,MAP_ADAPTER.point(pixel),mapHitTolerancePx(feature,file))))return true;
-        return false;
-      }
-    }catch(_){ }
-  }
-  // Leaflet renders the canonical circle directly, so the canonical circle
-  // containment test remains the correct fallback there (and if OL
-  // materialisation ever fails unexpectedly).
+  // The authoritative cached renderer materialises CircleByCenterPoint through
+  // featJSON() for both map engines. Click selection therefore tests the same
+  // polygon geometry the user sees, avoiding renderer-specific circle maths.
+  try{
+    const rendered=featJSON(feature)?.geometry;
+    if(rendered?.type==='Polygon'||rendered?.type==='MultiPolygon'){
+      const pointFeature=turf.point([latlng.lng,latlng.lat]),renderedFeature={type:'Feature',properties:{},geometry:rendered};
+      if(turf.booleanPointInPolygon(pointFeature,renderedFeature))return true;
+      if(pixel){const p=MAP_ADAPTER.point(pixel),tolerance=mapHitTolerancePx(feature,file);if(rendered.type==='Polygon')return polygonBoundaryHitPixel(rendered.coordinates,p,tolerance);return (rendered.coordinates||[]).some(poly=>polygonBoundaryHitPixel(poly,p,tolerance));}
+      return false;
+    }
+  }catch(_){ }
+  // Conservative fallback for malformed/legacy project state where a display
+  // polygon cannot be materialised.
   try{return circleContainsLatLng(feature.parametricGeometry,latlng);}catch(_){return false;}
 }
 function featureHitAtMapPoint(feature,file,latlng,pixel){
@@ -3182,12 +3184,9 @@ function featureHitAtMapPoint(feature,file,latlng,pixel){
 }
 function featuresAtLatLng(latlng,pixel=null){
   const rows=renderOrderRows(),hitPixel=pixel?MAP_ADAPTER.point(pixel):MAP_RUNTIME.latLngToPixel(latlng),byId=new Map(rows.map(row=>[String(row.feature.id),row])),hits=new Map();
-  // Prefer the actual rendered OpenLayers feature under the pointer.  Resolve
-  // those ids directly back to project features instead of making them pass
-  // through the legacy bbox/manual hit-test first.  This is particularly
-  // important for true circles, whose canonical model is centre+radius while
-  // the renderer displays a materialised polygon.
-  if(MAP_RUNTIME.engine==='openlayers'&&typeof MAP_RUNTIME.editableFeatureIdsAtPixel==='function'){
+  // Prefer the actual adapter-rendered feature under the pointer on either
+  // engine, then supplement it with the geometry-aware fallback below.
+  if(typeof MAP_RUNTIME.editableFeatureIdsAtPixel==='function'){
     for(const id of MAP_RUNTIME.editableFeatureIdsAtPixel(hitPixel,{hitTolerance:10})||[]){
       const row=byId.get(String(id))||(()=>{const r=fileOfFeature(String(id));return r?{file:r.file,feature:r.feature,fileIndex:project.files.indexOf(r.file),featureIndex:r.index}:null;})();
       if(row&&!isFeatureSleeping(row.file,row.feature))hits.set(String(row.feature.id),row);
@@ -3463,10 +3462,9 @@ function setFeatureOpacity(featureId,value){
 }
 
 
-function renderMap(){
-  // OpenLayers uses the authoritative cached renderer installed later in this
-  // file. This legacy Leaflet renderer is kept only for the Leaflet engine
-  // during early bootstrap before the final renderer is installed.
+function bootstrapRenderMap(){
+  // This renderer exists only to cover the short Leaflet bootstrap interval
+  // before the final cached renderer is installed. OpenLayers never uses it.
   if(MAP_RUNTIME.engine==='openlayers')return;
   featureGroup.clearLayers();
   const b=MAP_RUNTIME.getExtent(0.35);
@@ -3488,10 +3486,16 @@ function renderMap(){
     }
   }
 }
+let RENDER_MAP_IMPL=bootstrapRenderMap;
+function renderMap(){return RENDER_MAP_IMPL.apply(this,arguments)}
 function renderAll(){recomputeAllFeatures();renderMap();renderSidebar();renderSelected();renderOverlay();renderMeasurementPreview();renderImageOverlays();updateStatus();updateButtons();updateUndo();if(!V.active)updatePerfState(sleepingStatusText())}
-function selectFeature(fid){IMAGE.selectedId=null;closeLayerMenu();closePickMenu();if(V.active)VStop(true);const r=selectOrWakeFeature(fid);if(!r)return;project.selectedFeatureId=fid;project.selectedFileId=r.file.id;clearGeometryPreview();renderAll();setStatus('Selected '+r.feature.name+'.')}
-function selectFeatureMulti(fid,additive){if(V.active)return;const r=selectOrWakeFeature(fid);if(!r)return;if(additive){if(project.selectedFeatureId&&project.selectedFeatureId!==fid&&!project.mergeIds.includes(project.selectedFeatureId))project.mergeIds.push(project.selectedFeatureId);project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);project.selectedFeatureId=fid;project.selectedFileId=r.file.id;renderAll();setStatus(`${project.mergeIds.length} polygons selected for merge.`)}else selectFeature(fid)}
-function clearSelection(){closeLayerMenu();closePickMenu();if(MOVE.active||V.active||D.active||project.mode==='draw'||project.mode==='movePolygon')return;project.selectedFeatureId=null;project.selectedFileId=null;renderAll()}
+function baseSelectFeature(fid){IMAGE.selectedId=null;closeLayerMenu();closePickMenu();if(V.active)VStop(true);const r=selectOrWakeFeature(fid);if(!r)return;project.selectedFeatureId=fid;project.selectedFileId=r.file.id;clearGeometryPreview();renderAll();setStatus('Selected '+r.feature.name+'.');return r}
+function baseSelectFeatureMulti(fid,additive){if(V.active)return;const r=selectOrWakeFeature(fid);if(!r)return;if(additive){if(project.selectedFeatureId&&project.selectedFeatureId!==fid&&!project.mergeIds.includes(project.selectedFeatureId))project.mergeIds.push(project.selectedFeatureId);project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);project.selectedFeatureId=fid;project.selectedFileId=r.file.id;renderAll();setStatus(`${project.mergeIds.length} polygons selected for merge.`);return r}return baseSelectFeature(fid)}
+function baseClearSelection(){closeLayerMenu();closePickMenu();if(MOVE.active||V.active||D.active||project.mode==='draw'||project.mode==='movePolygon')return;project.selectedFeatureId=null;project.selectedFileId=null;renderAll()}
+let SELECT_FEATURE_IMPL=baseSelectFeature,SELECT_FEATURE_MULTI_IMPL=baseSelectFeatureMulti,CLEAR_SELECTION_IMPL=baseClearSelection;
+function selectFeature(fid){return SELECT_FEATURE_IMPL(fid)}
+function selectFeatureMulti(fid,additive){return SELECT_FEATURE_MULTI_IMPL(fid,additive)}
+function clearSelection(){return CLEAR_SELECTION_IMPL()}
 MAP_RUNTIME.on('click',selectFromMapClick);
 window.__editPolygonMapClickSelection={featuresAtLatLng,featureHitAtMapPoint,applyMapFeatureSelection,clear:clearMapFeatureSelection};
 MAP_RUNTIME.on('contextmenu',e=>{if(V.active||D.active)return;const c=featuresAtLatLng(e.latLng,e.pixel);if(c.length){MAP_RUNTIME.stopNativeEvent(e);showPickMenu(e.pixel,c,false,{})}});
@@ -4508,7 +4512,7 @@ function createPolygonFromCoords(){
 }
 
 function duplicateFeature(){const r=ref();if(!r)return;pushHistory();const copy=clone(r.feature);ensureFeatureModel(copy);copy.id=uid('feat');copy.name=r.feature.name+' copy';copy.properties.name=copy.name;r.file.features.push(copy);project.selectedFeatureId=copy.id;renderAll();setDirty(true)}
-function deletePolygon(){const r=ref();if(!r)return;if(isLocked(r.file,r.feature)){setStatus('Feature is locked. Unlock it before deleting.','error');return}if(!confirm(`Delete "${r.feature.name}"?`))return;pushHistory();r.file.features=r.file.features.filter(f=>f.id!==r.feature.id);project.mergeIds=project.mergeIds.filter(id=>id!==r.feature.id);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true);logOperation('polygon-deleted',{});setStatus('Polygon deleted.')}
+function deletePolygon(){const r=ref();if(!r)return;if(isLocked(r.file,r.feature)){setStatus('Feature is locked. Unlock it before deleting.','error');return}const geomType=getDisplayGeometry(r.feature)?.type||'';const deletedKind=r.feature?.drawKind==='circle'||geomType==='CircleByCenterPoint'?'Circle':geomType.includes('LineString')?'Line':geomType.includes('Point')?'Point':'Polygon';runRuntimeTransition('delete',{featureId:r.feature.id,fileId:r.file.id});if(!confirm(`Delete "${r.feature.name}"?`))return;pushHistory();r.file.features=r.file.features.filter(f=>f.id!==r.feature.id);project.mergeIds=project.mergeIds.filter(id=>id!==r.feature.id);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true);logOperation('feature-deleted',{geometryType:geomType});setStatus(`${deletedKind} deleted.`)}
 function togglePick(fid){project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);renderAll()}
 function mergeGeometryFamily(type){
   if(type==='Polygon'||type==='MultiPolygon')return 'polygon';
@@ -7691,10 +7695,10 @@ function ensurePolygonContextToolbar(){
   tb.className='polygon-context-toolbar';
   tb.innerHTML='<button id="polygonCtxEditBtn" class="primary" type="button">Edit polygon</button><button id="polygonCtxCopyStyleBtn" type="button">Copy style</button><button id="polygonCtxPasteStyleBtn" type="button">Paste style</button><button id="polygonCtxSoloBtn" type="button">Solo</button><button id="polygonCtxDuplicateBtn" type="button">Duplicate</button><button id="polygonCtxDeleteBtn" class="danger" type="button">Delete</button>';
   document.body.appendChild(tb);
-  if(window.L && L.DomEvent){
-    L.DomEvent.disableClickPropagation(tb);
-    L.DomEvent.disableScrollPropagation(tb);
-  }
+  // Floating editor controls stop browser events directly so the behaviour is
+  // identical under Leaflet and OpenLayers; application UI never calls an
+  // engine-specific DOM-event helper.
+  for(const type of ['wheel','dblclick','contextmenu'])tb.addEventListener(type,event=>event.stopPropagation());
   // Stop the map from receiving pointer-down events from this floating UI,
   // but do NOT stop click events during capture. A capture-phase click guard here
   // prevents the actual button click handlers from firing in some browsers.
@@ -11486,10 +11490,10 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     return raw;
   }
   function v96EnsureReferencePanes(){
-    const overlayMap=MAP_RUNTIME.engine==='leaflet'?MAP_RUNTIME.getNativeMap?.():null;
-    if(!overlayMap||typeof overlayMap.getPane!=='function')return;
-    if(!overlayMap.getPane('referenceRasterPane')){const p=overlayMap.createPane('referenceRasterPane');p.style.zIndex='345';p.style.pointerEvents='none';}
-    if(!overlayMap.getPane('referenceVectorPane')){const p=overlayMap.createPane('referenceVectorPane');p.style.zIndex='360';p.style.pointerEvents='none';}
+    // Pane names are meaningful to Leaflet and a deliberate no-op in OpenLayers.
+    // Keep even this legacy reference installer on the shared adapter contract.
+    MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
+    MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
   function v96ReferenceStore(){return window.REFERENCE_OVERLAYS||(window.REFERENCE_OVERLAYS={items:[],layers:new Map(),selectedId:null,menuId:null});}
   function v96StyleReference(item){return {pane:'referenceVectorPane',interactive:false,color:item.color||'#d92c32',weight:item.weight||2,opacity:item.opacity??0.75,fillColor:item.fillColor||item.color||'#d92c32',fillOpacity:item.fillOpacity??0.14};}
@@ -11567,8 +11571,8 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     if(!REF.layers||!REF.layers.set)REF.layers=new Map();
     if(item.visible===false)return;
     if(item.type==='geojson'&&item.data){
-      const layer=v98RefNeedsCanvas(item)?v98CanvasLayer(item):L.geoJSON(item.data,{pane:'referenceVectorPane',interactive:false,style:()=>v96StyleReference(item),pointToLayer:(f,ll)=>L.circleMarker(ll,{...v96StyleReference(item),radius:5})});
-      REF.layers.set(item.id,layer);layer.addTo(map);
+      const layer=v98RefNeedsCanvas(item)?v98CanvasLayer(item):MAP_RUNTIME.createGeoJsonLayer({data:item.data,pane:'referenceVectorPane',interactive:false,style:v96StyleReference(item),pointRadius:5});
+      REF.layers.set(item.id,layer);mapLayerAdd(layer);
     }
   }
   function v96SyncReferenceLayers(){
@@ -12877,8 +12881,6 @@ initUxRehaul();
   // ---------- Generic wording ----------
   const v116BaseCommitImport=commitImportPreview;
   commitImportPreview=function(){const count=pendingImportFiles.reduce((n,item)=>n+(item.file?.features?.length||0),0);v116BaseCommitImport();if(count)setStatus(`Imported ${count} geometry feature${count===1?'':'s'}.`);};
-  const v116BaseDeletePolygon=deletePolygon;
-  deletePolygon=function(){const r=ref(),isLine=!!(r&&lineSupported(getDisplayGeometry(r.feature).type));v116BaseDeletePolygon();if(isLine)setStatus('Line deleted.');};
 
   if(window.renderCommandList&&!window.renderCommandList.__v116LineWrapped){
     const baseRenderCommandList=window.renderCommandList;
@@ -15253,14 +15255,6 @@ showAutosaveRecoveryIfAvailable();
   }
 
   const REF=window.REFERENCE_OVERLAYS||(window.REFERENCE_OVERLAYS={items:[],layers:new Map(),selectedId:null,menuId:null});
-  function v106InstallGeoTiffPreviewCss(){
-    if(document.getElementById('v106-geotiff-reference-style'))return;
-    const st=document.createElement('style');st.id='v106-geotiff-reference-style';st.textContent=`
-      .v106-reference-geotiff-layer{position:absolute;display:block;pointer-events:none;max-width:none!important;max-height:none!important;transform-origin:0 0;will-change:transform,width,height;}
-      .leaflet-pane.referenceRasterPane{pointer-events:none;}
-    `;document.head.appendChild(st);
-  }
-  v106InstallGeoTiffPreviewCss();
   function uidRef(){try{return uid('ref');}catch(_){return 'ref_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);}}
   function itemById(id){return (REF.items||[]).find(x=>x.id===id)||null;}
   function refTypeLabel(type){return type==='tile'?'Tiles':type==='geojson'?'GeoJSON':type==='geotiff'?'GeoTIFF':type==='image'?'Image':'Overlay';}
@@ -15284,16 +15278,8 @@ showAutosaveRecoveryIfAvailable();
     const b=refBounds(item);return b?[Number(b[0][1]),Number(b[0][0]),Number(b[1][1]),Number(b[1][0])]:null;
   }
   function referenceLayerZIndex(index){return 40+Math.max(0,Number(index)||0)/1000;}
-  function referenceLayerRemove(layer){
-    if(!layer)return;
-    if(MAP_RUNTIME.engine==='openlayers'&&layer.__editpolygonEngine==='openlayers'){try{MAP_RUNTIME.removeDisplayLayer?.(layer);}catch(_){ }return;}
-    const overlayMap=getReferenceMap();try{overlayMap?.removeLayer?.(layer);}catch(_){ }
-  }
-  function referenceLayerAdd(layer){
-    if(!layer)return;
-    if(MAP_RUNTIME.engine==='openlayers'&&layer.__editpolygonEngine==='openlayers'){try{MAP_RUNTIME.addDisplayLayer?.(layer);}catch(_){ }return;}
-    const overlayMap=getReferenceMap();try{if(typeof layer.addTo==='function')layer.addTo(overlayMap);else overlayMap?.addLayer?.(layer);}catch(_){ }
-  }
+  function referenceLayerRemove(layer){if(layer)try{MAP_RUNTIME.removeDisplayLayer?.(layer);}catch(_){ }}
+  function referenceLayerAdd(layer){if(layer)try{MAP_RUNTIME.addDisplayLayer?.(layer);}catch(_){ }}
   function normalizeGeoJson(data){
     if(!data||typeof data!=='object')throw Error('Invalid GeoJSON.');
     if(data.type==='FeatureCollection')return data;
@@ -15312,124 +15298,38 @@ showAutosaveRecoveryIfAvailable();
       interactive:false
     };
   }
-  function getReferenceMap(){
-    if(MAP_RUNTIME.engine!=='leaflet')return null;
-    const native=MAP_RUNTIME.getNativeMap?.();
-    return native&&typeof native.addLayer==='function'&&typeof native.getPane==='function'?native:null;
-  }
   function ensureReferencePanes(){
-    if(typeof L==='undefined')return;
-    const overlayMap=getReferenceMap();
-    if(!overlayMap)return;
-    if(!overlayMap.getPane('referenceRasterPane')){const p=overlayMap.createPane('referenceRasterPane');p.classList.add('referenceRasterPane');p.style.zIndex='345';p.style.pointerEvents='none';}
-    if(!overlayMap.getPane('referenceVectorPane')){const p=overlayMap.createPane('referenceVectorPane');p.style.zIndex='360';p.style.pointerEvents='none';}
-    const rasterPane=overlayMap.getPane('referenceRasterPane'); if(rasterPane){rasterPane.style.zIndex='345';rasterPane.style.pointerEvents='none';}
-  }
-  function v106CreateGeoTiffImageLayer(item){
-    if(typeof L==='undefined')return null;
-    const GeoTiffReferenceLayer=L.Layer.extend({
-      initialize(srcItem){this.item=srcItem;},
-      onAdd(mp){
-        this._map=mp;ensureReferencePanes();
-        const pane=mp.getPane('referenceRasterPane')||mp.getPane('overlayPane');
-        this._img=L.DomUtil.create('img','v106-reference-geotiff-layer');
-        this._img.alt=this.item?.name||'GeoTIFF reference overlay';
-        this._img.decoding='async';
-        this._img.draggable=false;
-        this._img.dataset.refGeotiffId=this.item?.id||'';
-        this._img.src=this.item?.dataUrl||'';
-        this.setOpacity(this.item?.opacity??0.75);
-        pane.appendChild(this._img);
-        mp.on('zoomend viewreset moveend resize',this._reset,this);
-        this._reset();
-      },
-      onRemove(mp){
-        mp.off('zoomend viewreset moveend resize',this._reset,this);
-        if(this._img&&this._img.parentNode)this._img.parentNode.removeChild(this._img);
-        this._img=null;this._map=null;
-      },
-      getBounds(){const b=refBounds(this.item);return b?L.latLngBounds(b):null;},
-      setOpacity(value){if(this._img)this._img.style.opacity=String(clamp(value??0.75,0,1));},
-      setVisible(value){if(this._img)this._img.style.display=value?'block':'none';},
-      updateItem(next){
-        this.item=next||this.item;
-        if(this._img){
-          this._img.dataset.refGeotiffId=this.item?.id||'';
-          if(this.item?.dataUrl&&this._img.src!==this.item.dataUrl)this._img.src=this.item.dataUrl;
-        }
-        this.setOpacity(this.item?.opacity??0.75);
-        this._reset();
-      },
-      _reset(){
-        if(!this._map||!this._img)return;
-        if(this.item?.visible===false){this._img.style.display='none';return;}
-        const b=this.getBounds();
-        if(!b||!b.isValid()){this._img.style.display='none';return;}
-        const nw=this._map.latLngToLayerPoint(b.getNorthWest());
-        const se=this._map.latLngToLayerPoint(b.getSouthEast());
-        const w=Math.max(1,Math.abs(se.x-nw.x));
-        const h=Math.max(1,Math.abs(se.y-nw.y));
-        const x=Math.min(nw.x,se.x),y=Math.min(nw.y,se.y);
-        this._img.style.display='block';
-        L.DomUtil.setPosition(this._img,MAP_ADAPTER.point(x,y));
-        this._img.style.width=w+'px';
-        this._img.style.height=h+'px';
-      }
-    });
-    return new GeoTiffReferenceLayer(item);
+    // Named panes are a Leaflet implementation detail; OpenLayers treats these
+    // calls as no-ops and uses layer z-index. The reference workflow itself is
+    // engine-neutral.
+    MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
+    MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
 
   function buildLayer(item,index=0){
     const opacity=clamp(item.opacity??.75,0,1),zIndex=referenceLayerZIndex(index);
-    if(MAP_RUNTIME.engine==='openlayers'){
-      if(item.type==='tile'){
-        return MAP_RUNTIME.createTileLayer({url:item.urlTemplate,opacity,attribution:item.attribution||'',maxZoom:clamp(item.maxZoom??22,1,30),zIndex});
-      }
-      if(item.type==='geojson'){
-        return MAP_RUNTIME.createGeoJsonLayer({data:normalizeGeoJson(item.data),style:vectorStyle(item),pointRadius:clamp(item.pointRadius??5,2,20),opacity:1,visible:item.visible!==false,zIndex});
-      }
-      if(item.type==='geotiff'){
-        const b=refBounds(item);
-        if(!item.dataUrl||!b)throw Error('GeoTIFF overlay is missing rendered image or bounds.');
-        return MAP_RUNTIME.createStaticImageLayer({url:item.dataUrl,bounds:b,opacity,visible:item.visible!==false,zIndex,interpolate:true});
-      }
-      return null;
-    }
     ensureReferencePanes();
     if(item.type==='tile'){
-      return L.tileLayer(item.urlTemplate,{pane:'referenceRasterPane',opacity,attribution:item.attribution||'',maxZoom:clamp(item.maxZoom??22,1,30),crossOrigin:true});
+      return MAP_RUNTIME.createTileLayer({url:item.urlTemplate,pane:'referenceRasterPane',opacity,attribution:item.attribution||'',maxZoom:clamp(item.maxZoom??22,1,30),zIndex});
     }
     if(item.type==='geojson'){
-      if(window.v98ReferenceNeedsCanvas?.(item)&&window.v98CreateFullDetailReferenceCanvasLayer){
+      // The old high-detail canvas renderer is retained only for the Leaflet
+      // transition engine. Normal reference vectors on both engines use the
+      // same adapter-owned GeoJSON primitive.
+      if(MAP_RUNTIME.engine==='leaflet'&&window.v98ReferenceNeedsCanvas?.(item)&&window.v98CreateFullDetailReferenceCanvasLayer){
         return window.v98CreateFullDetailReferenceCanvasLayer(item);
       }
-      return L.geoJSON(normalizeGeoJson(item.data),{
-        pane:'referenceVectorPane',interactive:false,style:()=>vectorStyle(item),
-        pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{...vectorStyle(item),radius:clamp(item.pointRadius??5,2,20)})
-      });
+      return MAP_RUNTIME.createGeoJsonLayer({data:normalizeGeoJson(item.data),pane:'referenceVectorPane',style:vectorStyle(item),pointRadius:clamp(item.pointRadius??5,2,20),opacity:1,visible:item.visible!==false,zIndex});
     }
     if(item.type==='geotiff'){
       const b=refBounds(item);
       if(!item.dataUrl||!b)throw Error('GeoTIFF overlay is missing rendered image or bounds.');
-      return v106CreateGeoTiffImageLayer(item) || L.imageOverlay(item.dataUrl,b,{pane:'referenceRasterPane',opacity,interactive:false});
+      return MAP_RUNTIME.createStaticImageLayer({url:item.dataUrl,bounds:b,pane:'referenceRasterPane',opacity,visible:item.visible!==false,zIndex,interpolate:true});
     }
     return null;
   }
-  function v109ApplyGeoTiffDomState(){
-    try{
-      document.querySelectorAll('.v106-reference-geotiff-layer[data-ref-geotiff-id]').forEach(img=>{
-        const item=itemById(img.dataset.refGeotiffId);
-        if(!item){img.remove();return;}
-        img.style.opacity=String(clamp(item.opacity??0.75,0,1));
-        if(item.visible===false)img.style.display='none';
-      });
-    }catch(_){ }
-  }
   function syncReferenceMapLayers(){
-    const nativeOl=MAP_RUNTIME.engine==='openlayers';
-    const overlayMap=nativeOl?null:getReferenceMap();
-    if(!nativeOl&&(!overlayMap||typeof L==='undefined'))return;
-    if(!nativeOl)ensureReferencePanes();
+    ensureReferencePanes();
     const live=new Set((REF.items||[]).map(x=>x.id));
     for(const [id,layer] of Array.from(REF.layers.entries())){
       if(!live.has(id)){referenceLayerRemove(layer);REF.layers.delete(id);}
@@ -15443,30 +15343,17 @@ showAutosaveRecoveryIfAvailable();
         }catch(err){console.warn('Could not render reference overlay',item,err);return;}
       }
       if(!existing)return;
-      if(nativeOl&&existing.__editpolygonEngine==='openlayers'){
-        try{MAP_RUNTIME.setDisplayLayerZIndex?.(existing,referenceLayerZIndex(index));}catch(_){ }
-        try{MAP_RUNTIME.setDisplayLayerVisible?.(existing,item.visible!==false);}catch(_){ }
-        if(item.type==='geojson'){
-          try{MAP_RUNTIME.setGeoJsonLayerStyle?.(existing,{style:vectorStyle(item),pointRadius:clamp(item.pointRadius??5,2,20)});}catch(_){ }
-        }else{
-          try{MAP_RUNTIME.setDisplayLayerOpacity?.(existing,clamp(item.opacity??.75,0,1));}catch(_){ }
-        }
-        return;
-      }
-      if(item.visible===false){
-        try{if(item.type==='geotiff'&&typeof existing.setVisible==='function')existing.setVisible(false);}catch(_){ }
-        try{if(existing._img&&existing._img.parentNode)existing._img.parentNode.removeChild(existing._img);}catch(_){ }
-        try{overlayMap.removeLayer(existing);}catch(_){ }
-        return;
-      }
+      // The one remaining Leaflet full-detail canvas layer keeps its own item
+      // update hook; ordinary vector/tile/static-image state is runtime-owned.
       if(existing.__v98ReferenceCanvas&&typeof existing.updateItem==='function')try{existing.updateItem(item);}catch(_){ }
-      if(item.type==='geotiff'&&typeof existing.updateItem==='function')try{existing.updateItem(item);}catch(_){ }
-      if(item.type==='geotiff'&&typeof existing.setVisible==='function')try{existing.setVisible(true);}catch(_){ }
-      if(existing.setOpacity)try{existing.setOpacity(clamp(item.opacity??.75,0,1));}catch(_){ }
-      if(!overlayMap.hasLayer(existing))try{existing.addTo(overlayMap);}catch(_){ }
-      if(item.type==='geojson'&&existing.setStyle)try{existing.setStyle(vectorStyle(item));}catch(_){ }
+      try{MAP_RUNTIME.setDisplayLayerZIndex?.(existing,referenceLayerZIndex(index));}catch(_){ }
+      try{MAP_RUNTIME.setDisplayLayerVisible?.(existing,item.visible!==false);}catch(_){ }
+      if(item.type==='geojson'){
+        try{MAP_RUNTIME.setGeoJsonLayerStyle?.(existing,{style:vectorStyle(item),pointRadius:clamp(item.pointRadius??5,2,20)});}catch(_){ }
+      }else{
+        try{MAP_RUNTIME.setDisplayLayerOpacity?.(existing,clamp(item.opacity??.75,0,1));}catch(_){ }
+      }
     });
-    if(!nativeOl)v109ApplyGeoTiffDomState();
   }
   window.syncReferenceMapLayers=syncReferenceMapLayers;
   function serializeRefs(){return (REF.items||[]).map(item=>{const raw={...item};delete raw._file;delete raw._v98RenderCache;return deepCopy(raw);});}
@@ -15507,8 +15394,6 @@ showAutosaveRecoveryIfAvailable();
     const item=itemById(id); if(!item)return;
     const extent=refBoundsExtent(item);
     if(extent)try{MAP_RUNTIME.fitExtent(extent,{padding:[28,28]});return;}catch(_){ }
-    const overlayMap=getReferenceMap(),layer=REF.layers.get(id);
-    if(overlayMap&&layer?.getBounds)try{overlayMap.fitBounds(layer.getBounds(),{padding:[28,28]});return;}catch(_){ }
     safeStatus('This reference overlay has no zoomable bounds.','error');
   }
   function selectReferenceOverlay(id){
@@ -16372,9 +16257,8 @@ showAutosaveRecoveryIfAvailable();
 /* v110: Final GeoTIFF reference-layer controls cleanup.
    GeoTIFF reference overlays are geographically fixed, so they should not expose
    lock controls. This patch also owns GeoTIFF visibility/opacity controls from
-   the layer row, layer menu and inspector, and applies the state directly to the
-   rendered GeoTIFF <img>/Leaflet layer so it is not dependent on older reference
-   overlay render wrappers. */
+   the layer row, layer menu and inspector. Rendering state is delegated to the
+   map runtime so controls do not depend on native Leaflet/OpenLayers internals. */
 (function(){
   'use strict';
   if(window.__v110GeoTiffLayerControlsFinal)return;
@@ -16388,11 +16272,6 @@ showAutosaveRecoveryIfAvailable();
   function findItem(id){const ref=refState();return (ref&&Array.isArray(ref.items)?ref.items:[]).find(x=>String(x.id)===String(id))||null;}
   function geotiffItems(){const ref=refState();return (ref&&Array.isArray(ref.items)?ref.items:[]).filter(isGeoTiffItem);}
   function nonGeoTiffItems(){const ref=refState();return (ref&&Array.isArray(ref.items)?ref.items:[]).filter(x=>!isGeoTiffItem(x));}
-  function getLeafletMap(){
-    if(MAP_RUNTIME.engine!=='leaflet')return null;
-    const native=MAP_RUNTIME.getNativeMap?.();
-    return native&&typeof native.addLayer==='function'&&typeof native.hasLayer==='function'?native:null;
-  }
   function layerFor(item){const ref=refState();return ref&&ref.layers&&typeof ref.layers.get==='function'?ref.layers.get(item.id):null;}
   function setDirtySafe(){try{window.setDirty&&window.setDirty(true);}catch(_){ }}
 
@@ -16401,32 +16280,8 @@ showAutosaveRecoveryIfAvailable();
     const visible=item.visible!==false;
     const opacity=clamp(item.opacity??0.75,0.05,1);
     const layer=layerFor(item);
-    if(window.EditPolygonMap?.engine==='openlayers'&&layer?.__editpolygonEngine==='openlayers'){
-      try{window.EditPolygonMap.setDisplayLayerOpacity?.(layer,opacity);}catch(_){ }
-      try{window.EditPolygonMap.setDisplayLayerVisible?.(layer,visible);}catch(_){ }
-      return;
-    }
-    const mp=getLeafletMap();
-    try{if(layer&&typeof layer.setOpacity==='function')layer.setOpacity(opacity);}catch(_){ }
-    try{if(layer&&typeof layer.setVisible==='function')layer.setVisible(visible);}catch(_){ }
-    try{
-      if(layer&&layer._img){
-        layer._img.style.opacity=String(opacity);
-        layer._img.style.display=visible?'block':'none';
-      }
-    }catch(_){ }
-    try{
-      document.querySelectorAll('.v106-reference-geotiff-layer[data-ref-geotiff-id="'+String(item.id).replace(/"/g,'\\"')+'"]').forEach(img=>{
-        img.style.opacity=String(opacity);
-        img.style.display=visible?'block':'none';
-      });
-    }catch(_){ }
-    try{
-      if(layer&&mp){
-        if(visible&&!mp.hasLayer(layer))layer.addTo(mp);
-        if(!visible&&mp.hasLayer(layer)&&typeof layer.setVisible!=='function')mp.removeLayer(layer);
-      }
-    }catch(_){ }
+    try{if(layer)MAP_RUNTIME.setDisplayLayerOpacity?.(layer,opacity);}catch(_){ }
+    try{if(layer)MAP_RUNTIME.setDisplayLayerVisible?.(layer,visible);}catch(_){ }
   }
   function applyAllGeoTiffStates(){geotiffItems().forEach(applyGeoTiffState);}
 
@@ -17508,7 +17363,7 @@ showAutosaveRecoveryIfAvailable();
     else if(typeof layer.bringToFront==='function')try{layer.bringToFront();}catch(_){}
   }
 
-  renderMap=function(){
+  RENDER_MAP_IMPL=function v130LeafletTransitionRenderMap(){
     // This performance-era renderer is Leaflet-specific. In OpenLayers mode
     // the final cached renderer below is the only editable-vector renderer.
     if(MAP_RUNTIME.engine==='openlayers')return;
@@ -18235,23 +18090,11 @@ showAutosaveRecoveryIfAvailable();
     }
   }
   function v132ApplyFeatureStyles(featureIds){
-    const ids=new Set((featureIds||[]).filter(Boolean));
-    if(!ids.size)return;
-    if(MAP_RUNTIME.engine==='openlayers'){try{renderMap();}catch(_){ }return;}
-    if(!featureGroup)return;
-    const styles=new Map();
-    for(const id of ids){
-      const r=ref(id);
-      if(r)styles.set(id,styleWithOpacity(r.feature,r.file));
-    }
-    function visit(layer){
-      const id=layer?.featureId;
-      if(id&&styles.has(id)&&typeof layer.setStyle==='function'){
-        try{layer.setStyle(styles.get(id));}catch(_){ }
-      }
-      if(layer&&typeof layer.eachLayer==='function')layer.eachLayer(visit);
-    }
-    try{featureGroup.eachLayer(visit);}catch(_){ }
+    const ids=new Set((featureIds||[]).filter(Boolean));if(!ids.size)return;
+    // The authoritative renderer is cached and adapter-owned on both engines.
+    // Selection/style changes therefore refresh through renderMap rather than
+    // mutating the obsolete bootstrap Leaflet featureGroup.
+    try{renderMap();}catch(_){ }
   }
   function v132RefreshLayerUi(changedIds,message){
     for(const id of new Set(changedIds||[]))v132SyncRow(id);
@@ -18286,6 +18129,7 @@ showAutosaveRecoveryIfAvailable();
   }
   function v132SelectSync(featureId,additive=false){
     if(V.active)return null;
+    runRuntimeTransition('selection',{activeId:featureId,source:'v132',additive:!!additive});
     const previousId=project.selectedFeatureId;
     const hadImage=!!IMAGE.selectedId;
     IMAGE.selectedId=null;
@@ -18346,11 +18190,13 @@ showAutosaveRecoveryIfAvailable();
     }));
   }
 
-  // Keep programmatic and map selection synchronous for compatibility, but use
-  // the same feature-scoped refresh rather than renderAll().
-  selectFeature=function(featureId){return v132SelectSync(featureId,false);};
-  selectFeatureMulti=function(featureId,additive){return v132SelectSync(featureId,!!additive);};
-  clearSelection=function(){
+  // Keep the public selection function identities stable. Historical releases
+  // used to replace selectFeature/clearSelection themselves, which made later
+  // source-order overrides invisible. v1.55.4 swaps only the private delegates.
+  SELECT_FEATURE_IMPL=featureId=>v132SelectSync(featureId,false);
+  SELECT_FEATURE_MULTI_IMPL=(featureId,additive)=>v132SelectSync(featureId,!!additive);
+  CLEAR_SELECTION_IMPL=function v132ClearSelectionImpl(){
+    runRuntimeTransition('selection',{activeId:null,source:'v132-clear',ids:[]});
     closeLayerMenu();closePickMenu();
     if(MOVE.active||V.active||D.active||project.mode==='draw'||project.mode==='movePolygon')return;
     const previousId=project.selectedFeatureId;
@@ -18478,18 +18324,8 @@ showAutosaveRecoveryIfAvailable();
   function v133SelectionMessage(count){return count?`${count} feature${count===1?'':'s'} selected.`:'Selection cleared.';}
 
   function v133ApplyMapStyles(featureIds){
-    const ids=new Set((featureIds||[]).filter(Boolean));
-    if(!ids.size)return;
-    if(MAP_RUNTIME.engine==='openlayers'){try{renderMap();}catch(_){ }return;}
-    if(!featureGroup)return;
-    const styles=new Map();
-    for(const id of ids){const r=ref(id);if(r)styles.set(id,styleWithOpacity(r.feature,r.file));}
-    function visit(layer){
-      const id=layer?.featureId;
-      if(id&&styles.has(id)&&typeof layer.setStyle==='function')try{layer.setStyle(styles.get(id));}catch(_){ }
-      if(layer&&typeof layer.eachLayer==='function')layer.eachLayer(visit);
-    }
-    try{featureGroup.eachLayer(visit);}catch(_){ }
+    const ids=new Set((featureIds||[]).filter(Boolean));if(!ids.size)return;
+    try{renderMap();}catch(_){ }
   }
   function v133SyncFeatureRow(row,selectedSet=v133AllSelected()){
     const featureId=row?.dataset?.v54Feature||row?.dataset?.v133Feature||row?.querySelector?.('[data-a="featmenu"]')?.dataset?.f;
@@ -18552,6 +18388,7 @@ showAutosaveRecoveryIfAvailable();
     const valid=v133ValidIds(ids);
     if(activeId&&!valid.includes(activeId))activeId=null;
     if(!activeId&&valid.length&&opts.autoActive!==false)activeId=valid[valid.length-1];
+    runRuntimeTransition('selection',{activeId:activeId||null,ids:valid.slice(),source:'v133'});
     const previousActive=project.selectedFeatureId;
     const hadImage=!!IMAGE.selectedId;
     IMAGE.selectedId=null;
@@ -19693,19 +19530,11 @@ function refreshCircleEditHandles(){if(CIRCLE_EDIT.active)buildCircleEditHandles
 
 const v137BaseVStart=VStart;
 VStart=function(){const r=ref();if(r&&isParametricCircleFeature(r.feature))return CIRCLE_EDIT.active?stopCircleEditMode(false):startCircleEditMode();return v137BaseVStart();};
-const v137BaseStartPolygonMove=startPolygonMoveMode;
-startPolygonMoveMode=function(){return v137BaseStartPolygonMove();};
-const v137BaseSelectFeature=selectFeature;
-selectFeature=function(fid){if(CIRCLE_EDIT.active&&fid!==CIRCLE_EDIT.featureId)stopCircleEditMode(true);return v137BaseSelectFeature(fid);};
-const v137BaseSelectFeatureMulti=selectFeatureMulti;
-selectFeatureMulti=function(fid,additive){if(CIRCLE_EDIT.active&&fid!==CIRCLE_EDIT.featureId)stopCircleEditMode(true);return v137BaseSelectFeatureMulti(fid,additive);};
-const v137BaseClearSelection=clearSelection;
-clearSelection=function(){if(CIRCLE_EDIT.active)stopCircleEditMode(true);return v137BaseClearSelection();};
-const v137BaseDeletePolygon=deletePolygon;
-deletePolygon=function(){if(CIRCLE_EDIT.active)stopCircleEditMode(true);return v137BaseDeletePolygon();};
-const v137BaseUndo=undo, v137BaseRedo=redo;
-undo=function(){if(CIRCLE_EDIT.active)stopCircleEditMode(true);return v137BaseUndo();};
-redo=function(){if(CIRCLE_EDIT.active)stopCircleEditMode(true);return v137BaseRedo();};
+// Circle editing participates in the central runtime lifecycle instead of
+// wrapping selection/delete/history functions later in source order.
+registerRuntimeTransition('selection',({activeId})=>{if(CIRCLE_EDIT.active&&activeId!==CIRCLE_EDIT.featureId)stopCircleEditMode(true);});
+registerRuntimeTransition('delete',({featureId})=>{if(CIRCLE_EDIT.active&&featureId===CIRCLE_EDIT.featureId)stopCircleEditMode(true);});
+registerRuntimeTransition('history',()=>{if(CIRCLE_EDIT.active)stopCircleEditMode(true);});
 
 const v137BaseUpdateButtons=updateButtons;
 updateButtons=function(){
@@ -19853,14 +19682,10 @@ function gisRestoreRefs(items){
   store.selectedId=null;
 }
 function gisEnsurePane(){
-  if(MAP_RUNTIME.engine!=='leaflet')return;
-  const native=MAP_RUNTIME.getNativeMap?.();
-  if(!native||typeof native.getPane!=='function'||typeof native.createPane!=='function')return;
-  if(!native.getPane('gisServicePane')){
-    const pane=native.createPane('gisServicePane');
-    pane.style.zIndex='360';
-    pane.style.pointerEvents='none';
-  }
+  // Leaflet maps this to a named pane; OpenLayers intentionally treats panes as
+  // a no-op because its layer stack is controlled by z-index. Keeping the call
+  // engine-neutral prevents GIS service code from escaping the map runtime.
+  MAP_RUNTIME.ensureDisplayPane?.('gisServicePane',{zIndex:360,pointerEvents:'none'});
 }
 function gisSourceSignature(source,layer){
   return JSON.stringify({source,role:layer.role,opacity:layer.opacity,minZoom:layer.minZoom,maxZoom:layer.maxZoom});
@@ -19868,7 +19693,7 @@ function gisSourceSignature(source,layer){
 function gisBuildServiceLayer(source,layer){
   const opacity=Math.max(0,Math.min(1,Number(layer.opacity??1)));
   const common={opacity,minZoom:source.minZoom??0,maxZoom:source.maxZoom??22,attribution:source.attribution||'',tileSize:source.tileSize||256,zIndex:layer.role==='basemap'?0:30+Math.round(Number(layer.order)||0)};
-  if(MAP_RUNTIME.engine==='leaflet'&&layer.role!=='basemap')common.pane='gisServicePane';
+  if(layer.role!=='basemap')common.pane='gisServicePane'; // ignored by OpenLayers
   if(source.subdomains?.length)common.subdomains=source.subdomains;
   if(source.type==='tms'||source.type==='xyz')return MAP_RUNTIME.createTileLayer({...common,url:source.url,tms:source.type==='tms'});
   if(source.type==='wms')return MAP_RUNTIME.createWmsLayer({...common,url:source.url,layers:source.wmsLayers,styles:source.wmsStyles||'',format:source.wmsFormat||'image/png',version:source.wmsVersion||'1.3.0',transparent:source.transparent!==false});
@@ -19925,20 +19750,17 @@ function syncGisRuntime(){
         GIS_RUNTIME.layerSignatures.set(layer.id,signature);
       }catch(err){console.warn('Could not create GIS layer',layer,err);continue;}
     }
-    if(typeof instance.setOpacity==='function')try{instance.setOpacity(Math.max(0,Math.min(1,Number(layer.opacity??1))));}catch(_){ }
+    try{MAP_RUNTIME.setDisplayLayerOpacity?.(instance,Math.max(0,Math.min(1,Number(layer.opacity??1))));}catch(_){ }
     if(layer.role==='basemap'){
       const key=gisCustomBasemapValue(layer.id);
       basemaps[key]=instance;
       GIS_RUNTIME.basemapKeys.add(key);
     }else{
       const shouldShow=layer.visible!==false&&gisLayerWithinZoom(layer);
-      if(MAP_RUNTIME.engine==='openlayers'){
-        try{instance.setVisible?.(shouldShow);if(shouldShow&&!mapLayerHas(instance))mapLayerAdd(instance);}catch(_){ }
-      }else{
-        if(shouldShow&&!mapLayerHas(instance))try{mapLayerAdd(instance);}catch(_){ }
-        if(!shouldShow&&mapLayerHas(instance))try{mapLayerRemove(instance);}catch(_){ }
-      }
-      if(typeof instance.setZIndex==='function')try{instance.setZIndex((MAP_RUNTIME.engine==='openlayers'?30:360)+Math.round(Number(layer.order)||0));}catch(_){ }
+      // Pane placement (Leaflet) and z-index (OpenLayers) are runtime details;
+      // application state only expresses visibility and relative order.
+      try{MAP_RUNTIME.setDisplayLayerVisible?.(instance,shouldShow);}catch(_){ }
+      try{MAP_RUNTIME.setDisplayLayerZIndex?.(instance,30+Math.round(Number(layer.order)||0));}catch(_){ }
     }
   }
   gisSyncBasemapOptions();
@@ -20619,17 +20441,9 @@ styleWithOpacity=function(f,file){
   return gisResolvedFeatureStyle(file,f,{highlight:true});
 };
 window.styleWithOpacity=styleWithOpacity;
-const v141BaseRenderMap=renderMap;
-renderMap=function(){
-  if(MAP_RUNTIME.engine==='openlayers'){gisRenderMapLegends();return;}
-  v141BaseRenderMap();
-  for(const file of project.files||[]){
-    const labels=file.gisLabels;if(!labels?.enabled||!labels.field||file.visible===false)continue;
-    for(const f of file.features||[]){if(f.visible===false||f._gisFiltered)continue;const value=f.properties?.[labels.field];if(value==null||value==='')continue;try{const p=turf.pointOnFeature(featJSON(f)).geometry.coordinates;L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({className:'gis-feature-label',html:`<span>${esc(value)}</span>`,iconSize:null})}).addTo(featureGroup);}catch(_){}}
-  }
-  gisRenderMapLegends();
-};
-window.renderMap=renderMap;
+// Layer labels and legends are rendered by the authoritative cached renderer
+// through EditPolygonMap.createEditableVectorLayer().  Keep style resolution
+// here, but do not install another historical renderMap wrapper.
 // Exclude filtered records from map drawing without changing their user visibility state.
 const v141BaseIsFeatureSleeping=isFeatureSleeping;
 isFeatureSleeping=function(file,f){return !!(f?._gisFiltered||v141BaseIsFeatureSleeping(file,f));};window.isFeatureSleeping=isFeatureSleeping;
@@ -21143,22 +20957,14 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return v146BaseVStart();
   };
 
-  const v146BaseSelectFeature=selectFeature;
-  selectFeature=function(fid){if(POINT_EDIT.active&&fid!==POINT_EDIT.featureId)stopPointEditMode(true);return v146BaseSelectFeature(fid);};
-  const v146BaseSelectFeatureMulti=selectFeatureMulti;
-  selectFeatureMulti=function(fid,additive){if(POINT_EDIT.active&&fid!==POINT_EDIT.featureId)stopPointEditMode(true);return v146BaseSelectFeatureMulti(fid,additive);};
-  const v146BaseClearSelection=clearSelection;
-  clearSelection=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseClearSelection();};
-  const v146BaseDeletePolygon=deletePolygon;
-  deletePolygon=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseDeletePolygon();};
+  // Point editing uses the same central lifecycle hooks as circle editing.
+  registerRuntimeTransition('selection',({activeId})=>{if(POINT_EDIT.active&&activeId!==POINT_EDIT.featureId)stopPointEditMode(true);});
+  registerRuntimeTransition('delete',({featureId})=>{if(POINT_EDIT.active&&featureId===POINT_EDIT.featureId)stopPointEditMode(true);});
+  registerRuntimeTransition('history',()=>{if(POINT_EDIT.active)stopPointEditMode(true);});
   const v146BaseSetFeatureVisibility=setFeatureVisibility;
   setFeatureVisibility=function(featureId,visible){if(POINT_EDIT.active&&featureId===POINT_EDIT.featureId&&!visible)stopPointEditMode(true);return v146BaseSetFeatureVisibility(featureId,visible);};
   const v146BaseSetFileVisibility=setFileVisibility;
   setFileVisibility=function(fileId,visible){const active=pointEditRef();if(POINT_EDIT.active&&active?.file?.id===fileId&&!visible)stopPointEditMode(true);return v146BaseSetFileVisibility(fileId,visible);};
-  const v146BaseUndo=undo,v146BaseRedo=redo;
-  undo=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseUndo();};
-  redo=function(){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseRedo();};
-
   const v146BaseDStart=DStart;
   DStart=function(kind=null){if(POINT_EDIT.active)stopPointEditMode(true);return v146BaseDStart(kind);};
   const v146BaseDrawKindLabel=drawKindLabel;
@@ -21541,7 +21347,6 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     else if(MAP_SELECT.kind==='polygon'&&(event.key==='Backspace'||event.key==='Delete')){event.preventDefault();undoMapSelectionPoint();}
   });
 
-  const CANVAS_RENDERER=MAP_RUNTIME.engine==='leaflet'?L.canvas({padding:.5,tolerance:8}):null;
   function renderViewKey(){const b=MAP_RUNTIME.getExtent(.35);return [MAP_RUNTIME.getZoom(),...b.map(value=>value.toFixed(4))].join('|');}
   function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndex(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
   function renderSignature(file,features,viewKey){
@@ -21550,27 +21355,19 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
     return `${viewKey}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
-  function buildCachedLayer(file,features){
-    const group=L.layerGroup(),models=new Map(features.map(feature=>[feature.id,feature])),collection={type:'FeatureCollection',features:features.map(feature=>{const raw=featJSON(feature);raw.properties={...(raw.properties||{}),__editpolygonId:feature.id};return raw;})};
-    const vector=L.geoJSON(collection,{renderer:CANVAS_RENDERER,interactive:false,smoothFactor:V.active?2.5:1.2,style:raw=>{const model=models.get(raw.properties?.__editpolygonId);return model?styleWithOpacity(model,file):{};},pointToLayer:(raw,latlng)=>{const model=models.get(raw.properties?.__editpolygonId),st=model?styleWithOpacity(model,file):{};return L.circleMarker(latlng,{renderer:CANVAS_RENDERER,radius:Math.max(1,Number(st.radius??model?.style?.radius??(model?.annotationStyle?.size?Number(model.annotationStyle.size)/2:5))),color:st.color||'#1664d6',fillColor:st.fillColor||st.color||'#1664d6',fillOpacity:st.fillOpacity??st.opacity??1,opacity:st.opacity??1,weight:st.weight??2,dashArray:st.dashArray||null});}});
-    vector.eachLayer(layer=>{const id=layer.feature?.properties?.__editpolygonId;if(id)layer.featureId=id;});group.addLayer(vector);
-    const labels=file.gisLabels;if(labels?.enabled&&labels.field){for(const feature of features){const value=feature.properties?.[labels.field];if(value==null||value==='')continue;try{const p=turf.pointOnFeature(featJSON(feature)).geometry.coordinates;group.addLayer(L.marker([p[1],p[0]],{interactive:false,icon:L.divIcon({className:'gis-feature-label',html:`<span>${esc(value)}</span>`,iconSize:null})}));}catch(_){ }}}
-    for(const feature of features){if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){const c=getDisplayGeometry(feature).coordinates;group.addLayer(L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(feature.name,{...(feature.annotationStyle||{}),annotation:true}),interactive:false}));}}
-    return group;
-  }
-  function buildOpenLayersCachedLayer(file,features){
+  function buildRuntimeCachedLayer(file,features){
     const labels=file.gisLabels;
     const descriptors=features.map(feature=>{
       const raw=featJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
       if(labels?.enabled&&labels.field){const value=feature.properties?.[labels.field];if(value!=null&&value!=='')try{descriptor.label={text:String(value),coordinate:turf.pointOnFeature(raw).geometry.coordinates};}catch(_){ }}
-      if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates};}
+      if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates,style:{...(feature.annotationStyle||{}),annotation:true}};}
       return descriptor;
     });
-    return MAP_RUNTIME.createEditableVectorLayer({features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1});
+    return MAP_RUNTIME.createEditableVectorLayer({features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1,smoothFactor:V.active?2.5:1.2});
   }
-  function cachedLayerPresent(layer){return MAP_RUNTIME.engine==='openlayers'?MAP_RUNTIME.hasDisplayLayer(layer):featureGroup.hasLayer(layer);}
-  function addCachedLayer(layer){if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.addDisplayLayer(layer);else layer.addTo(featureGroup);}
-  function removeCachedLayer(layer){if(!layer)return;if(MAP_RUNTIME.engine==='openlayers')MAP_RUNTIME.removeDisplayLayer(layer);else try{featureGroup.removeLayer(layer);}catch(_){ }}
+  function cachedLayerPresent(layer){return MAP_RUNTIME.hasDisplayLayer(layer);}
+  function addCachedLayer(layer){return MAP_RUNTIME.addDisplayLayer(layer);}
+  function removeCachedLayer(layer){if(!layer)return;MAP_RUNTIME.removeDisplayLayer(layer);}
   function liveGeometryUpdate(featureIds=[]){
     const ids=[...new Set((featureIds||[]).filter(Boolean))];let updated=0;const fallbackFiles=new Set();
     for(const id of ids){
@@ -21582,31 +21379,25 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   window.__editpolygonLiveGeometryUpdate=liveGeometryUpdate;
   function cachedRenderMap(){
-    const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup)featureGroup.clearLayers();ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
+    const viewKey=renderViewKey(),live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
       if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features,viewKey),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
       if(cached?.signature===signature){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
-      const group=MAP_RUNTIME.engine==='openlayers'?buildOpenLayersCachedLayer(file,features):buildCachedLayer(file,features);
-      // OpenLayers renders asynchronously. Removing the previous vector layer
-      // before adding its replacement can expose one empty canvas frame at the
-      // end of a pan. Add the replacement first, then retire the old layer in
-      // the same task so there is never a blank intermediate map state.
-      if(MAP_RUNTIME.engine==='openlayers'){
-        addCachedLayer(group);if(cached)removeCachedLayer(cached.group);
-      }else{
-        if(cached)removeCachedLayer(cached.group);addCachedLayer(group);
-      }
+      const group=buildRuntimeCachedLayer(file,features);
+      // Both engines now use the same adapter-owned editable-vector primitive.
+      // Install the replacement before retiring the previous layer so a renderer
+      // never observes an empty intermediate frame during a viewport/cache swap.
+      addCachedLayer(group);if(cached)removeCachedLayer(cached.group);
       ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
     }
     for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
     if(typeof gisRenderMapLegends==='function')gisRenderMapLegends();
   }
-  renderMap=cachedRenderMap;window.renderMap=renderMap;
+  RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;
   function invalidateRenderCache(fileId){
     if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();}
   }
-  const v148BaseUndo=undo,v148BaseRedo=redo;
-  undo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseUndo();};redo=function(){invalidateSpatialIndex();invalidateRenderCache();return v148BaseRedo();};
+  registerRuntimeTransition('history',()=>{invalidateSpatialIndex();invalidateRenderCache();});
 
   const v148BaseSelectedDetails=gisSelectedFeatureDetails;
   gisSelectedFeatureDetails=function(){const details=v148BaseSelectedDetails();if(!details)return null;const info=selectionInfo();details.selectedIds=info.ids;details.selectionCount=info.count;details.selectionIndex=info.ids.indexOf(details.featureId);return details;};
@@ -22486,6 +22277,27 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   Object.assign(window.EditPolygonGIS,{geometryHealthVersion:GEOMETRY_HEALTH_VERSION,getGeometryHealthLayer:geometryHealthLayerSnapshot,createGeometryHealthLayer,focusGeometryHealthIssue,previewGeometryHealthProposal,clearGeometryHealthOverlay});
 }
+
+
+/* v1.55.4 — runtime authority boundary.
+   Historical enhancement blocks above may still compose older functions while
+   Leaflet remains a transition engine.  From this boundary onward there are no
+   feature patches or monkey-patches: these are the final runtime identities
+   exercised by parity tests.  Future work should change the authoritative
+   implementation/module rather than append another late reassignment. */
+// Perform one final render after every historical installer has finished. This
+// hands initial display ownership to the authoritative renderer and clears any
+// temporary bootstrap-era Leaflet feature layers before the browser can paint.
+renderAll();
+const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
+  version:'1.55.4',
+  renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
+  updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
+  undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,
+  featuresAtLatLng,featureHitAtMapPoint,parametricCircleHitAtMapPoint,
+  applyMapFeatureSelection,selectFromMapClick,DStart,DFinish,VStart,VStop
+});
+window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY;
 
 // Close the main EditPolygon application scope after all enhancements.
 })();

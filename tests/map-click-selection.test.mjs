@@ -25,11 +25,13 @@ test('map click semantics match the Layers selection model',()=>{
   assert.match(app,/window\.__editPolygonLayersV133\|\|null/);
 });
 
-test('OpenLayers selection state forces the cached renderer to refresh immediately',()=>{
+test('selection state refreshes the authoritative cached renderer immediately on both engines',()=>{
   const v132=app.slice(app.indexOf('function v132ApplyFeatureStyles'),app.indexOf('function v132RefreshLayerUi'));
   const v133=app.slice(app.indexOf('function v133ApplyMapStyles'),app.indexOf('function v133SyncFeatureRow'));
-  assert.match(v132,/MAP_RUNTIME\.engine==='openlayers'.*renderMap\(\)/s);
-  assert.match(v133,/MAP_RUNTIME\.engine==='openlayers'.*renderMap\(\)/s);
+  assert.match(v132,/renderMap\(\)/);
+  assert.match(v133,/renderMap\(\)/);
+  assert.doesNotMatch(v132,/MAP_RUNTIME\.engine/);
+  assert.doesNotMatch(v133,/MAP_RUNTIME\.engine/);
 });
 
 test('overlap picker is geometry neutral',()=>{
@@ -37,12 +39,11 @@ test('overlap picker is geometry neutral',()=>{
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
 
-test('OpenLayers click selection tests true circles against the exact materialised geometry rendered by OpenLayers',()=>{
+test('click selection tests true circles against the exact materialised geometry rendered by either engine',()=>{
   const start=app.indexOf('function parametricCircleHitAtMapPoint');
   const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
   assert.ok(start>=0);
   assert.match(block,/function parametricCircleHitAtMapPoint\(feature,file,latlng,pixel\)/);
-  assert.match(block,/MAP_RUNTIME\.engine==='openlayers'/);
   assert.match(block,/const rendered=featJSON\(feature\)\?\.geometry/);
   assert.match(block,/turf\.booleanPointInPolygon\(pointFeature,renderedFeature\)/);
   assert.match(block,/polygonBoundaryHitPixel\(rendered\.coordinates/);

@@ -19,6 +19,8 @@ class FakeMap{
     this._drag={_moving:false,_moved:false,_lastTarget:null,_onUp:()=>{this._upCalled=true;}};
     this.dragEnabled=true;
     this.doubleEnabled=true;
+    this.layers=new Set();
+    this.panes=new Map();
     this.dragging={
       _draggable:this._drag,
       enable:()=>{this.dragEnabled=true;},
@@ -48,6 +50,7 @@ class FakeMap{
   containerPointToLatLng(p){return {lng:Number(p[0]??p.x)/10,lat:Number(p[1]??p.y)/-10};}
   latLngToLayerPoint(ll){return {x:Number(ll[1])*20,y:Number(ll[0])*-20};}
   layerPointToLatLng(p){return {lng:Number(p[0]??p.x)/20,lat:Number(p[1]??p.y)/-20};}
+  containerPointToLayerPoint(p){return {x:Number(p[0]??p.x),y:Number(p[1]??p.y)};}
   project(ll,z){return {x:ll.lng*(z+1),y:ll.lat*(z+1)};}
   distance(a,b){
     const aa=Array.isArray(a)?a:[a.lat,a.lng],bb=Array.isArray(b)?b:[b.lat,b.lng];
@@ -58,6 +61,12 @@ class FakeMap{
   on(type,handler){if(!this.handlers.has(type))this.handlers.set(type,[]);this.handlers.get(type).push(handler);}
   off(type,handler){this.handlers.set(type,(this.handlers.get(type)||[]).filter(h=>h!==handler));}
   fire(type,event={}){for(const handler of this.handlers.get(type)||[])handler(event);}
+  addLayer(layer){this.layers.add(layer);layer._map=this;return this;}
+  removeLayer(layer){this.layers.delete(layer);if(layer)layer._map=null;return this;}
+  hasLayer(layer){return this.layers.has(layer);}
+  eachLayer(fn){for(const layer of this.layers)fn(layer);}
+  getPane(name){return this.panes.get(name)||null;}
+  createPane(name){const pane={classList:classList(),style:{}};this.panes.set(name,pane);return pane;}
 }
 
 function load(){
@@ -66,11 +75,43 @@ function load(){
   const context={console,Math,Number,Object,Array,JSON,Date,URLSearchParams,document:{body,documentElement}};
   context.globalThis=context;context.window=context;
   const tileLayerCalls=[];
+  function layerGroup(){
+    const children=[];
+    return {children,__editpolygonFakeGroup:true,addLayer(layer){children.push(layer);return this;},clearLayers(){children.splice(0);return this;},eachLayer(fn){children.forEach(fn);},addTo(map){map.addLayer(this);return this;}};
+  }
+  function basicVectorChild(feature){
+    const geometry=feature?.geometry||{};
+    const child={feature:null,options:{},_latlng:null,_latlngs:null,_containsPoint:()=>true,redrawCount:0,
+      setLatLng(value){this._latlng=value;return this;},getLatLng(){return this._latlng;},setLatLngs(value){this._latlngs=value;return this;},redraw(){this.redrawCount++;return this;},on(){return this;}};
+    if(geometry.type==='Point')child._latlng={lat:Number(geometry.coordinates?.[1]),lng:Number(geometry.coordinates?.[0])};
+    return child;
+  }
+  function geoJSON(data,options={}){
+    const group=layerGroup(),features=data?.type==='FeatureCollection'?(data.features||[]):[data];
+    for(const feature of features){
+      let child;
+      if(feature?.geometry?.type==='Point'&&typeof options.pointToLayer==='function')child=options.pointToLayer(feature,{lat:Number(feature.geometry.coordinates?.[1]),lng:Number(feature.geometry.coordinates?.[0])});
+      else child=basicVectorChild(feature);
+      child.feature=feature;child.options={...(child.options||{}),...(typeof options.style==='function'?options.style(feature):options.style||{})};group.addLayer(child);
+    }
+    group.setStyle=style=>{group.lastStyle=style;return group;};
+    return group;
+  }
+  function circleMarker(ll,options={}){const child=basicVectorChild({geometry:{type:'Point',coordinates:[Number(ll.lng??ll[1]),Number(ll.lat??ll[0])]}});child.options=options;return child;}
+  function marker(ll,options={}){return {_latlng:{lat:Number(ll[0]),lng:Number(ll[1])},options,__editpolygonKind:null,addTo(map){map.addLayer(this);return this;},getLatLng(){return this._latlng;},setLatLng(value){this._latlng=Array.isArray(value)?{lat:Number(value[0]),lng:Number(value[1])}:value;return this;}};}
+  const tileLayer=(url,options)=>{const layer={url,options,addTo(map){map.addLayer?.(this);return this;},setOpacity(value){this.opacity=value;},setZIndex(value){this.zIndex=value;}};tileLayerCalls.push(layer);return layer;};
+  tileLayer.wms=(url,options)=>tileLayer(url,options);
   context.L={
     map:()=>new FakeMap(),
-    canvas:()=>({renderer:true}),
+    canvas:options=>({renderer:true,options}),
     latLng:(lat,lng)=>({lat,lng}),
-    tileLayer:(url,options)=>{const layer={url,options,addTo(){return this;}};tileLayerCalls.push(layer);return layer;},
+    tileLayer,
+    layerGroup,
+    geoJSON,
+    circleMarker,
+    marker,
+    divIcon:options=>({options}),
+    imageOverlay:(url,bounds,options)=>({url,bounds,options,addTo(map){map.addLayer?.(this);return this;},setOpacity(value){this.opacity=value;},setZIndex(value){this.zIndex=value;}}),
     DomEvent:{stop:()=>{}}
   };
   context.__tileLayerCalls=tileLayerCalls;
@@ -83,12 +124,21 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.3.1');
+  assert.equal(runtime.version,'1.55.4');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
   assert.deepEqual([...runtime.getCenter()],[151,-33]);
   assert.equal(runtime.getZoom(),9);
+});
+
+test('named display panes stay inside the adapter contract',()=>{
+  const context=load(),native=new FakeMap(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
+  const pane=runtime.ensureDisplayPane('referenceVectorPane',{zIndex:360,pointerEvents:'none',className:'reference-vector'});
+  assert.equal(pane,native.getPane('referenceVectorPane'));
+  assert.equal(pane.style.zIndex,'360');
+  assert.equal(pane.style.pointerEvents,'none');
+  assert.equal(pane.classList.contains('reference-vector'),true);
 });
 
 test('Leaflet tile layers preserve Leaflet subdomain defaults unless explicitly overridden',()=>{
@@ -98,6 +148,17 @@ test('Leaflet tile layers preserve Leaflet subdomain defaults unless explicitly 
   assert.equal(Object.prototype.hasOwnProperty.call(context.__tileLayerCalls[0].options,'subdomains'),false);
   runtime.createTileLayer({url:'https://{s}.example.test/{z}/{x}/{y}.png',subdomains:['a','b']});
   assert.deepEqual([...context.__tileLayerCalls[1].options.subdomains],['a','b']);
+});
+
+test('Leaflet reference/service primitives preserve adapter-owned pane and z-index placement',()=>{
+  const context=load(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:new FakeMap()});
+  const tile=runtime.createTileLayer({url:'https://tiles.example/{z}/{x}/{y}.png',pane:'gisServicePane',zIndex:33});
+  assert.equal(tile.options.pane,'gisServicePane');
+  assert.equal(tile.options.zIndex,33);
+  const ref=runtime.createGeoJsonLayer({data:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]},pane:'referenceVectorPane',style:{color:'#d92c32'},pointRadius:5});
+  assert.equal(ref.children[0].options.pane,'referenceVectorPane');
+  const raster=runtime.createStaticImageLayer({url:'data:image/png;base64,AA==',bounds:[[-28,152],[-26,154]],pane:'referenceRasterPane',opacity:.7});
+  assert.equal(raster.options.pane,'referenceRasterPane');
 });
 
 test('pixel and projection conversions stay behind the map contract',()=>{
@@ -156,6 +217,26 @@ test('Leaflet runtime can live-update cached editable geometry without rebuildin
   assert.equal(latlngs[0][1].lng,154);
   assert.equal(redraws,1);
 });
+test('Leaflet runtime owns the same editable-vector primitive and rendered hit testing as OpenLayers',()=>{
+  const context=load(),native=new FakeMap(),runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
+  const layer=runtime.createEditableVectorLayer({features:[{id:'poly-1',geometry:{type:'Polygon',coordinates:[[[153,-27],[154,-27],[154,-28],[153,-27]]]},style:{color:'#123456'},label:{text:'Test',coordinate:[153.5,-27.5]}}]});
+  assert.equal(layer.__editpolygonEditable,true);
+  assert.equal(layer.__editpolygonFeatureCount,1);
+  runtime.addDisplayLayer(layer);
+  assert.equal(runtime.hasDisplayLayer(layer),true);
+  assert.deepEqual([...runtime.editableFeatureIdsAtPixel({x:20,y:20},{hitTolerance:8})],['poly-1']);
+  assert.equal(runtime.updateEditableFeatureGeometry(layer,'poly-1',{type:'Polygon',coordinates:[[[153,-27],[155,-27],[155,-28],[153,-27]]]}),true);
+  assert.ok(layer.__editpolygonGeometryFeatures.get('poly-1'));
+});
+
+test('Leaflet and OpenLayers runtimes expose the same engine-neutral application contract',()=>{
+  const leafletContext=load(),leaflet=leafletContext.EditPolygonMapAdapter.createLeafletRuntime({L:leafletContext.L,map:new FakeMap()});
+  const {context}=openLayersContext(),openlayers=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol});
+  const ignored=new Set(['engine','requestedEngine','nativeVersion']);
+  const methods=runtime=>Object.keys(runtime).filter(key=>!ignored.has(key)&&typeof runtime[key]==='function').sort();
+  assert.deepEqual(methods(leaflet),methods(openlayers));
+});
+
 test('shared point and extent helpers are map-engine neutral',()=>{
   const context=load(),api=context.EditPolygonMapAdapter;
   assert.equal(api.point(0,0).distanceTo(api.point(3,4)),5);
@@ -182,9 +263,10 @@ function fakeOpenLayers(){
   }
   class ActiveInteraction{constructor(){this.active=true;}setActive(v){this.active=!!v;}getActive(){return this.active;}}
   class DragPan extends ActiveInteraction{} class DoubleClickZoom extends ActiveInteraction{}
+  class ZoomControl{constructor(opts={}){this.opts=opts;}} class AttributionControl{constructor(opts={}){this.opts=opts;}}
   class Collection{constructor(items=[]){this.items=items;}getArray(){return this.items;}includes(v){return this.items.includes(v);}}
   class MapCls extends Observable{
-    constructor(opts={}){super();this.view=opts.view;this.layers=new Collection(opts.layers||[]);this.interactions=new Collection([new DragPan(),new DoubleClickZoom()]);this.target=opts.target;this.viewport={className:'ol-viewport',handlers:{},parentNode:null,addEventListener:(t,h)=>this.viewport.handlers[t]=h,removeEventListener:t=>delete this.viewport.handlers[t]};opts.target?.appendChild?.(this.viewport);}
+    constructor(opts={}){super();this.view=opts.view;this.layers=new Collection(opts.layers||[]);this.controls=opts.controls||[];this.interactions=new Collection([new DragPan(),new DoubleClickZoom()]);this.target=opts.target;this.viewport={className:'ol-viewport',handlers:{},parentNode:null,addEventListener:(t,h)=>this.viewport.handlers[t]=h,removeEventListener:t=>delete this.viewport.handlers[t]};opts.target?.appendChild?.(this.viewport);}
     getView(){return this.view;}getSize(){return [1000,700];}getInteractions(){return this.interactions;}getLayers(){return this.layers;}
     addLayer(l){if(!this.layers.items.includes(l))this.layers.items.push(l);}removeLayer(l){this.layers.items=this.layers.items.filter(x=>x!==l);}
     getPixelFromCoordinate(c){return [c[0]/10,c[1]/10];}getCoordinateFromPixel(p){return [p[0]*10,p[1]*10];}
@@ -202,7 +284,7 @@ function fakeOpenLayers(){
   return {
     Map:MapCls,View,Feature,geom:{Point},format:{GeoJSON},
     proj,extent:{containsCoordinate:(e,c)=>c[0]>=e[0]&&c[0]<=e[2]&&c[1]>=e[1]&&c[1]<=e[3]},
-    interaction:{defaults:()=>new Collection(),DragPan,DoubleClickZoom},control:{defaults:()=>new Collection()},
+    interaction:{defaults:()=>new Collection(),DragPan,DoubleClickZoom},control:{Zoom:ZoomControl,Attribution:AttributionControl},
     layer:{Tile:Layer,Vector:Layer,Image:Layer,Group},source:{XYZ:Source,TileWMS:Source,Vector:VectorSource,ImageStatic:Source},
     style:{Style,Stroke,Fill,Circle:CircleStyle,Text}
   };
@@ -246,6 +328,9 @@ test('OpenLayers runtime preserves canonical lon/lat state without creating a Le
   assert.equal(runtime.engine,'openlayers');
   assert.equal(runtime.requestedEngine,'openlayers');
   assert.equal(runtime.nativeVersion,'10.9.0');
+  assert.equal(runtime.getNativeMap().controls.length,2);
+  assert.equal(runtime.getNativeMap().controls[0].constructor.name,'ZoomControl');
+  assert.equal(runtime.getNativeMap().controls[1].constructor.name,'AttributionControl');
   assert.equal(getLeafletMapCalls(),0);
   assert.equal('getLegacyMap' in runtime,false);
   assert.equal('parityBridge' in runtime,false);

@@ -54,16 +54,13 @@ function runCircleHit({engine='openlayers',latlng={lng:0,lat:0},canonicalHit=fal
   return context.result;
 }
 
-test('OpenLayers true-circle click follows the rendered materialised polygon, not the legacy circle-math result',()=>{
+test('true-circle click follows the rendered materialised polygon on both engines, not a separate circle-math result',()=>{
   // Deliberately make the old canonical/screen circle test fail. The click is
   // inside the exact polygon supplied to OpenLayers, so selection must still hit.
   assert.equal(runCircleHit({engine:'openlayers',latlng:{lng:0,lat:0},canonicalHit:false}),true);
   assert.equal(runCircleHit({engine:'openlayers',latlng:{lng:3,lat:3},canonicalHit:true}),false);
-});
-
-test('Leaflet true-circle click keeps the canonical circle containment path',()=>{
-  assert.equal(runCircleHit({engine:'leaflet',canonicalHit:true}),true);
-  assert.equal(runCircleHit({engine:'leaflet',canonicalHit:false}),false);
+  assert.equal(runCircleHit({engine:'leaflet',latlng:{lng:0,lat:0},canonicalHit:false}),true);
+  assert.equal(runCircleHit({engine:'leaflet',latlng:{lng:3,lat:3},canonicalHit:true}),false);
 });
 
 test('ordinary click candidate loop no longer has a separate true-circle screen-space shortcut',()=>{

@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.3 loads both map engines and the map adapter before the application',()=>{
+test('v1.55.4 loads both map engines and the map adapter before the application',()=>{
   const leaflet=html.indexOf('leaflet@1.9.4/dist/leaflet.js');
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
@@ -66,12 +66,13 @@ test('OpenLayers remains opt-in while running without a synchronized Leaflet com
   }
 });
 
-test('built-in basemaps, GIS tile services and cached editable vectors have OpenLayers paths',()=>{
+test('built-in basemaps, GIS tile services and cached editable vectors use the map-runtime contract on both engines',()=>{
   assert.match(app,/makeBuiltinBasemaps/);
   assert.match(app,/MAP_RUNTIME\.createTileLayer/);
   assert.match(app,/MAP_RUNTIME\.createWmsLayer/);
-  assert.match(app,/buildOpenLayersCachedLayer/);
+  assert.match(app,/buildRuntimeCachedLayer/);
   assert.match(app,/MAP_RUNTIME\.createEditableVectorLayer/);
+  assert.doesNotMatch(app,/function buildOpenLayersCachedLayer|function buildCachedLayer/);
 });
 
 

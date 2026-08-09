@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.55.3.1
+**Current application baseline:** v1.55.4
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-engine work is a staged migration from Leaflet to OpenLayers. **v1.55.3** is the compatibility-map removal and source-audit release: OpenLayers remains opt-in with `?mapEngine=openlayers`, but it now runs as a standalone map runtime with no hidden/synchronised Leaflet map, no compatibility click bridge and no legacy map globals. Editable vectors, references, GIS services, transient overlays, measurements and edit handles use the `EditPolygonMap` contract. Leaflet remains the default transition engine until the dedicated full-parity/default-engine stages. v1.55.3 also adds source-order/runtime audits after a historical late function override was found to be capable of silently replacing newer selection logic. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`V1.55.3_AUDIT.md`](V1.55.3_AUDIT.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-engine work is a staged migration from Leaflet to OpenLayers. **v1.55.4** is the parity and architecture baseline: OpenLayers remains opt-in with `?mapEngine=openlayers`, but the current editable renderer, rendered hit-testing, selection-highlight refresh, references, GIS services and transient/edit overlays now sit behind the `EditPolygonMap` contract. OpenLayers also receives explicit native zoom and attribution controls without relying on the browser-global `ol.control.defaults()` helper that previously caused startup trouble. The release establishes a final runtime-authority boundary and no-growth audits for historical wrapper/reassignment debt after a late source-order override previously broke true-circle selection. Leaflet remains the default/reference engine only until the deployed parity checklist passes. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -271,7 +271,7 @@ Supported transformation families include:
 
 GDA94 and GDA2020 transformations use a browser-local ellipsoid and zero-parameter datum approximation. They are suitable for general GIS display and editing, but not survey-grade cadastral transformation requiring official grid files.
 
-See [`CRS_VALIDATION.md`](CRS_VALIDATION.md) for transformation checks and current accuracy limitations.
+See [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) for current CRS validation evidence and accuracy limitations.
 
 ## Remote data and basemaps
 
@@ -406,7 +406,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.55.3 runtime/source-order audit and the JavaScript test suite.
+This runs repository integration checks, the v1.55.4 runtime/repository audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -416,7 +416,7 @@ npm run test:browser-smoke
 
 For current live OpenLayers parity testing, the normal URL still uses Leaflet. Add `?mapEngine=openlayers` to request OpenLayers. `EditPolygonMap.engine` should report `"openlayers"`; if OpenLayers fails to load, the editor deliberately falls back to Leaflet and exposes `EditPolygonMap.fallbackReason`.
 
-v1.55.3 specifically verifies that OpenLayers creates no hidden Leaflet map, critical click-selection functions cannot be overwritten later in the monolithic application, and no `renderMap` reassignment occurs after the authoritative cached renderer.
+v1.55.4 additionally verifies that the final cached editable renderer is engine-neutral, OpenLayers implementation details stay inside the adapter, critical click-selection functions have one authoritative binding, direct Leaflet transition debt cannot grow silently, and no new function patch appears after the final runtime-authority boundary.
 
 The application should also be manually tested in a real browser after changes to map interaction, import/export, styling, CRS handling or processing.
 
@@ -434,18 +434,17 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-v1.55.3 completes the compatibility-map-removal stage of the OpenLayers migration:
+v1.55.4 establishes the tested parity/architecture baseline. The deployed real-browser checklist in [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) is the gate for the next transition:
 
-1. **v1.55.3 — Compatibility-map removal + source audit (current):** OpenLayers remains opt-in but creates no Leaflet map. Historical map renderers are engine-guarded, the final cached renderer is authoritative, and repeatable source-order/repository audits are part of `npm run check`.
-2. **v1.55.4 — Full OpenLayers parity:** run a feature-by-feature live parity matrix across navigation, selection, drawing, editing, snapping, measurements, Geometry Health, references, services, CRS, persistence, performance and mobile behaviour.
-3. **v1.55.5 — OpenLayers default:** make OpenLayers the normal renderer while retaining `?mapEngine=leaflet` as one transition-release fallback.
-4. **v1.55.6 — Remove Leaflet:** delete the Leaflet dependency, fallback runtime, Leaflet-only renderers/CSS/workarounds/tests while retaining the `EditPolygonMap` abstraction.
-5. **v1.55.7 — OpenLayers cleanup/performance:** simplify dual-engine-era code and optimise vector-source reuse, feature-level updates, hit detection, z-order, render buffers, style caches and panning performance.
-6. Build a consolidated processing toolbox and additional geometry-construction tools.
-7. Add virtualised tables and larger-dataset performance architecture.
-8. Expand rule-based styling and professional label placement.
-9. Add GeoPackage, FlatGeobuf, GeoParquet and GPX support.
-10. Improve remote-layer refresh and source management, then project packages, print layouts and first-class raster analysis.
+1. **v1.55.4 — Parity + architecture baseline (current):** both engines use the authoritative map-runtime renderer/hit paths; source-order and engine-coupling debt is audited and prevented from growing; complete the documented deployed parity checklist.
+2. **v1.55.5 — OpenLayers default:** make OpenLayers the normal renderer while retaining `?mapEngine=leaflet` as one transition-release fallback.
+3. **v1.55.6 — Remove Leaflet:** delete the Leaflet dependency, fallback runtime, Leaflet-only renderers/CSS/workarounds/tests and lower the historical wrapper/direct-call debt ceilings.
+4. **v1.55.7 — OpenLayers cleanup/performance:** optimise source reuse, feature-level updates, hit detection, render buffers, style caches and large-data panning.
+5. Build a consolidated processing toolbox and additional geometry-construction tools.
+6. Add virtualised tables and larger-dataset performance architecture.
+7. Expand rule-based styling and professional label placement.
+8. Add GeoPackage, FlatGeobuf, GeoParquet and GPX support.
+9. Improve remote-layer refresh/source management, then project packages, print layouts and first-class raster analysis.
 
 The map migration preserves the existing project, geometry, CRS, schema, history and analysis models rather than rebuilding the application around OpenLayers.
 

@@ -19,14 +19,14 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-leaflet-basemap-hotfix-15531/);
+  assert.match(html,/editpolygon-app\.js\?v=20260809-openlayers-parity-baseline-1554/);
 });
 
 
-test('OpenLayers cached vector swaps add the replacement before removing the old layer to avoid pan flicker',()=>{
+test('cached vector swaps add the replacement before removing the old layer on both engines to avoid pan flicker',()=>{
   const start=app.indexOf('function cachedRenderMap()');
   const block=app.slice(start,app.indexOf('function invalidateRenderCache',start));
   assert.ok(start>=0);
-  assert.match(block,/if\(MAP_RUNTIME\.engine==='openlayers'\)\{\s*addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\);/s);
-  assert.match(block,/else\{\s*if\(cached\)removeCachedLayer\(cached\.group\);addCachedLayer\(group\);/s);
+  assert.match(block,/addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\);/s);
+  assert.doesNotMatch(block,/MAP_RUNTIME\.engine==='openlayers'/);
 });

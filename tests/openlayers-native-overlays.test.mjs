@@ -81,6 +81,6 @@ test('saved measurement clicks select without immediately re-entering edit mode'
 
 test('OpenLayers has no Leaflet compatibility surface and legacy editable rendering is engine-guarded',()=>{
   assert.doesNotMatch(olCss,/editpolygon-leaflet-compat|\.leaflet-/);
-  const legacyRenderer=app.slice(app.indexOf('renderMap=function(){',app.indexOf('function v130BringLayerForward')),app.indexOf('// Geometry changes are recomputed',app.indexOf('function v130BringLayerForward')));
+  const legacyRenderer=app.slice(app.indexOf('RENDER_MAP_IMPL=function v130LeafletTransitionRenderMap(){',app.indexOf('function v130BringLayerForward')),app.indexOf('// Geometry changes are recomputed',app.indexOf('function v130BringLayerForward')));
   assert.match(legacyRenderer,/if\(MAP_RUNTIME\.engine==='openlayers'\)return/);
 });

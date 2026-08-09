@@ -1,10 +1,26 @@
+# EditPolygon changelog
+
+## v1.55.4 — OpenLayers parity and architecture baseline
+
+- Unified the final cached editable-vector renderer across Leaflet and OpenLayers through `EditPolygonMap.createEditableVectorLayer()`.
+- Added equivalent Leaflet rendered-feature hit testing and live cached-geometry updates behind the same map-runtime API used by OpenLayers.
+- Made selection-highlight redraws engine-neutral and protected the replacement-before-removal cache swap on both engines.
+- Moved normal reference GeoJSON, tiles, GeoTIFF/static-image state and GIS service visibility/opacity/z-order further behind the map adapter; removed the obsolete custom Leaflet GeoTIFF image layer.
+- Added a central runtime-transition registry so point/circle editors no longer monkey-patch selection/delete/undo/redo late in source order.
+- Stabilised the public identities of `renderMap`, selection, delete and undo/redo entry points; later enhancement stages now use private delegates/lifecycle hooks instead of replacing those functions.
+- Removed another obsolete label-era `renderMap` wrapper and established an explicit final runtime-authority boundary.
+- Added `audit-bindings.mjs` with no-growth budgets for historical wrapper debt, direct Leaflet calls and app-level engine branching; direct OpenLayers calls in application code are prohibited.
+- Expanded both map-adapter test harnesses and added runtime-authority regression tests.
+- Restored native OpenLayers `+ / −` zoom and attribution controls explicitly through `ol.control.Zoom` and `ol.control.Attribution`, avoiding the browser-global `ol.control.defaults()` API that caused the original parity startup failure.
+- Replaced version-specific root audit/CRS/change-manifest documents with durable `QUALITY_BASELINE.md` and `RELEASE_MANIFEST.md`.
+- OpenLayers remains opt-in until the deployed real-browser acceptance matrix passes.
+
 
 ## 1.55.3.1 — Leaflet basemap hotfix
 
 - Fixed the Leaflet map adapter passing `subdomains: undefined` into `L.tileLayer`, which erased Leaflet’s default subdomain set and prevented `{s}` OSM/CARTO basemap URLs from resolving.
 - Added regression coverage ensuring optional tile-layer settings are omitted unless explicitly configured.
 
-# EditPolygon changelog
 
 This file replaces the large collection of one-release and one-hotfix markdown files that previously accumulated at the repository root. Git history remains the source for file-by-file historical detail.
 
