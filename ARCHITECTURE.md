@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.4.6**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
+This document describes the current application architecture as of **v1.55.4.7**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
 
 ## Product boundary
 
@@ -39,7 +39,7 @@ Long-running analysis, joins and Geometry Health use web workers.
 
 `docs/assets/editpolygon-app.js` remains the historical application controller and UI integration layer. It is still large and contains older enhancement sections, so v1.55.4 treats **source order as an explicit engineering risk** rather than assuming the last patch is harmless.
 
-New work must not append another late compatibility wrapper merely to alter a core runtime function. v1.55.4 publishes a final runtime-authority boundary and automatically rejects function patches after it. v1.55.4.5 additionally treats lexical initialization order as part of that source-order contract: state read by startup rendering must be initialized before the first `renderAll()` can reach it. v1.55.4.6 extends the repeated-world contract into editing: screen/pointer coordinates are rebranched to the stored coordinate they replace before partial geometry edits are committed, so one edited vertex cannot be separated from untouched neighbours by an accidental +/-360n offset.
+New work must not append another late compatibility wrapper merely to alter a core runtime function. v1.55.4 publishes a final runtime-authority boundary and automatically rejects function patches after it. v1.55.4.5 additionally treats lexical initialization order as part of that source-order contract: state read by startup rendering must be initialized before the first `renderAll()` can reach it. v1.55.4.6 extends the repeated-world contract into editing: screen/pointer coordinates are rebranched to the stored coordinate they replace before partial geometry edits are committed, so one edited vertex cannot be separated from untouched neighbours by an accidental +/-360n offset. v1.55.4.7 separates **canonical storage** from **repeated-world display** more explicitly: standalone Point/MultiPoint coordinates and true-circle centres are canonical CRS84 longitudes; path geometry may retain continuous longitudes across the Date Line; and the OpenLayers adapter canonicalises vector projection inputs while preserving local path continuity. History restoration invalidates spatial/render caches after the restored model is installed.
 
 ### Map abstraction
 

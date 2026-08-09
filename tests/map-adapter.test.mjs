@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.6');
+  assert.equal(runtime.version,'1.55.4.7');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -452,4 +452,26 @@ test('OpenLayers runtime exposes editable rendered-feature hit testing',()=>{
   assert.match(source,/function editableFeatureIdsAtPixel\(pixelValue,options=\{\}\)/);
   assert.match(source,/layer\.__editpolygonEditable=true/);
   assert.match(source,/hitTolerance/);
+});
+
+test('OpenLayers canonicalises repeated-world vector geometry before projection without breaking dateline continuity',()=>{
+  const {context}=openLayersContext(),api=context.EditPolygonMapAdapter;
+  assert.deepEqual(JSON.parse(JSON.stringify(api.geometryToCanonicalWorld({type:'Point',coordinates:[873,-27]}))),{type:'Point',coordinates:[153,-27]});
+  assert.deepEqual(JSON.parse(JSON.stringify(api.geometryToCanonicalWorld({type:'LineString',coordinates:[[179,0],[-179,1],[-178,2]]}))),{type:'LineString',coordinates:[[179,0],[181,1],[182,2]]});
+  const runtime=api.createOpenLayersRuntime({target:'map',center:[873,-27],zoom:6,ol:context.ol});
+  const layer=runtime.createEditableVectorLayer({features:[{id:'p',geometry:{type:'Point',coordinates:[873,-27]},style:{radius:6}}]});
+  assert.deepEqual(JSON.parse(JSON.stringify(layer.__editpolygonGeometryFeatures.get('p').raw.geometry.coordinates)),[153,-27]);
+  assert.equal(runtime.updateEditableFeatureGeometry(layer,'p',{type:'Point',coordinates:[1233,-28]}),true);
+  assert.deepEqual(JSON.parse(JSON.stringify(layer.__editpolygonGeometryFeatures.get('p').geometry.coordinates)),[153,-28]);
+  const overlay=runtime.createVectorOverlayLayer({zIndex:1700});
+  runtime.setVectorOverlayFeatures(overlay,[{id:'guide',geometry:{type:'LineString',coordinates:[[873,-27],[874,-27]]},style:{dashArray:'5,4'}}]);
+  assert.deepEqual(JSON.parse(JSON.stringify(overlay.getSource().features[0].raw.geometry.coordinates)),[[153,-27],[154,-27]]);
+});
+
+test('OpenLayers tile layers distinguish display max zoom from native tile max zoom',()=>{
+  const {context}=openLayersContext(),runtime=context.EditPolygonMapAdapter.createOpenLayersRuntime({target:'map',center:[153,-27],zoom:6,ol:context.ol});
+  const layer=runtime.createTileLayer({url:'https://tiles.example/{z}/{x}/{y}.png',maxZoom:22,maxNativeZoom:19});
+  assert.equal(layer.getSource().opts.maxZoom,19);
+  assert.equal(layer.opts.maxZoom,22);
+  assert.equal(layer.__editpolygonMaxNativeZoom,19);
 });

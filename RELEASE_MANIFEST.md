@@ -1,10 +1,10 @@
-# Current release manifest — v1.55.4.6
+# Current release manifest — v1.55.4.7
 
-This is the current repository update manifest. v1.55.4.6 is a focused live-parity hotfix on top of v1.55.4.5. It fixes repeated-world editing after horizontal map wraps: a dragged vertex or edge is now committed on the longitude branch of the stored coordinate it replaces, instead of the viewport copy returned by the map. The same branch-stability rule is applied to whole-feature movement, draggable DOM handles and true-circle centre movement.
+This is the current repository update manifest. v1.55.4.7 is a focused live-parity hotfix on top of v1.55.4.6. It fixes three defects exposed by extended OpenLayers acceptance testing: standalone points could persist repeated-world longitudes and disappear/zoom into unsupported tile levels; undo/redo could leave a stale cached geometry that changed again on the next map click; and the true-circle radius guide could disappear because transient vector geometry was projected from a distant repeated-world branch.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.5**.
+Upgrade from **v1.55.4.6**.
 
 ## Files to update
 
@@ -28,7 +28,7 @@ Upgrade from **v1.55.4.5**.
 
 ## Files to add
 
-- `tests/edit-world-wrap.test.mjs`
+- `tests/history-point-circle-parity.test.mjs`
 
 ## Files to delete
 
@@ -43,4 +43,4 @@ If applying the GitHub patch ZIP through the web UI:
 3. do not delete any files;
 4. do not manually edit any code.
 
-The complete v1.55.4.6 repository ZIP may instead be used as the authoritative clean tree.
+The complete v1.55.4.7 repository ZIP may instead be used as the authoritative clean tree.

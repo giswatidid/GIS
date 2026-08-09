@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.4.7 — Point, history-cache and transient-overlay parity hotfix
+
+- Fixed standalone Point/MultiPoint features created or moved in a repeated world copy storing viewport longitudes such as `3114°` in the canonical project geometry. Standalone point longitudes are now canonical CRS84 values, and existing affected point models are healed when loaded through the feature model.
+- OpenLayers editable and transient vector geometry is projected from one canonical world branch while preserving short International Date Line continuity for lines and polygons. This restores point visibility in repeated worlds and the dotted true-circle radius guide during circle editing.
+- True-circle centres are now canonical project coordinates while display materialisation explicitly chooses the repeated-world copy nearest the current view, keeping circle drawing/editing local across both world wraps and the Date Line.
+- Undo/redo now invalidates spatial and vector render caches **after** restored feature/project state is installed, preventing a later map click from revealing stale pre-history geometry.
+- Feature zoom is capped at zoom 17, and OSM is configured with native maximum zoom 19 while permitting display overzoom, preventing zero-size Point extents from triggering unsupported z20+ source-tile requests and the resulting 400/CORS console flood.
+- Added regressions for repeated-world Point storage, project-model healing, history-cache restoration, transient circle-guide projection, Date Line continuity and native-vs-display tile zoom.
+
 ## v1.55.4.6 — Repeated-world editing parity hotfix
 
 - Fixed polygon and LineString vertex dragging after several horizontal world wraps producing world-spanning segments because the moved vertex was committed in the viewport's repeated longitude branch while its neighbours remained in the stored branch.

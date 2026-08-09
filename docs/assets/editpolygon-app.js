@@ -384,6 +384,17 @@ function featureName(f,fb='Polygon'){return f?.properties?.name||f?.properties?.
 function ensureFC(g){if(!g)throw Error('No data');if(g.type==='FeatureCollection')return g;if(g.type==='Feature')return{type:'FeatureCollection',features:[g]};if(g.type&&g.coordinates)return{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:g}]};throw Error('Unsupported GeoJSON')}
 function normalize(raw,fb){if(!raw.geometry||!supported(raw.geometry.type))return null;const name=featureName(raw,fb),props=clone(raw.properties||{});props.name=props.name||name;const isPoly=raw.geometry.type==='Polygon'||raw.geometry.type==='MultiPolygon';return{id:uid('feat'),name,properties:props,sourceGeometry:clone(raw.geometry),renderedGeometry:clone(raw.geometry),geometry:clone(raw.geometry),editStack:[],visible:true,style:{color:'#1664d6',fillColor:'#1664d6',weight:isPoly?2:3,fillOpacity:isPoly?.18:0}}}
 
+function canonicaliseStandalonePointGeometryInPlace(geometry){
+  if(!geometry)return geometry;
+  if(geometry.type==='Point'&&Array.isArray(geometry.coordinates)&&geometry.coordinates.length>=2){
+    geometry.coordinates[0]=wrapLng(Number(geometry.coordinates[0]));
+  }else if(geometry.type==='MultiPoint'&&Array.isArray(geometry.coordinates)){
+    for(const coordinate of geometry.coordinates){
+      if(Array.isArray(coordinate)&&coordinate.length>=2)coordinate[0]=wrapLng(Number(coordinate[0]));
+    }
+  }
+  return geometry;
+}
 function ensureFeatureModel(f){
   if(!f)return f;
   // Preserve live geometry. Vertex move/add/delete mutate f.geometry directly,
@@ -394,6 +405,13 @@ function ensureFeatureModel(f){
   if(!f.sourceGeometry)f.sourceGeometry=clone(f.geometry);
   if(!Array.isArray(f.editStack))f.editStack=[];
   if(!f.renderedGeometry)f.renderedGeometry=clone(f.geometry||f.sourceGeometry);
+  // Point/MultiPoint coordinates have no neighbouring-path continuity to
+  // preserve. Keep their canonical CRS84 longitude in [-180, 180) and let the
+  // map runtime decide which repeated-world copy is displayed. This also heals
+  // projects saved by v1.55.4.6 with values such as 3114° after repeated pans.
+  canonicaliseStandalonePointGeometryInPlace(f.geometry);
+  canonicaliseStandalonePointGeometryInPlace(f.sourceGeometry);
+  canonicaliseStandalonePointGeometryInPlace(f.renderedGeometry);
   return f;
 }
 function editLabel(edit){
@@ -2701,7 +2719,27 @@ function toggleTopology(){
 }
 
 function snapshot(){return JSON.stringify({files:project.files,selectedFileId:project.selectedFileId,selectedFeatureId:project.selectedFeatureId,mergeIds:project.mergeIds,measurements:MEASURE.items})}
-function restore(s){VStop(true);const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];if(Array.isArray(d.measurements))MEASURE.items=d.measurements;MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);renderAll();setDirty(true)}
+function invalidateHistoryRestoreCaches(fileIds=null){
+  // Closing an active editor at the start of undo/redo can legitimately render
+  // once before the saved feature/project state is installed. That render may
+  // repopulate the spatial/vector cache with pre-history geometry. Invalidate
+  // again after replacement so the first history paint and the next map click
+  // cannot disagree about which geometry is authoritative.
+  try{
+    const api=window.EditPolygonGIS;
+    if(!api)return;
+    if(Array.isArray(fileIds)&&fileIds.length){
+      for(const id of new Set(fileIds.filter(Boolean))){
+        api.invalidateSpatialIndex?.(id);
+        api.invalidateRenderCache?.(id);
+      }
+    }else{
+      api.invalidateSpatialIndex?.();
+      api.invalidateRenderCache?.();
+    }
+  }catch(_){ }
+}
+function restore(s){VStop(true);const d=JSON.parse(s);project.files=d.files||[];project.selectedFileId=d.selectedFileId||null;project.selectedFeatureId=d.selectedFeatureId||null;project.mergeIds=d.mergeIds||[];if(Array.isArray(d.measurements))MEASURE.items=d.measurements;MEASURE.active=false;MEASURE.editingId=null;MEASURE.selectedId=null;MEASURE.type=null;MEASURE.points=[];MEASURE.cursor=null;project.mode='select';document.body.classList.remove('measure-active');MAP_RUNTIME.setDoubleClickZoomEnabled(true);invalidateHistoryRestoreCaches();renderAll();setDirty(true)}
 
 /* v125: scalable undo history.
    Earlier builds discarded every undo state when the complete project JSON was
@@ -2763,6 +2801,7 @@ function captureHistoryEntry(featureIds=null){
 }
 function restoreFeatureHistoryEntry(entry){
   VStop(true);
+  const restoredFileIds=[];
   for(const target of entry.targets||[]){
     let file=project.files.find(f=>f.id===target.fileId);
     if(!file){
@@ -2777,10 +2816,12 @@ function restoreFeatureHistoryEntry(entry){
     }else{
       file.features[index]=saved;
     }
+    restoredFileIds.push(file.id);
   }
   project.selectedFileId=entry.selectedFileId||null;
   project.selectedFeatureId=entry.selectedFeatureId||null;
   project.mergeIds=clone(entry.mergeIds||[]);
+  invalidateHistoryRestoreCaches(restoredFileIds);
   renderAll();
   setDirty(true);
 }
@@ -2925,7 +2966,7 @@ function mapLayerAdd(layer){if(!layer)return layer;return MAP_RUNTIME.addDisplay
 function mapLayerRemove(layer){if(!layer)return layer;return MAP_RUNTIME.removeDisplayLayer?.(layer)||layer;}
 function makeBuiltinBasemaps(){
   return {
-    osm:MAP_RUNTIME.createTileLayer({url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap contributors',maxZoom:22,zIndex:0}),
+    osm:MAP_RUNTIME.createTileLayer({url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap contributors',maxZoom:22,maxNativeZoom:19,zIndex:0}),
     light:MAP_RUNTIME.createTileLayer({url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22,zIndex:0}),
     dark:MAP_RUNTIME.createTileLayer({url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:22,zIndex:0}),
     sat:MAP_RUNTIME.createTileLayer({url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attribution:'Tiles &copy; Esri',maxZoom:22,zIndex:0})
@@ -5718,9 +5759,9 @@ function cutSelectedFromActive(){
 function zoomFeature(fid){
   const r=ref(fid);
   if(!r)return;
-  try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(r.feature)),{padding:[24,24]})}catch{}
+  try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(r.feature)),{padding:[24,24],maxZoom:17})}catch{}
 }
-function zoomSelected(){const f=selectedFeature();if(!f)return;try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(f)),{padding:[24,24]})}catch{}}
+function zoomSelected(){const f=selectedFeature();if(!f)return;try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(f)),{padding:[24,24],maxZoom:17})}catch{}}
 function zoomFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features:file.features.map(mapFeatureJSON)}),{padding:[24,24]})}catch{}}
 function fitAll(){const features=[];for(const file of project.files||[]){if(file.visible===false)continue;for(const feature of file.features||[]){if(feature.visible===false)continue;features.push(mapFeatureJSON(feature));}}if(!features.length)return;try{MAP_RUNTIME.fitExtent(turf.bbox({type:'FeatureCollection',features}),{padding:[24,24]})}catch{}}
 function removeFile(fid){const file=project.files.find(f=>f.id===fid);if(!file)return;if(!confirm(`Remove "${file.name}"?`))return;pushHistory();project.files=project.files.filter(f=>f.id!==fid);sidebarState.collapsedFiles.delete(fid);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true)}
@@ -19396,6 +19437,10 @@ function normaliseParametricCircle(value){
   if(center.length!==2||!center.every(Number.isFinite))throw Error('Circle centre must contain finite longitude and latitude values.');
   if(!Number.isFinite(radiusMetres)||radiusMetres<=0)throw Error('Circle radius must be greater than zero.');
   if(fallbackSegments<12||fallbackSegments>720)throw Error('Circle fallback vertices must be between 12 and 720.');
+  // A true circle has one canonical centre, not a path whose longitude branch
+  // must remain continuous. Keep it in CRS84 while display helpers choose the
+  // visible repeated-world copy nearest the current view.
+  center[0]=unwrapLongitudeNear(center[0],0);
   return {type:'CircleByCenterPoint',center,radiusMetres,srsName:String(c.srsName||PARAMETRIC_CRS84),radiusUom:'m',fallbackSegments,
     ...(c.originalRadiusUom?{originalRadiusUom:String(c.originalRadiusUom)}:{})};
 }
@@ -19475,8 +19520,8 @@ function materialiseCircleDisplayPolygon(value,segments,behavior=polygonMoveBeha
     return ring.length>=4?{type:'Polygon',coordinates:[ring]}:geometry;
   }
   try{
-    const pixelRadius=circleScreenRadiusPixels(value);
-    const ring=circleScreenRing(c.center,pixelRadius,n);
+    const pixelRadius=circleScreenRadiusPixels(value),displayCenter=circleDisplayCenterLatLng(c);
+    const ring=circleScreenRing([displayCenter.lng,displayCenter.lat],pixelRadius,n);
     if(ring?.length>=4)return {type:'Polygon',coordinates:[ring]};
   }catch(_){ }
   // Never leave a canonical circle unrenderable because the map runtime was
@@ -21010,7 +21055,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function setPointCoordinate(feature,index,latlng){
     const geometry=clone(getDisplayGeometry(feature));
     const old=geometry.type==='Point'?geometry.coordinates:geometry.coordinates?.[index];
-    const coordinate=[Number(latlng.lng),Number(latlng.lat),...(Array.isArray(old)&&old.length>2?old.slice(2):[])];
+    const coordinate=[wrapLng(Number(latlng.lng)),Number(latlng.lat),...(Array.isArray(old)&&old.length>2?old.slice(2):[])];
     if(geometry.type==='Point')geometry.coordinates=coordinate;
     else if(geometry.type==='MultiPoint'&&Array.isArray(geometry.coordinates))geometry.coordinates[index]=coordinate;
     feature.geometry=geometry;
@@ -21095,9 +21140,18 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   const v146BaseDrawLiveHint=drawLiveHint;
   drawLiveHint=function(){if(D.kind==='point')return 'Click to place point';return v146BaseDrawLiveHint();};
 
+  function canonicalPointGeometry(geometry){
+    const out=clone(geometry);
+    if(out?.type==='Point'&&Array.isArray(out.coordinates))out.coordinates[0]=wrapLng(Number(out.coordinates[0]));
+    else if(out?.type==='MultiPoint'&&Array.isArray(out.coordinates)){
+      for(const coordinate of out.coordinates||[])if(Array.isArray(coordinate))coordinate[0]=wrapLng(Number(coordinate[0]));
+    }
+    return out;
+  }
   const v146BaseAddDrawnGeometry=addDrawnGeometry;
   addDrawnGeometry=function(geometry,name='Geometry',properties={}){
     if(!pointSupported(geometry?.type))return v146BaseAddDrawnGeometry(geometry,name,properties);
+    geometry=canonicalPointGeometry(geometry);
     pushHistory();
     const file=ensureScratch();const color=file.color||COLORS[project.files.length%COLORS.length];
     const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:{color,fillColor:color,weight:2,fillOpacity:.9,radius:6}};
@@ -21110,7 +21164,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   DAddPoint=function(latlng,event=null){
     if(D.active&&D.kind==='point'){
       const snapped=constrainedDrawCoord(latlng,event);
-      return addDrawnGeometry({type:'Point',coordinates:clone(snapped.coord)},'Point',{drawKind:'point'});
+      const coordinate=clone(snapped.coord);coordinate[0]=wrapLng(Number(coordinate[0]));return addDrawnGeometry({type:'Point',coordinates:coordinate},'Point',{drawKind:'point'});
     }
     return v146BaseDAddPoint(latlng,event);
   };

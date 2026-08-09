@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-world-wrap-edit-155446/);
+  assert.match(html,/editpolygon-app\.js\?v=20260809-point-history-overlay-155447/);
 });
 
 

@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.6';
+  const VERSION='1.55.4.7';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -26,6 +26,39 @@
   function wrapLongitudeNear(value,reference){
     const lon=finite(value),ref=finite(reference,lon);
     return lon+Math.round((ref-lon)/360)*360;
+  }
+  function canonicalLongitude(value){return wrapLongitudeNear(value,0);}
+  function canonicalCoordinatePath(coords){
+    const out=[];
+    for(const raw of coords||[]){
+      if(!Array.isArray(raw)||raw.length<2)continue;
+      const coordinate=raw.slice();
+      coordinate[0]=out.length?wrapLongitudeNear(coordinate[0],out[out.length-1][0]):canonicalLongitude(coordinate[0]);
+      out.push(coordinate);
+    }
+    return out;
+  }
+  function geometryToCanonicalWorld(geometry){
+    if(!geometry||typeof geometry!=='object')return geometry;
+    const g={...geometry};
+    if(geometry.type==='Point'){
+      const coordinate=Array.isArray(geometry.coordinates)?geometry.coordinates.slice():geometry.coordinates;
+      if(Array.isArray(coordinate)&&coordinate.length>=2)coordinate[0]=canonicalLongitude(coordinate[0]);
+      g.coordinates=coordinate;
+    }else if(geometry.type==='MultiPoint'){
+      g.coordinates=(geometry.coordinates||[]).map(raw=>{const coordinate=Array.isArray(raw)?raw.slice():raw;if(Array.isArray(coordinate)&&coordinate.length>=2)coordinate[0]=canonicalLongitude(coordinate[0]);return coordinate;});
+    }else if(geometry.type==='LineString'){
+      g.coordinates=canonicalCoordinatePath(geometry.coordinates);
+    }else if(geometry.type==='MultiLineString'){
+      g.coordinates=(geometry.coordinates||[]).map(canonicalCoordinatePath);
+    }else if(geometry.type==='Polygon'){
+      g.coordinates=(geometry.coordinates||[]).map(canonicalCoordinatePath);
+    }else if(geometry.type==='MultiPolygon'){
+      g.coordinates=(geometry.coordinates||[]).map(polygon=>(polygon||[]).map(canonicalCoordinatePath));
+    }else if(geometry.type==='GeometryCollection'){
+      g.geometries=(geometry.geometries||[]).map(geometryToCanonicalWorld);
+    }
+    return g;
   }
   function haversine(a,b){
     const aa=lonLat(a),bb=lonLat(b),R=6371008.8,d2r=Math.PI/180;
@@ -169,6 +202,7 @@
         opacity:spec.opacity??1,attribution:spec.attribution||'',minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,
         tms:spec.tms===true,crossOrigin:true,tileSize:spec.tileSize||256
       };
+      if(Number.isFinite(Number(spec.maxNativeZoom)))options.maxNativeZoom=Number(spec.maxNativeZoom);
       // Do not pass undefined optional values into Leaflet. L.setOptions() copies
       // them over class defaults; in particular `subdomains: undefined` erases
       // TileLayer's built-in `abc` value and breaks URLs containing `{s}`.
@@ -351,7 +385,7 @@
     function ensureDisplayPane(){return null;}
     function createEmptyLayerGroup(){return new ol.layer.Group({layers:[]});}
     function normalizeTileUrl(url,tms=false){let out=String(url||'').replace(/\{s\}/g,'{a-c}').replace(/\{r\}/g,'');if(tms)out=out.replace(/\{y\}/g,'{-y}');return out;}
-    function createTileLayer(spec={}){const source=new ol.source.XYZ({url:normalizeTileUrl(spec.url||spec.urlTemplate,spec.tms),attributions:spec.attribution||undefined,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,tileSize:spec.tileSize||256,crossOrigin:'anonymous'});const layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??0});layer.__editpolygonEngine='openlayers';return layer;}
+    function createTileLayer(spec={}){const sourceMaxZoom=Number.isFinite(Number(spec.maxNativeZoom))?Number(spec.maxNativeZoom):(spec.maxZoom??22);const source=new ol.source.XYZ({url:normalizeTileUrl(spec.url||spec.urlTemplate,spec.tms),attributions:spec.attribution||undefined,minZoom:spec.minZoom??0,maxZoom:sourceMaxZoom,tileSize:spec.tileSize||256,crossOrigin:'anonymous'});const layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??0});layer.__editpolygonEngine='openlayers';layer.__editpolygonMaxNativeZoom=sourceMaxZoom;return layer;}
     function createWmsLayer(spec={}){const source=new ol.source.TileWMS({url:spec.url,params:{LAYERS:spec.layers||spec.wmsLayers||'',STYLES:spec.styles||spec.wmsStyles||'',FORMAT:spec.format||spec.wmsFormat||'image/png',VERSION:spec.version||spec.wmsVersion||'1.3.0',TRANSPARENT:spec.transparent!==false},attributions:spec.attribution||undefined,crossOrigin:'anonymous'});const layer=new ol.layer.Tile({source,opacity:spec.opacity??1,visible:spec.visible!==false,minZoom:spec.minZoom??0,maxZoom:spec.maxZoom??22,zIndex:spec.zIndex??20});layer.__editpolygonEngine='openlayers';return layer;}
     function parseDash(value){if(Array.isArray(value))return value.map(Number).filter(Number.isFinite);if(!value)return undefined;const out=String(value).split(/[ ,]+/).map(Number).filter(Number.isFinite);return out.length?out:undefined;}
     function olStyle(style={},labelText=null){const color=style.color||'#1664d6',fillColor=style.fillColor||color,opacity=style.opacity??1,fillOpacity=style.fillOpacity??.18,weight=style.weight??2,radius=Math.max(1,Number(style.radius??5));const text=labelText==null?undefined:new ol.style.Text({text:String(labelText),font:'600 11px Arial, sans-serif',fill:new ol.style.Fill({color:'#1f2937'}),stroke:new ol.style.Stroke({color:'rgba(255,255,255,.95)',width:3}),overflow:true});return new ol.style.Style({stroke:new ol.style.Stroke({color,width:weight,lineDash:parseDash(style.dashArray)}),fill:new ol.style.Fill({color:fillColor}),image:new ol.style.Circle({radius,stroke:new ol.style.Stroke({color,width:weight}),fill:new ol.style.Fill({color:fillColor})}),text});}
@@ -395,9 +429,9 @@
       const format=new ol.format.GeoJSON(),source=new ol.source.Vector(),olFeatures=[],geometryFeatures=new Map();
       for(const item of spec.features||[]){
         if(!item?.geometry)continue;
-        try{const f=format.readFeature({type:'Feature',geometry:item.geometry,properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(styleFromDescriptor(item.style||{}));geometryFeatures.set(item.id,f);olFeatures.push(f);}catch(_){ }
-        if(item.label?.coordinate&&item.label?.text!=null){try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat(item.label.coordinate)),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
-        if(item.annotation?.coordinate&&item.annotation?.text){try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat(item.annotation.coordinate)),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
+        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(styleFromDescriptor(item.style||{}));geometryFeatures.set(item.id,f);olFeatures.push(f);}catch(_){ }
+        if(item.label?.coordinate&&item.label?.text!=null){try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
+        if(item.annotation?.coordinate&&item.annotation?.text){try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
       source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:true,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;return layer;
     }
@@ -405,7 +439,7 @@
       if(!layer||!featureId||!geometry)return false;
       const feature=layer.__editpolygonGeometryFeatures?.get?.(featureId)||layer.getSource?.()?.getFeatureById?.(featureId);
       if(!feature||typeof feature.setGeometry!=='function')return false;
-      try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometry,{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
+      try{const format=new ol.format.GeoJSON(),next=format.readGeometry(geometryToCanonicalWorld(geometry),{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setGeometry(next);layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
     function editableFeatureIdsAtPixel(pixelValue,options={}){
       if(typeof nativeMap.forEachFeatureAtPixel!=='function')return [];
@@ -427,7 +461,7 @@
     function setVectorOverlayFeatures(layer,items=[]){
       const source=layer?.getSource?.();if(!source)return false;try{source.clear?.();}catch(_){ }const format=new ol.format.GeoJSON(),features=[];
       layer.__editpolygonOverlayCallbacks?.clear?.();
-      for(const item of items||[]){if(!item?.geometry)continue;try{const feature=format.readFeature({type:'Feature',geometry:item.geometry,properties:{...(item.properties||{}),__editpolygonOverlayId:item.id||null}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setId?.(item.id||undefined);feature.__editpolygonOverlayId=item.id||null;feature.setStyle?.(styleFromDescriptor(item.style||{}));if(item.id!=null&&typeof item.onClick==='function')layer.__editpolygonOverlayCallbacks?.set?.(item.id,item.onClick);features.push(feature);}catch(_){ }}
+      for(const item of items||[]){if(!item?.geometry)continue;try{const feature=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{...(item.properties||{}),__editpolygonOverlayId:item.id||null}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});feature.setId?.(item.id||undefined);feature.__editpolygonOverlayId=item.id||null;feature.setStyle?.(styleFromDescriptor(item.style||{}));if(item.id!=null&&typeof item.onClick==='function')layer.__editpolygonOverlayCallbacks?.set?.(item.id,item.onClick);features.push(feature);}catch(_){ }}
       source.addFeatures?.(features);source.changed?.();nativeMap.render?.();return true;
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:domOverlayPane,lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
@@ -445,5 +479,5 @@
     }
   }
 
-  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
+  global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,canonicalLongitude,geometryToCanonicalWorld,haversine,mercatorWorldPixel,requestedEngine,createRuntime,createLeafletRuntime,createOpenLayersRuntime});
 })(typeof window!=='undefined'?window:globalThis);

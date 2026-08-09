@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-world-wrap-edit-155446';
+const RELEASE_KEY='20260809-point-history-overlay-155447';
 
-function fail(message){throw new Error(`v1.55.4.6 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.7 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.6')fail(`package version is ${pkg.version}, expected 1.55.4.6`);
+if(pkg.version!=='1.55.4.7')fail(`package version is ${pkg.version}, expected 1.55.4.7`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -176,4 +176,9 @@ for(const name of fs.readdirSync('.', {recursive:true})){
   if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 }
 
-console.log('v1.55.4.6 runtime/repository audit passed. OpenLayers is adapter-confined; repeated-world drawing and editing preserve continuous longitude branches; deployment assets are clean.');
+requireToken(app,'function invalidateHistoryRestoreCaches(fileIds=null)','post-history cache invalidation');
+requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','canonical Point model healing');
+requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
+requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
+requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
+console.log('v1.55.4.7 runtime/repository audit passed. OpenLayers is adapter-confined; history, standalone points and transient vector overlays are repeated-world stable; deployment assets are clean.');
