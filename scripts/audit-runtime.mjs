@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260810-focused-edit-overlay-1554413';
+const RELEASE_KEY='20260810-annotation-point-conversion-1554414';
 
-function fail(message){throw new Error(`v1.55.4.13 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.14 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.13')fail(`package version is ${pkg.version}, expected 1.55.4.13`);
+if(pkg.version!=='1.55.4.14')fail(`package version is ${pkg.version}, expected 1.55.4.14`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -257,4 +257,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.13 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.14 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');

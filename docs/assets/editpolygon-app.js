@@ -2110,6 +2110,18 @@ function ensureSketchFile(){
   }
   return file;
 }
+function canonicalEditableFeatureStyle(geometry,color='#1664d6'){
+  const type=geometry?.type||'';
+  const point=type==='Point'||type==='MultiPoint';
+  const line=type==='LineString'||type==='MultiLineString';
+  return {
+    color,
+    fillColor:color,
+    weight:line?3:2,
+    fillOpacity:line?0:(point?0.9:0.18),
+    radius:point?6:5
+  };
+}
 function featureFromMeasure(item){
   const style=item.style||{};
   let geom=null;
@@ -2118,7 +2130,21 @@ function featureFromMeasure(item){
   else if(item.type==='point'||item.type==='annotation')geom={type:'Point',coordinates:clone(item.coordinates[0])};
   if(!geom)return null;
   const props={name:item.label||item.type,measureType:item.type,annotation:item.type==='annotation'};
-  const f={id:uid('feat'),name:props.name,properties:props,sourceGeometry:clone(geom),renderedGeometry:clone(geom),geometry:clone(geom),editStack:[],visible:true,style:{color:style.color||'#1664d6',fillColor:style.color||'#1664d6',weight:3,fillOpacity:.18},opacity:1,annotationStyle:clone(style)};
+  if(item.type==='point')props.drawKind='point';
+  const f={
+    id:uid('feat'),name:props.name,properties:props,
+    sourceGeometry:clone(geom),renderedGeometry:clone(geom),geometry:clone(geom),
+    editStack:[],visible:true,
+    // Conversion changes the object model (annotation/measurement -> GIS feature),
+    // not the geometry-family visual defaults. In particular, a converted
+    // point marker must become the same filled/radius-6 GIS Point produced by
+    // Draw point instead of inheriting the old polygon-like 18% fill style.
+    style:canonicalEditableFeatureStyle(geom,style.color||'#1664d6'),
+    opacity:1,
+    // Text annotations retain their label typography. Point-marker annotations
+    // deliberately use normal GIS Point styling after conversion.
+    ...(item.type==='annotation'?{annotationStyle:clone(style)}:{})
+  };
   return f;
 }
 function convertMeasure(id){
@@ -21288,7 +21314,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     geometry=canonicalPointGeometry(geometry);
     pushHistory();
     const file=ensureScratch();const color=file.color||COLORS[project.files.length%COLORS.length];
-    const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:{color,fillColor:color,weight:2,fillOpacity:.9,radius:6}};
+    const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:canonicalEditableFeatureStyle(geometry,color)};
     feature.properties.name=feature.name;file.features.push(feature);
     D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
     MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=feature.id;

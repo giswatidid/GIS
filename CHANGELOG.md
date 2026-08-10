@@ -1,3 +1,11 @@
+## v1.55.4.14 — Annotation-point conversion parity
+
+- Point-marker annotations converted to editable features now use the same canonical GIS Point symbol as **Draw point**: filled symbol, radius 6 and weight 2, while retaining the chosen annotation colour.
+- Measurement-to-feature conversion now applies geometry-family defaults consistently: point, line and polygon conversions no longer all inherit the old polygon-like 18% fill / weight-3 symbol.
+- Text annotations still preserve their annotation typography after conversion; point-marker annotations deliberately become normal GIS Point features.
+- The Draw point path and annotation/measurement conversion path now share `canonicalEditableFeatureStyle()`, preventing their default point appearance from drifting apart again.
+- Added conversion regression coverage for Point, LineString, Polygon and text-annotation conversions.
+
 # EditPolygon changelog
 
 ## v1.55.4.13 — Focused precision overlays for large-layer selection and editing

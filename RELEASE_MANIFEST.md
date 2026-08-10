@@ -1,28 +1,26 @@
-# Current release manifest — v1.55.4.13
+# Current release manifest — v1.55.4.14
 
-v1.55.4.13 is the focused-selection/edit performance correction on top of v1.55.4.12. Live testing showed that the 821-feature ecoregions layer became much faster for ordinary pan/zoom in v1.55.4.12, but selecting a region and entering edit mode still caused a noticeable performance cliff. The review found that selection styling could rebuild the complete heavy layer and precision editing promoted the whole layer from image-backed interaction rendering to a normal vector renderer. This release isolates only the focused feature(s) into a precise vector overlay while keeping the heavy background stable.
+v1.55.4.14 is a creation-path consistency correction on top of v1.55.4.13. Live testing found that an **Annotate → Point marker → Convert to feature** result looked different from a Point created with **Draw point**. The review found that `featureFromMeasure()` applied the same polygon-like style (`weight: 3`, `fillOpacity: .18`, no point radius) to every converted geometry type, while Draw point used a filled radius-6 point symbol.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.12**.
+Upgrade from **v1.55.4.13**.
 
 ## Behavioural changes
 
-- Heavy OpenLayers background vectors remain image-backed during selection and editing.
-- Selected/picked features are rendered in a small precise vector focus overlay.
-- Live edit geometry targets that focus overlay first.
-- The active edited feature is temporarily suppressed in the heavy background so stale geometry cannot show through.
-- Geometry changes confined to the active focus feature do not rebuild the heavy background after each pointer release.
-- Selection changes no longer participate in the heavy background cache signature.
-- Leaflet retains the previous single-layer rendering path because it reports that focused editable overlays are not preferred.
+- Converted point-marker annotations use the same canonical GIS Point defaults as Draw point.
+- The chosen annotation colour is retained when the marker becomes a GIS feature.
+- Converted distance measurements use line defaults; converted area measurements use polygon defaults.
+- Text annotations still retain their text/typography metadata after conversion.
+- Direct Point drawing and annotation/measurement conversion share `canonicalEditableFeatureStyle()` so the two creation paths cannot silently drift apart again.
 
 ## Files to update
 
-See `V1.55.4.13_CHANGED_FILES.md` in the release artifacts for the exact generated diff.
+See `V1.55.4.14_CHANGED_FILES.md` in the release artifacts for the exact generated diff.
 
 ## Files to add
 
-None expected beyond release-test changes already present in the repository diff.
+- `tests/annotation-feature-conversion.test.mjs`
 
 ## Files to delete
 
@@ -31,9 +29,10 @@ None.
 ## Deployment
 
 1. Replace every file listed in the generated changed-files manifest.
-2. Do not delete unrelated repository files.
+2. Add the new regression test file.
 3. Wait for GitHub Pages to finish deploying.
 4. Hard-refresh `?mapEngine=openlayers`.
-5. Import the OpenLayers ecoregions GeoJSON, select several different regions, enter/exit vertex editing, drag a vertex, and compare responsiveness with v1.55.4.12.
+5. Create an Annotate → Point marker, convert it to a feature, and compare it with a directly drawn Point. They should use the same normal GIS Point symbol (subject to the same selection highlight state).
+6. Optionally convert a distance, area and text annotation to confirm their geometry-family styling remains appropriate.
 
-The complete v1.55.4.13 repository ZIP can instead be used as the authoritative clean tree.
+The complete v1.55.4.14 repository ZIP can instead be used as the authoritative clean tree.
