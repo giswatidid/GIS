@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.7: OpenLayers is the sole map runtime. Application code talks only
+// v1.55.7.1: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -7187,7 +7187,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.1'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -13995,12 +13995,10 @@ showAutosaveRecoveryIfAvailable();
     document.body.classList.toggle('mode-solo-active',!!STEP2_SOLO?.active);
     document.body.classList.toggle('mode-has-active-tool',!!(D?.active||V?.active||MEASURE?.active||MOVE?.active||isInlinePreviewOpen()));
   };
-  const oldCustom=window.customPointerDragActive||customPointerDragActive;
-  window.customPointerDragActive=function(){
-    return !!(V?.drag||V?.edgeDrag||V?.moveDrag||IMAGE?.drag||(MEASURE?.active&&MEASURE?.drawing)||D?.active||(V?.active&&V?.lassoDrawing)||oldCustom?.());
-  };
-  // Function declarations are writable in this app; update the local binding used by the pan guard too.
-  try{customPointerDragActive=window.customPointerDragActive;}catch(_){ }
+  // v1.55.7.1: v1.55.7 removed the retired pan-recovery guard; this hotfix removes its stale late compatibility hook.
+  // Do not recreate its retired drag-state compatibility hook here: this
+  // late enhancement runs before Advanced GIS/runtime-authority installation, so
+  // referencing the retired binding aborts application startup.
   const oldStyle=style;
   window.style=style=function(f){
     const s=oldStyle(f)||{};
@@ -22376,7 +22374,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.7 — runtime authority boundary.
+/* v1.55.7.1 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22386,7 +22384,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.7',
+  version:'1.55.7.1',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

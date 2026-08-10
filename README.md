@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.55.7
+**Current application baseline:** v1.55.7.1
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-runtime migration is complete. **v1.55.7 uses OpenLayers as the sole native map runtime** behind the `EditPolygonMap` adapter and removes the remaining transition-era runtime scaffolding. Runtime DOM overlays now share batched map/view refresh subscriptions, one GeoJSON formatter is reused for repeated geometry conversion, redundant native render invalidations have been removed, and zoom lifecycle events use central fan-out so every subscriber receives the same start/end transition. The deployed parity campaign still covers drawing/editing, repeated-world and International Date Line behaviour, authoritative undo/redo, points and true circles, snapping/topology, measurements, Geometry Health, styling/labels, remote GeoJSON, ArcGIS services, WMS, large-vector performance, lossless `.epz` persistence and mobile/touch parity. Application code remains map-library-neutral; native OpenLayers implementation details are isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-runtime migration is complete. **v1.55.7.1 uses OpenLayers as the sole native map runtime** behind the `EditPolygonMap` adapter. It carries the v1.55.7 single-runtime performance cleanup and fixes a startup regression caused by one stale reference to the retired pan-recovery helper; finalized drawing and Advanced GIS initialization are again guaranteed to reach the final runtime-authority boundary. Runtime DOM overlays now share batched map/view refresh subscriptions, one GeoJSON formatter is reused for repeated geometry conversion, redundant native render invalidations have been removed, and zoom lifecycle events use central fan-out so every subscriber receives the same start/end transition. The deployed parity campaign still covers drawing/editing, repeated-world and International Date Line behaviour, authoritative undo/redo, points and true circles, snapping/topology, measurements, Geometry Health, styling/labels, remote GeoJSON, ArcGIS services, WMS, large-vector performance, lossless `.epz` persistence and mobile/touch parity. Application code remains map-library-neutral; native OpenLayers implementation details are isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -407,7 +407,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.55.7 single-runtime/performance audit, the binding/architecture no-growth audit and the JavaScript test suite.
+This runs repository integration checks, the v1.55.7.1 single-runtime/performance audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -437,7 +437,7 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 The map-runtime migration and its single-runtime cleanup are complete. The normal GIS roadmap resumes from this baseline:
 
-1. **v1.55.7 — OpenLayers cleanup/performance (current):** transition-era runtime shims are removed, native render churn is reduced, geometry conversion is reused, DOM-overlay refresh is batched and zoom lifecycle delivery is centrally fanned out.
+1. **v1.55.7.1 — current hotfix baseline:** preserves the v1.55.7 OpenLayers-only cleanup while removing the dangling retired pan-recovery reference that could abort startup before Advanced GIS and the final editable renderer were installed.
 2. Build a consolidated **Processing Toolbox** and additional geometry-construction tools.
 3. Add virtualised tables and larger-dataset performance architecture.
 4. Expand rule-based styling and professional label placement.

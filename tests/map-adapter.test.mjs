@@ -81,7 +81,7 @@ function openLayersContext(){
 
 test('map adapter publishes one runtime factory and no transition-era runtime aliases',()=>{
   const {context}=openLayersContext(),api=context.EditPolygonMapAdapter;
-  assert.equal(api.version,'1.55.7');
+  assert.equal(api.version,'1.55.7.1');
   assert.equal(typeof api.createRuntime,'function');
   assert.equal('createOpenLayersRuntime' in api,false);
   assert.equal('requestedEngine' in api,false);

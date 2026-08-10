@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.7.** OpenLayers is the sole map runtime. The desktop/mobile parity campaign, default-engine soak, runtime removal and first single-runtime cleanup have all passed automated regression coverage.
+**Current baseline: v1.55.7.1.** OpenLayers is the sole map runtime. This hotfix preserves the v1.55.7 cleanup and removes a dangling reference to the retired pan-recovery helper that could abort startup before Advanced GIS and the final authoritative renderer were installed.
 
 ## Current automated gate
 
@@ -11,9 +11,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.7 currently expects:
+v1.55.7.1 currently expects:
 
-- **270/270 Node tests**;
+- **271/271 Node tests**;
 - **8/8 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
@@ -99,14 +99,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.7 no-growth ceilings are:
+The v1.55.7.1 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
 The current audit sees **1,686 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.55.7
+## Live parity evidence carried into v1.55.7.1
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -127,7 +127,7 @@ The deployed OpenLayers path has been manually exercised for:
 - `.epz` save/reload including WMS persistence;
 - phone/touch GIS access and mobile action menus.
 
-v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, and v1.55.7 simplifies only the now-single runtime without changing project semantics or GIS features.
+v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, and v1.55.7.1 fixes the startup regression discovered during live validation without changing project semantics or GIS features.
 
 ## Next gate
 

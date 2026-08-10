@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.7**.
+This document describes the current application architecture as of **v1.55.7.1**.
 
 ## Runtime authority
 
@@ -46,7 +46,7 @@ The runtime deliberately does **not** expose its native map object to applicatio
 
 ### Runtime event and overlay policy
 
-v1.55.7 consolidates event work that became redundant after the single-runtime cutover:
+v1.55.7 introduced the single-runtime event cleanup listed below. v1.55.7.1 preserves that architecture and removes the one stale late compatibility hook that still referenced the retired pan-recovery state:
 
 - zoom start/end are detected once by the runtime and fan out to every registered subscriber;
 - DOM overlays share one runtime-level set of map/view refresh subscriptions instead of each overlay adding its own listeners;
@@ -83,7 +83,7 @@ Large editable datasets use a two-tier OpenLayers strategy:
 - the complete background dataset remains in a persistent indexed `VectorSource` and can use image-backed vector rendering for fast pan/zoom;
 - selected, picked or actively edited features are isolated into a small precise vector overlay.
 
-In v1.55.7 this is a direct single-runtime invariant rather than a negotiated capability. The application does not probe whether persistent sources or focused overlays are supported.
+In v1.55.7.1 this is a direct single-runtime invariant rather than a negotiated capability. The application does not probe whether persistent sources or focused overlays are supported.
 
 This avoids promoting hundreds or thousands of unrelated features to the precision editing path while preserving exact source coordinates for the focused feature. Large-layer sidebar rendering is bounded independently of the complete GIS dataset.
 
@@ -155,13 +155,13 @@ Mobile invariants include:
 
 ## Runtime authority boundary
 
-The end of `editpolygon-app.js` contains the **v1.55.7 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
+The end of `editpolygon-app.js` contains the **v1.55.7.1 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
 
 Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
 ## Historical binding debt
 
-The application remains a large historically layered file. v1.55.7 audits currently allow at most:
+The application remains a large historically layered file. v1.55.7.1 audits currently allow at most:
 
 - **198** duplicated function-binding names;
 - **371** extra historical binding sites.

@@ -1,5 +1,14 @@
 # EditPolygon changelog
 
+## v1.55.7.1 — Startup/render authority hotfix
+
+- Fixes an uncaught `ReferenceError` introduced by v1.55.7 when the retired pan-recovery `customPointerDragActive` helper was removed but a late legacy enhancement block still referenced it.
+- Removes that obsolete late compatibility hook instead of restoring dead pan-recovery machinery.
+- Restores completion of application startup, including the final authoritative editable renderer and the Advanced GIS bridge/workspace controls.
+- Fixes the live symptom where a polygon remained visible while drawing, was committed to the layer, then disappeared immediately after finishing because startup had aborted before the authoritative renderer installation.
+- Adds audit/test guards so the retired drag-state hook cannot reappear and verifies the Advanced GIS installation occurs before the final runtime-authority boundary.
+- No project schema, geometry semantics, GIS tools or map-runtime behaviour are otherwise changed from v1.55.7.
+
 ## v1.55.7 — OpenLayers-only performance and architecture cleanup
 
 - Collapses the map adapter to one `createRuntime()` factory and removes the remaining transition-era capability methods, native-map escape surface, engine markers and application runtime-name dataset.

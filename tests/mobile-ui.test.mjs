@@ -7,7 +7,7 @@ const js=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.js',import.m
 const css=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.css',import.meta.url),'utf8');
 
 test('mobile controller is loaded after GIS integration and identifies the current parity release',()=>{
-  assert.match(js,/const VERSION='1\.55\.7'/);
+  assert.match(js,/const VERSION='1\.55\.7\.1'/);
   assert.ok(html.indexOf('editpolygon-mobile.js')>html.indexOf('gis-ui-integration.js'));
 });
 
