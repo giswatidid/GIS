@@ -1,3 +1,12 @@
+## v1.55.4.16 — Compressed `.epz` project container
+
+- Replaced the development-only plain-JSON `.polygonproject` format with `.epz`, a lossless ZIP/DEFLATE EditPolygon project container. No geometry, coordinate precision, attributes, true-circle metadata, styling, measurements, reference definitions or GIS workspace state are simplified or discarded.
+- `.epz` contains `manifest.json`, `project.json` and a reserved `assets/` directory. `project.json` remains the canonical complete project payload; the container is packaging/compression only.
+- Added a versioned container manifest plus SHA-256 integrity metadata. Loading validates the ZIP structure, EditPolygon format/version, canonical `project.json` member and SHA-256 integrity record, and reports clear corruption/newer-format errors instead of attempting a partial restore. SHA-256 is verified after the single project decompression so large projects are not decompressed twice merely for CRC checking.
+- Save now produces only `editpolygon_project.epz`; Open/drag-drop/converter/validator project ingestion accepts `.epz`. The obsolete `.polygonproject` import/save path and file-picker acceptance were removed rather than carried as compatibility debt during development.
+- Removed the historical v1.72 project save/import rebinding: the later UI installer now only rebinds the Save button to the authoritative save function and updates accepted extensions. Project packaging lives in the dedicated `editpolygon-project-format.js` module.
+- Added project-format regression coverage for manifest validation, source order, extension policy and absence of the old project extension.
+
 ## v1.55.4.15 — WMS project persistence parity
 
 - Fixed manual project save/reload dropping custom GIS workspace definitions such as WMS layers. The saved `.polygonproject` already contained `gisWorkspace`, but the project-import normalisation step discarded that field before `restoreCompleteProjectPayload()` could rebuild runtime services.

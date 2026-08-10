@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 
 const req=[
-  'docs/index.html','docs/assets/editpolygon-map-adapter.js','docs/assets/editpolygon-openlayers.css','docs/assets/editpolygon-app.js','docs/assets/gis-core.js','docs/assets/gis-remote-source.js','docs/assets/gis-workspace.js',
+  'docs/index.html','docs/assets/editpolygon-project-format.js','docs/assets/editpolygon-map-adapter.js','docs/assets/editpolygon-openlayers.css','docs/assets/editpolygon-app.js','docs/assets/gis-core.js','docs/assets/gis-remote-source.js','docs/assets/gis-workspace.js',
   'docs/assets/gis-data-core.js','docs/assets/gis-schema-core.js','docs/assets/gis-data-tools.js','docs/assets/gis-data-tools.css',
   'docs/assets/gis-crs-core.js','docs/assets/gis-analysis-core.js','docs/assets/gis-analysis-worker.js','docs/assets/gis-join-core.js','docs/assets/gis-join-worker.js',
   'docs/assets/gis-style-core.js','docs/assets/gis-geometry-health-core.js','docs/assets/gis-geos-adapter.js','docs/assets/gis-geometry-health-worker.js','docs/assets/gis-geometry-health.js','docs/assets/gis-geometry-health.css','docs/assets/editpolygon-mobile.css','docs/assets/editpolygon-mobile.js','docs/crs-reprojection-guide/index.html',
@@ -9,7 +9,9 @@ const req=[
 ];
 for(const p of req)if(!fs.existsSync(p))throw new Error('Missing '+p);
 const html=fs.readFileSync('docs/index.html','utf8');
-for(const name of ['editpolygon-map-adapter.js','editpolygon-openlayers.css','gis-data-core.js','gis-schema-core.js','gis-crs-core.js','gis-remote-source.js','gis-analysis-core.js','gis-join-core.js','gis-style-core.js','gis-geometry-health-core.js','gis-geometry-health.js','gis-geometry-health.css','gis-data-tools.js','gis-data-tools.css','editpolygon-mobile.css','editpolygon-mobile.js'])if(!html.includes(name))throw new Error('index missing '+name);
+for(const name of ['editpolygon-project-format.js','editpolygon-map-adapter.js','editpolygon-openlayers.css','gis-data-core.js','gis-schema-core.js','gis-crs-core.js','gis-remote-source.js','gis-analysis-core.js','gis-join-core.js','gis-style-core.js','gis-geometry-health-core.js','gis-geometry-health.js','gis-geometry-health.css','gis-data-tools.js','gis-data-tools.css','editpolygon-mobile.css','editpolygon-mobile.js'])if(!html.includes(name))throw new Error('index missing '+name);
+if(html.indexOf('jszip.min.js')>html.indexOf('editpolygon-project-format.js'))throw new Error('JSZip must load before the project-format module.');
+if(html.indexOf('editpolygon-project-format.js')>html.indexOf('editpolygon-app.js'))throw new Error('Project-format module must load before the application.');
 if(html.indexOf('editpolygon-map-adapter.js')>html.indexOf('editpolygon-app.js'))throw new Error('Map adapter must load before the application.');
 if(html.indexOf('leaflet@1.9.4/dist/leaflet.js')>html.indexOf('editpolygon-map-adapter.js'))throw new Error('Leaflet transition engine must load before the dual-engine adapter.');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))throw new Error('OpenLayers parity runtime is not wired into the page.');

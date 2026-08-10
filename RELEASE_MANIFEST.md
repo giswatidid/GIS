@@ -1,38 +1,34 @@
-# Current release manifest — v1.55.4.15
+# EditPolygon v1.55.4.16 release manifest
 
-v1.55.4.15 is a project-persistence parity correction on top of v1.55.4.14. Live save/reload testing found that a WMS layer worked in the active OpenLayers project but disappeared after reopening the saved `.polygonproject`. The saved payload already contained the GIS workspace; the loss occurred when `normaliseSavedProjectPayload()` stripped `gisWorkspace` before restoration.
+v1.55.4.16 replaces the development-only plain JSON project download with the new lossless `.epz` EditPolygon project container. This is deliberately a clean format cutover: `.polygonproject` is not retained as a supported import or export format because there are no production project files requiring compatibility yet.
 
-## Upgrade basis
+## Project format
 
-Upgrade from **v1.55.4.14**.
+A normal saved project is now `editpolygon_project.epz`. It is a ZIP/DEFLATE container containing:
 
-## Behavioural changes
+- `manifest.json` — EditPolygon container identity, format version, app version, project member name, save timestamp, compression method and optional SHA-256 integrity record;
+- `project.json` — the complete canonical EditPolygon project payload, unchanged in GIS semantics;
+- `assets/` — reserved for future embedded binary/reference assets without forcing Base64 data into the JSON model.
 
-- Manual project files retain custom GIS service definitions across the full save → JSON parse → normalise → restore path.
-- WMS URL, `LAYERS`, styles, image format, WMS version, transparency, discovered bounds and metadata are retained.
-- The associated custom layer retains visibility, opacity, order, role, lock state and group assignment through GIS-core normalisation.
-- `referenceOverlays` are preserved at the same normalisation boundary so all non-editable project context follows one persistence contract.
-- Runtime restoration rebuilds saved GIS services through the existing engine-neutral GIS runtime; no OpenLayers-specific project format is introduced.
+Compression is lossless. The project model still preserves exact stored coordinates, feature properties, styles/labels, true-circle metadata, measurements/annotations, images, reference overlays, GIS workspace/service definitions, layer visibility/opacity/order, CRS metadata and view/UI state.
 
-## Files to update
+## Load safety
 
-See `V1.55.4.15_CHANGED_FILES.md` in the release artifacts for the exact generated diff.
+`.epz` loading validates the ZIP structure, manifest identity and format version, requires `project.json`, verifies SHA-256 when Web Crypto is available, parses the canonical project JSON, and only then hands it to the existing project normalisation/restoration path. CRC re-decompression is deliberately not enabled because SHA-256 already verifies the canonical project member after a single decompression, avoiding a large-project performance penalty. Corrupt, malformed or newer unsupported containers fail with a clear project-file error rather than attempting partial state restoration.
 
-## Files to add
+## Architecture
 
-- `tests/wms-project-persistence.test.mjs`
+Project packaging is isolated in `docs/assets/editpolygon-project-format.js`, loaded after JSZip and before `editpolygon-app.js`. The application owns project state; the project-format module owns only container encode/decode/integrity. The historical v1.72 project save/import wrapper no longer replaces `saveProject` or `importFile`.
 
-## Files to delete
+## Validation checklist
 
-None.
+1. Save a mixed project and confirm the downloaded file ends in `.epz`.
+2. Optionally rename a copy to `.zip` and inspect it: `manifest.json`, `project.json` and `assets/` should be present.
+3. Compare the `.epz` file size with the uncompressed `project.json`; geometry-heavy projects should compress substantially without changing data.
+4. Open the `.epz` in a fresh EditPolygon page and confirm editable geometry, true circles, measurements, styles, remote/reference layers, WMS, visibility/opacity/order and view state restore.
+5. Edit a restored feature and verify undo/redo still renders immediately.
+6. Corrupt/truncate a copy of the `.epz` and confirm EditPolygon reports an unreadable/damaged project rather than loading partial state.
 
-## Deployment
+## Automated gate
 
-1. Replace every file listed in the generated changed-files manifest.
-2. Add the new WMS project-persistence regression test file.
-3. Wait for GitHub Pages to deploy.
-4. Hard-refresh `?mapEngine=openlayers`.
-5. Add a WMS, change its opacity/visibility if desired, save the `.polygonproject`, then reopen it in a fresh page.
-6. Confirm the WMS card returns, the imagery renders, and its URL/layer/display state are preserved.
-
-The complete v1.55.4.15 repository ZIP can instead be used as the authoritative clean tree.
+The release must pass repository integration checks, runtime/binding audits, the complete Node test suite and all seven browser smoke suites before deployment.

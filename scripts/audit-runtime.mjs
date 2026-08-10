@@ -4,19 +4,24 @@ import path from 'node:path';
 const read=p=>fs.readFileSync(p,'utf8');
 const app=read('docs/assets/editpolygon-app.js');
 const adapter=read('docs/assets/editpolygon-map-adapter.js');
+const projectFormat=read('docs/assets/editpolygon-project-format.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260810-wms-project-persistence-1554415';
+const RELEASE_KEY='20260810-epz-project-container-1554416';
 
-function fail(message){throw new Error(`v1.55.4.15 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.16 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.15')fail(`package version is ${pkg.version}, expected 1.55.4.15`);
+if(pkg.version!=='1.55.4.16')fail(`package version is ${pkg.version}, expected 1.55.4.16`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
+if(html.indexOf('editpolygon-project-format.js')>html.indexOf('editpolygon-app.js'))fail('project-format module loads after the application');
+for(const token of ["const EXTENSION='epz'","const MANIFEST_FILE='manifest.json'","const PROJECT_FILE='project.json'","compression:'DEFLATE'","algorithm:'SHA-256'"]){requireToken(projectFormat,token,'project format module');}
+for(const token of ["EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.16'})","downloadBlob('editpolygon_project.epz',archive.blob)","else if(ext==='epz')","EditPolygonProjectFormat.readArchive(file,{onProgress})"]){requireToken(app,token,'EPZ project persistence');}
+if(/\.polygonproject/i.test(app)||/\.polygonproject/i.test(html)||/ext===['"]polygonproject['"]/i.test(app))fail('obsolete .polygonproject runtime support remains');
 
 // The synchronized compatibility map is permanently gone. OpenLayers must be
 // able to run without creating or reaching into a Leaflet map.
@@ -259,4 +264,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.15 runtime/repository audit passed. WMS service definitions survive project normalisation/reload, WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.16 runtime/repository audit passed. Lossless .epz packaging owns project compression/integrity, WMS/GIS definitions survive project normalisation/reload, heavy OpenLayers vectors retain focused precision overlays, OpenLayers remains adapter-confined and deployment assets are clean.');

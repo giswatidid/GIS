@@ -58,7 +58,7 @@ http://localhost:8000/docs/
 - Verify **Interpret/reproject coordinates** changes coordinate values while preserving the real-world location.
 - Export GeoJSON, WKT, CSV, and Shapefile ZIP in a selected CRS.
 - Confirm Shapefile ZIP exports include matching `.prj` and `.cpg` files.
-- Save and reopen a `.polygonproject` and confirm source, native, storage, and export CRS settings persist.
+- Save and reopen an `.epz` project and confirm source, native, storage, export CRS, GIS service definitions, visibility/opacity/order and true-circle metadata persist.
 - Test map selection, Inspector attributes, attribute table, filters, styling, labels, and processing outputs.
 - Test remote WMS, XYZ/TMS/TileJSON, GeoJSON, and ArcGIS FeatureServer sources.
 - Verify the browser console has no missing-asset or runtime errors.

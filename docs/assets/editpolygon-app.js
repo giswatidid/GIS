@@ -6055,15 +6055,14 @@ async function importFile(file,onProgress=()=>{}){
     data=wktToGeo(await file.text(),file.name);
   }else if(ext==='zip'||ext==='shp'){
     data=await shapefileZipToGeo(file,onProgress);
-  }else if((ext==='polygonproject'||ext===('ped'+'project'))){
-    onProgress(`Reading project file ${file.name}…`,45);
-    const d=JSON.parse(await file.text());
-    const payload=normaliseSavedProjectPayload(d);
-    if(!projectPayloadHasContent(payload))throw Error('Project file does not contain any saved polygons, annotations, measurements or image overlays.');
-    onProgress(`Prepared complete project from ${file.name}.`,92);
-    return {__pedProject:true,name:file.name,payload};
+  }else if(ext==='epz'){
+    if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
+    const archive=await window.EditPolygonProjectFormat.readArchive(file,{onProgress});
+    const payload=normaliseSavedProjectPayload(archive.payload);
+    if(!projectPayloadHasContent(payload))throw Error('Project file does not contain any saved polygons, annotations, measurements, images or GIS layers.');
+    return {__pedProject:true,name:file.name,payload,projectArchive:archive};
   }else{
-    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT, TXT, zipped Shapefile, project file');
+    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT, TXT, zipped Shapefile, or EditPolygon .epz project');
   }
 const features=[];let i=1;for(const raw of flattenForImport(data.features)){const nf=normalize(raw,'Polygon '+i);if(nf){features.push(nf);i++}}onProgress(`Prepared ${features.length} polygon feature${features.length===1?'':'s'} from ${file.name}.`,92);const color=COLORS[project.files.length%COLORS.length];features.forEach(f=>applyColor(f,color));const importedSchema=data?.editpolygonSchema&&Array.isArray(data.editpolygonSchema.fields)?clone(data.editpolygonSchema):null;return{id:uid('file'),name,sourceFormat:ext,visible:true,color,features,...(importedSchema?{gisSchema:importedSchema}:{})}}
 
@@ -7257,24 +7256,38 @@ function createSaveProjectPayload(){
     }
   };
 }
-function saveProject(){
+async function saveProject(){
   const payload=createSaveProjectPayload();
   if(!projectPayloadHasContent(payload)){
-    setStatus('Nothing to save yet. Add a polygon, annotation, measurement or image first.','error');
+    setStatus('Nothing to save yet. Add a feature, annotation, measurement, image or GIS layer first.','error');
     return;
   }
   const counts={
-    features:(payload.files||[]).reduce((s,f)=>s+(f.features||[]).length,0),
-    measurements:(payload.measurements||[]).filter(i=>measureToolFamily(i.type)!=='annotation').length,
-    annotations:(payload.measurements||[]).filter(i=>measureToolFamily(i.type)==='annotation').length,
-    images:(payload.imageOverlays||[]).length
+    features:(payload.files||[]).reduce((sum,file)=>sum+(file.features||[]).length,0),
+    measurements:(payload.measurements||[]).filter(item=>measureToolFamily(item.type)!=='annotation').length,
+    annotations:(payload.measurements||[]).filter(item=>measureToolFamily(item.type)==='annotation').length,
+    images:(payload.imageOverlays||[]).length,
+    gisLayers:(payload.gisWorkspace?.layers||[]).length
   };
-  downloadText('polygon_editor_project.polygonproject',JSON.stringify(payload,null,2),'application/json;charset=utf-8');
-  setDirty(false);
-  writeAutosaveNow('manual-save');
-  writeJournalNow();
-  setStatus(`Saved editable project: ${counts.features} feature${counts.features===1?'':'s'}, ${counts.annotations} annotation${counts.annotations===1?'':'s'}, ${counts.measurements} measurement${counts.measurements===1?'':'s'}, ${counts.images} image${counts.images===1?'':'s'}.`);
+  try{
+    if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
+    setStatus('Compressing EditPolygon project…');
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.16'});
+    downloadBlob('editpolygon_project.epz',archive.blob);
+    setDirty(false);
+    writeAutosaveNow('manual-save');
+    writeJournalNow();
+    const raw=archive.uncompressedBytes||0,packed=archive.compressedBytes||0;
+    const reduction=raw>0&&packed>0?Math.max(0,Math.round((1-packed/raw)*100)):0;
+    const sizeLabel=packed>=1048576?`${(packed/1048576).toFixed(packed>=10485760?1:2)} MB`:packed>=1024?`${(packed/1024).toFixed(1)} KB`:`${packed} B`;
+    setStatus(`Saved .epz project: ${counts.features} feature${counts.features===1?'':'s'}, ${counts.annotations} annotation${counts.annotations===1?'':'s'}, ${counts.measurements} measurement${counts.measurements===1?'':'s'}, ${counts.images} image${counts.images===1?'':'s'}, ${counts.gisLayers} GIS layer${counts.gisLayers===1?'':'s'} · ${sizeLabel}${reduction?` · ${reduction}% smaller`:''}.`);
+  }catch(err){
+    console.error(err);
+    setStatus(`Project save failed: ${err.message||err}`,'error');
+    alert(`Project save failed: ${err.message||err}`);
+  }
 }
+
 function initResizers(){const ps=$('projectSection'),fs=$('filesSection'),ss=$('selectedSection');document.querySelectorAll('.sidebar-resizer').forEach(r=>r.addEventListener('pointerdown',e=>{e.preventDefault();const kind=r.dataset.resizer,start=e.clientY,ph=ps.getBoundingClientRect().height,fh=fs.getBoundingClientRect().height,sh=ss.getBoundingClientRect().height;r.setPointerCapture(e.pointerId);const move=ev=>{const dy=ev.clientY-start;if(kind==='project-files'){ps.style.flex=`0 0 ${Math.max(110,ph+dy)}px`;fs.style.flex=`1 1 ${Math.max(120,fh-dy)}px`}else{fs.style.flex=`1 1 ${Math.max(120,fh+dy)}px`;ss.style.flex=`0 0 ${Math.max(130,sh-dy)}px`}};const up=()=>{r.removeEventListener('pointermove',move);r.removeEventListener('pointerup',up);r.removeEventListener('pointercancel',up)};r.addEventListener('pointermove',move);r.addEventListener('pointerup',up);r.addEventListener('pointercancel',up)}))}
 $('openBtn').onclick=()=>$('fileInput').click();$('restoreAutosaveBtn').onclick=restoreAutosaveManually;$('fileInput').onchange=e=>{importFiles(e.target.files);e.target.value=''};$('dropzone').onclick=()=>$('fileInput').click();['dragenter','dragover'].forEach(t=>$('dropzone').addEventListener(t,e=>{e.preventDefault();$('dropzone').classList.add('dragover')}));['dragleave','drop'].forEach(t=>$('dropzone').addEventListener(t,e=>{e.preventDefault();$('dropzone').classList.remove('dragover')}));$('dropzone').addEventListener('drop',e=>importFiles(e.dataTransfer.files));
 $('basemap').onchange=e=>{Object.values(basemaps).forEach(l=>mapLayerHas(l)&&mapLayerRemove(l));mapLayerAdd(basemaps[e.target.value])}
@@ -14837,33 +14850,12 @@ showAutosaveRecoveryIfAvailable();
   }
   function projectFilePayload(){return createSaveProjectPayload();}
   function patchProjectSave(){
-    try{
-      saveProject=function(){
-        const payload=projectFilePayload();
-        if(!projectPayloadHasContent(payload)){setStatus('Nothing to save yet. Add a polygon, annotation, measurement or image first.','error');return;}
-        const counts={features:(payload.files||[]).reduce((s,f)=>s+(f.features||[]).length,0),measurements:(payload.measurements||[]).filter(i=>measureToolFamily(i.type)!=='annotation').length,annotations:(payload.measurements||[]).filter(i=>measureToolFamily(i.type)==='annotation').length,images:(payload.imageOverlays||[]).length};
-        downloadText('polygon_editor_project.polygonproject',JSON.stringify(payload,null,2),'application/json;charset=utf-8');
-        setDirty(false); writeAutosaveNow('manual-save'); writeJournalNow();
-        setStatus(`Saved editable project file: ${counts.features} feature${counts.features===1?'':'s'}, ${counts.annotations} annotation${counts.annotations===1?'':'s'}, ${counts.measurements} measurement${counts.measurements===1?'':'s'}, ${counts.images} image${counts.images===1?'':'s'}.`);
-      };
-      if(byId('saveBtn'))byId('saveBtn').onclick=saveProject;
-    }catch(err){console.warn('Could not patch project save',err)}
+    const button=byId('saveBtn');
+    if(button)button.onclick=saveProject;
   }
   function patchProjectImport(){
-    const orig=importFile;
-    importFile=async function(file,onProgress=()=>{}){
-      const ext=(file.name.split('.').pop()||'').toLowerCase();
-      if(ext==='polygonproject'||ext===('ped'+'project')){
-        onProgress(`Reading project file ${file.name}…`,45);
-        const d=JSON.parse(await file.text());
-        const payload=normaliseSavedProjectPayload(d);
-        if(!projectPayloadHasContent(payload))throw Error('Project file does not contain any saved polygons, annotations, measurements or image overlays.');
-        onProgress(`Prepared complete project from ${file.name}.`,92);
-        return {__pedProject:true,name:file.name,payload};
-      }
-      return orig(file,onProgress);
-    };
-    [byId('fileInput'),byId('converterFileInput'),byId('validatorFileInput')].forEach(el=>{if(el)el.setAttribute('accept','.gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.polygonproject')});
+    const accept='.gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.epz';
+    [byId('fileInput'),byId('converterFileInput'),byId('validatorFileInput')].forEach(el=>{if(el)el.setAttribute('accept',accept)});
   }
   function featureWarnings(features){
     const warnings=[],seen=new Map(),health=window.EditPolygonGeometryHealthCore;
