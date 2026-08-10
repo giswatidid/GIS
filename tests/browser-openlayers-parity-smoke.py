@@ -27,8 +27,6 @@ class F{constructor(o={}){Object.assign(this,o);this.values_={...o}}setStyle(s){
 class Sty{constructor(o){this.o=o}}
 const canonicalLon=v=>((Number(v)+180)%360+360)%360-180;
 window.ol={Map:M,View:V,Feature:F,geom:{Point:Pt},format:{GeoJSON:GJ},proj:{fromLonLat:c=>[c[0]*1000,c[1]*1000],toLonLat:c=>[canonicalLon(c[0]/1000),c[1]/1000],transformExtent:e=>e.map(x=>x*1000)},extent:{containsCoordinate:()=>false},interaction:{DragPan,DoubleClickZoom},control:{Zoom:ZoomControl,Attribution:AttributionControl},layer:{Tile:Lyr,Vector:Lyr,VectorImage:VImg,Image:Lyr,Group},source:{XYZ:S,TileWMS:TWMS,Vector:VS,ImageStatic:S},style:{Style:Sty,Stroke:Sty,Fill:Sty,Circle:Sty,Text:Sty}};
-let leafletMapCalls=0;
-window.L={map:()=>{leafletMapCalls++;throw new Error('OpenLayers runtime must not create a Leaflet map');}};
 '''
 
 with sync_playwright() as p:
@@ -41,7 +39,7 @@ with sync_playwright() as p:
     page.set_content('<!doctype html><html><body><div id="map" style="width:800px;height:500px"></div><script>'+FAKE_OL+'</script></body></html>')
     page.add_script_tag(path=str(ROOT/'docs/assets/editpolygon-map-adapter.js'))
     result=page.evaluate('''async()=>{
-      const r=EditPolygonMapAdapter.createRuntime({target:'map',center:[153,-27],zoom:6,L,ol});
+      const r=EditPolygonMapAdapter.createRuntime({target:'map',center:[153,-27],zoom:6,ol});
       const base=r.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png'});r.addDisplayLayer(base);
       const vec=r.createEditableVectorLayer({layerKey:'editable-main',features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
@@ -68,10 +66,10 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,requestedEngine:r.requestedEngine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,hasRequestedEngine:('requestedEngine' in r),center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
-    assert result['requestedEngine']=='openlayers',result
+    assert result['hasRequestedEngine'] is False,result
     assert result['center']==[873,-27],result
     assert result['zoom']==6,result
     assert result['wrappedPixel']==[87300,-2700],result
@@ -93,7 +91,6 @@ with sync_playwright() as p:
     assert result['suppressOff'] is True and result['suppressionRestored'] is True,result
     assert result['styleCacheSize']==1,result
     assert result['disabled'] is True,result
-    assert result['leafletMapCalls']==0,result
     assert result['hasLegacyMap'] is False,result
     assert result['hasParityBridge'] is False,result
     assert result['matchesInitial'] is True,result
@@ -112,7 +109,6 @@ with sync_playwright() as p:
     assert result['nativeClick'] is not None,result
     assert result['nativeClick']['pixel']==[320,210],result
     assert abs(result['nativeClick']['lonLat'][0]-3.2)<1e-9 and abs(result['nativeClick']['lonLat'][1]-2.1)<1e-9,result
-    assert 'editpolygon-leaflet-compat' not in result['childOrder'],result
     assert not errors,errors
     browser.close()
 print('OpenLayers parity browser smoke test passed.')

@@ -1,190 +1,128 @@
-# EditPolygon v1.55.4 quality baseline
+# EditPolygon quality baseline
 
-v1.55.4 established the parity, architecture and quality-control baseline. **v1.55.5 has now passed that gate and makes OpenLayers the default map engine**, while keeping Leaflet available only as a one-release explicit fallback through `?mapEngine=leaflet`. **v1.55.4.17** keeps this architecture baseline and incorporates the deployed parity corrections found so far: map-shape true circles use projection-aware display materialisation, viewport culling and inverse pixel conversion preserve horizontally repeated world copies, polygon/LineString vertices use a continuous longitude branch across the International Date Line, and in-progress drawing is visibly mirrored through the engine-neutral transient-vector runtime. Drawing remains pointer-interactive through zooms and uses Pointer Events for live cursor tracking, with Shift reserved for geometry constraints rather than the obsolete Shift-pan click-through mode. The v1.55.4.5 startup-order guard also requires the drawing-preview layer state to be initialized before the first `renderAll()`, preventing late lexical state from aborting application initialization. v1.55.4.6 makes editing branch-stable in repeated world copies: vertex, edge, whole-feature, DOM-handle and circle-centre edits map pointer longitude back beside the stored geometry before committing. v1.55.4.7 canonicalises standalone Point/MultiPoint and true-circle model centres, canonicalises OpenLayers editable/transient vector projection without breaking Date Line continuity, restores repeated-world transient guides, and caps point zoom/native OSM tile zoom so zero-size feature extents remain stable. v1.55.4.8 makes undo/redo rendering authoritative in the same frame: history closes vertex editing without a pre-restore map paint, then invalidates with a monotonic render generation after the restored model is installed before rendering it. v1.55.4.9 verifies the *final* source-order binding rather than only the original declaration: the late v1.16 `VStop` wrapper that discarded `{render:false}` is removed, editor shutdown drains pending edit callbacks/timers, and vertex/edge/point/circle drag history starts only on actual movement rather than pointerdown. v1.55.4.10 adds a hard render-authority invariant: history states have a monotonic non-serialised epoch, cached editable signatures include actual geometry-content fingerprints, selected/picked native geometry is content-checked before cache reuse, and the map adapter can purge editable layers by owner key before the restored model is painted. v1.55.4.11 adds the first external-source performance/parity corrections from deployed testing: WMS no longer forces anonymous CORS, GeoServer tiled hints are adapter-owned, advertised WMS bounds are discovered/fitted when capabilities are browser-readable, and large editable remote GeoJSON keeps full geometry while limiting sidebar DOM work and avoiding viewport-only native-vector rebuilds. v1.55.4.12 closes the deeper WMS visibility mismatch and the second-stage large-vector bottlenecks: visible OpenLayers service layers own map membership, heavy OpenLayers editable datasets keep persistent native indexed sources and can use image-backed interaction rendering, and selected-feature toolbar layout is removed from the pan hot path. v1.55.4.13 removes the remaining selection/edit promotion cost: heavy-layer background rendering stays image-backed while selected/picked and actively edited features use a separate precise vector overlay. Selection therefore does not rebuild the 821-feature ecoregions background just to apply highlight styling, and precision editing does not promote the other features. Focused live geometry is temporarily suppressed in the background during editing and reconciled when the precision session ends. v1.55.4.14 adds a conversion invariant: a point-marker annotation converted into an editable GIS feature must use the same canonical Point symbol defaults as a directly drawn Point, while text-annotation typography remains attached only to text annotations. v1.55.4.15 adds a persistence invariant: project save/reload must preserve the complete GIS workspace and reference-overlay definitions through normalisation before runtime reconstruction, including WMS URL/layer parameters and layer visibility/opacity/order. v1.55.4.16 moves manual project persistence into a lossless `.epz` container boundary: ZIP/DEFLATE compression and integrity metadata are outside the canonical GIS model, so project-size reduction cannot change geometry semantics. v1.55.4.17 adds the final mobile parity invariant: phone/tablet controls must reach the same GIS workspace and application commands rather than a reduced mobile feature set, drawers/sheets must remain viewport-safe, and touch sizing must not introduce horizontal page overflow. The mobile controller also may emit layout resize notifications but must not recursively reschedule them from its own synthetic events. v1.55.4.18 adds the mobile popover invariant: layer and GIS action menus portaled outside the Layers drawer must remain above that drawer, inside the phone viewport, focusable, and touch-operable.
+**Current baseline: v1.55.6.** OpenLayers is the sole map runtime. The desktop/mobile parity campaign and the v1.55.5 default-engine soak passed before the previous runtime was removed.
 
-## What was reviewed
+## Current automated gate
 
-The review covered the complete static repository and the full application runtime, with particular attention to the historically layered `docs/assets/editpolygon-app.js` monolith.
-
-The audit checked:
-
-- Leaflet ↔ OpenLayers map-runtime contract parity;
-- map navigation, pixel/coordinate conversion and map events;
-- editable vector rendering and live geometry updates;
-- click and spatial selection, including true circles;
-- drawing/edit overlay infrastructure, snapping-related map conversions and transient handles;
-- measurements and measurement history;
-- Geometry Health overlays and output materialisation;
-- reference vectors, tiles and GeoTIFF/static-raster previews;
-- GIS XYZ/TMS/WMS service layers;
-- layer visibility, opacity and z-order;
-- styling/labels and selection-highlight redraws;
-- CRS, typed attributes, filtering/calculation, joins/summaries and remote-source integration;
-- project history hooks and cross-cutting edit-mode cleanup;
-- source-order function reassignment risk;
-- direct Leaflet/OpenLayers escape hatches;
-- deployment asset references and repository clutter.
-
-## Architecture baseline established in v1.55.4
-
-### One authoritative editable renderer
-
-Both Leaflet and OpenLayers now use `EditPolygonMap.createEditableVectorLayer()` from the final cached renderer. Application code no longer maintains a separate OpenLayers-specific cached renderer.
-
-The current renderer:
-
-- resolves feature style/labels once in application code;
-- hands engine-neutral descriptors to the map runtime;
-- refreshes selection state through the same renderer on both engines;
-- live-updates dragged feature geometry through the runtime;
-- adds a replacement cache layer before removing the previous one to prevent blank pan frames;
-- excludes non-spatial table layers directly rather than installing another late `renderMap` wrapper.
-- performs one final handoff render after all historical installers finish, clearing bootstrap-era Leaflet feature layers before the runtime-authority snapshot is published.
-- treats direct native geometry mutation as transient pointer feedback only; completed manual edits invalidate the owner layer and history restoration hard-purges editable runtime layers before rematerialising from the project model.
-- verifies cached selected/picked features against content-derived geometry signatures rather than trusting revision counters alone.
-
-### Map-engine implementation boundary
-
-Direct OpenLayers calls are forbidden in `editpolygon-app.js`; OpenLayers implementation code lives in `editpolygon-map-adapter.js`.
-
-Leaflet remains a transition engine for the parity stage. There are **16 direct `L.*` call sites** left in application code, but **no application-level native-map escape** (`getNativeMap`) remains. They are confined to three legacy Leaflet-only areas:
-
-1. the early/bootstrap Leaflet editable renderer and annotation icon helper;
-2. the large-reference full-detail Leaflet canvas renderer;
-3. the historical v1.30 Leaflet performance renderer.
-
-Those are explicit transition debt. `scripts/audit-bindings.mjs` prevents that number from growing. They are scheduled for removal once OpenLayers has passed the live parity gate and Leaflet is retired. The audit also verifies that every remaining direct `L.*` call stays inside those documented legacy blocks; a new Leaflet call elsewhere fails the build even if the total call count does not increase.
-
-Normal reference tiles, reference GeoJSON, GeoTIFF/static images, GIS services, display-layer state and current cached editable vectors now use the map-runtime contract.
-
-### Runtime authority boundary
-
-The application historically grew by appending enhancement blocks that captured and reassigned earlier functions. That pattern caused the true-circle click-selection failure: a correct selector was silently overwritten much later in the file.
-
-v1.55.4 establishes an explicit runtime authority boundary at the end of the application scope. The final identities of rendering, selection, history and editing entry points are published through `window.__EditPolygonRuntimeAuthority` for diagnostics/tests. No new function patch is permitted after that boundary.
-
-Cross-cutting point/circle editor cleanup no longer monkey-patches selection, delete, undo and redo functions. It uses a central runtime-transition registry for `selection`, `delete` and `history` lifecycle events.
-
-### Historical wrapper debt
-
-The binding audit is intentionally conservative: it counts repeated named declarations/reassignments even when some occur in separate local scopes. It therefore measures **source-order complexity**, not necessarily 198 global collisions.
-
-Current v1.55.4 ceiling after cleanup:
-
-- 1,703 named function bindings identified;
-- 198 names occurring at more than one source site;
-- 371 extra binding sites beyond the first occurrence;
-- largest historical chains: `renderSelected` 15, `renderSidebar` 13, `renderAll` 10, `showFileLayerMenu` 8, `showFeatureLayerMenu` 7, `updateButtons` 7, `importFile` 7.
-
-The generic local name `wrapped` appears 21 times in independent enhancement scopes and is not itself one global 21-stage wrapper chain.
-
-v1.55.4 does **not** flatten all historical wrappers in one release. Doing that while simultaneously proving map parity would be a high-risk rewrite. Instead:
-
-- known high-risk selection/history monkey patches were removed;
-- the stale label-era `renderMap` wrapper was removed;
-- critical click-selection functions must each have exactly one binding;
-- major wrapper chains have no-growth ceilings;
-- no OpenLayers implementation may leak back into application code;
-- no new patch may appear after the authority boundary.
-
-The next post-Leaflet cleanup should reduce these numbers, not increase them.
-
-## Automated parity matrix
-
-`Pass` below means the relevant core/module/integration/browser-smoke tests pass in this repository. `Live gate` means a deployed real-browser check is still required because the local OpenLayers browser smoke uses a controlled OpenLayers implementation rather than the external CDN bundle.
-
-OpenLayers controls are instantiated explicitly (`ol.control.Zoom` and `ol.control.Attribution`) rather than through `ol.control.defaults()`. This preserves the visible `+ / −` and attribution UI while remaining compatible with the browser-global OpenLayers bundle used by the static site.
-
-| Workflow | Leaflet automated | OpenLayers automated | Deployed live gate |
-|---|---:|---:|---|
-| Map startup / view / fit / resize | Pass | Pass | Required |
-| OSM/CARTO/Esri basemaps | Pass | Pass | Required |
-| Pan / wheel zoom / controls | Pass | Pass | Required |
-| Zoom buttons / attribution control | Pass | Pass | Required |
-| Coordinate ↔ pixel conversion | Pass | Pass | Required for interaction feel |
-| Editable point/line/polygon rendering | Pass | Pass | Required |
-| Multi-geometry rendering | Pass | Pass | Required |
-| True-circle rendering and click selection | Pass | Pass | Required |
-| Polygon / LineString drawing across International Date Line | Shared continuous-longitude path pass | Shared continuous-longitude path pass | Required |
-| Click / Shift / Ctrl selection semantics | Pass | Pass | Required |
-| Rectangle / polygon / lasso selection | Shared app path pass | Shared app path pass | Required |
-| Immediate selection highlight redraw | Pass | Pass | Required |
-| Vertex live drag / midpoint insertion infrastructure | Shared runtime path pass | Shared runtime path pass | Required |
-| Point editing handles | Shared runtime path pass | Shared runtime path pass | Required |
-| Circle centre/radius handles | Shared runtime path pass | Shared runtime path pass | Required |
-| Snapping/topology coordinate infrastructure | Shared app/runtime path pass | Shared app/runtime path pass | Required |
-| Measurements create/select/edit/history | Shared app/runtime path pass | Shared app/runtime path pass | Required |
-| Geometry Health locate/repair preview/output | Pass | Pass | Required |
-| Processing/transient map previews | Shared runtime path pass | Shared runtime path pass | Required |
-| Layer visibility / opacity / order | Pass | Pass | Required |
-| Simple/advanced styling and labels | Shared descriptor path pass | Shared descriptor path pass | Required |
-| Reference GeoJSON | Pass | Pass | Required |
-| Reference XYZ/TMS | Pass | Pass | Required |
-| GeoTIFF/static-image preview | Pass | Pass | Required |
-| Perspective/trace image overlays | Shared DOM path pass | Shared DOM path pass | Required |
-| GIS XYZ/TMS/WMS services | Pass | Pass | Required |
-| Remote GeoJSON/ArcGIS ingestion | Pass | Engine-neutral after ingestion | Required for representative source |
-| CRS metadata/reprojection/export | Pass | Engine-neutral | Required for visual position |
-| Typed tables/filter/calculation | Pass | Engine-neutral | No engine-specific gate |
-| Attribute/spatial joins and summaries | Pass | Engine-neutral | No engine-specific gate |
-| Undo/redo incl. measurement history | Pass | Engine-neutral | Required for edit workflows |
-| Mobile layout / Advanced GIS / touch targets | Pass | Shared UI path pass | Required; static + touch-viewport browser smoke + live handset gate |
-| Cache swap / pan flicker regression | Pass | Pass | Required with realistic data |
-
-## Live parity acceptance checklist — completed before v1.55.5
-
-The following v1.55.4 checklist was completed in deployed desktop and mobile browsers before the v1.55.5 cutover:
-
-1. Confirm `EditPolygonMap.engine === "openlayers"` and no fallback reason.
-2. Pan/zoom repeatedly with several polygons visible; vectors must not flash away.
-3. Click-select point, line, polygon and true circle; Shift-click multiple; click empty map to clear.
-4. Draw point, line, polygon and true circle. The clicked vertices, current segment/polygon and circle radius preview must remain visibly live before finishing. Cross the International Date Line with a LineString, polygon and true circle; each must stay on the short local branch, including after repeated horizontal world pans. Every click must register immediately, including after zooming. For a true circle over Australia/southern mid-latitudes, the final circle must remain centred on the first click and keep the same apparent circular shape/diameter as the live preview.
-5. Edit polygon/line vertices and midpoint handles; verify live geometry follows the pointer and undo/redo. Repeat after several horizontal world pans: dragging one vertex or edge must not create a world-spanning seam.
-6. Edit a point and true circle centre/radius, including after several horizontal world pans; the stored feature must remain on its existing longitude branch.
-7. Test snapping and topology mode against adjacent geometry.
-8. Create distance and area measurements; edit existing vertices/midpoints; save; undo/redo.
-9. Run Geometry Health on the bow-tie fixture; use Locate and repair preview; create repaired layer.
-10. Change layer style/labels, visibility, opacity and ordering.
-11. Add a reference GeoJSON, XYZ/TMS reference and GeoTIFF preview; test hide/show, opacity, order and zoom.
-12. Add representative XYZ/TMS/WMS/ArcGIS or remote GeoJSON data.
-13. Save/reload a project containing editable vectors, references and measurements.
-14. Test a larger FeatureServer/import and pan/zoom for stability/performance.
-15. On a touch device, check pan/zoom, drawers, selection and one edit workflow.
-
-The listed live failures were treated as v1.55.4 parity defects and fixed before the default-engine switch. The true-circle preview/final mismatch is fixed in v1.55.4.1. The repeated-world pan disappearance is fixed in v1.55.4.2. The dateline LineString/polygon drawing and intermittent click-through issues are fixed in v1.55.4.3. The missing live draw preview and true-circle/repeated-world inverse-coordinate seam were implemented in v1.55.4.4; v1.55.4.5 fixes the startup source-order error that prevented that code from completing initialization in the deployed app. v1.55.4.6 fixes repeated-world vertex/edge/handle editing so partial edits cannot introduce +/-360n seams. v1.55.4.7 fixes standalone-point repeated-world storage, repeated-world transient circle guides and point zoom/native-tile limits. Extended live testing showed its post-restore cache clear was not sufficient by itself: v1.55.4.8 introduced the no-prehistory-paint and render-generation design, but extended live testing proved a late v1.16 `VStop` wrapper was still overriding part of that behaviour by dropping the new options argument. v1.55.4.9 removes that wrapper, hardens the edit shutdown transaction, and eliminates pointerdown-only no-op history entries. v1.55.4.10 then establishes hard project/native geometry authority for history restore. Live external-source testing subsequently found a blank WMS path and avoidable whole-app lag with the 821-feature OpenLayers ecoregions dataset; v1.55.4.11 removes forced WMS CORS, adds best-effort advertised-extent fitting, keeps full remote geometry while virtualising large sidebar listings, avoids viewport-only editable-source rebuilds, shares equivalent OpenLayers style objects and disables declutter when no label content exists. v1.55.4.12 additionally verifies the deployed blank-WMS root cause (service visibility without map membership) and uses a persistent/adaptive OpenLayers source for performance-managed editable vectors while retaining exact project geometry. These paths now have dedicated automated regressions.
-
-Mobile final gate: on an actual phone, pan/pinch-zoom, select/draw/edit a representative feature, open **Advanced GIS** from the GIS dock, open Layers/Inspector/Project actions, and confirm drawers/sheets scroll without clipping or horizontal page overflow. No desktop-preference warning should appear.
-
-## v1.55.5 default-engine cutover gate
-
-The release gate now verifies the authority switch itself:
-
-1. With **no** `mapEngine` query parameter, `EditPolygonMap.engine` and `EditPolygonMap.requestedEngine` must both be `"openlayers"`.
-2. Default OpenLayers startup must not construct a Leaflet map.
-3. `?mapEngine=leaflet` must still construct the Leaflet runtime for this release.
-4. If OpenLayers cannot initialise, the adapter may fall back to Leaflet and must expose the OpenLayers request plus a `fallbackReason`.
-5. The full v1.55.4 Node/browser parity matrix remains green after the default changes.
-6. Leaflet dependency/runtime/remnant removal is deferred to v1.55.6; no v1.55.5 cleanup may weaken the emergency fallback.
-
-## CRS validation retained from earlier releases
-
-The CRS core has automated coverage for identifier/WKT detection, Web Mercator, WGS 84 UTM/MGA, nested GeoJSON reprojection, preservation of extra ordinates, projected GeoJSON preparation, WKT/PRJ generation, ArcGIS source CRS metadata and multi-format export.
-
-An earlier independent comparison against `pyproj 3.7.2` covered EPSG:3857, 7850, 7855, 7856, 28356 and 32756 using representative Australian locations; the largest reported projection-coordinate difference was about **0.000104 m**. This validates the implemented projection maths, not survey-grade datum transformations.
-
-Known limitation: GDA94/GDA2020-to-WGS84 datum conversion uses a zero-parameter approximation rather than official distortion/grid files. The UI identifies that limitation; survey-grade datum work remains outside the current browser implementation.
-
-## Test and audit commands
+A release must pass:
 
 ```bash
 npm run check
 npm run test:browser-smoke
 ```
 
-`npm run check` executes repository integration checks, the runtime/repository audit, the source-binding/architecture audit and the complete Node test suite.
+v1.55.6 currently expects:
 
-The browser-smoke command exercises both map adapters plus CRS, remote-source, typed-data, join/summary and Geometry Health browser harnesses.
+- **266/266 Node tests**;
+- **8/8 browser smoke suites** after removal of the obsolete alternate-runtime smoke;
+- repository integration audit;
+- runtime/repository audit;
+- binding/architecture audit;
+- JavaScript syntax validation for critical runtime modules.
 
-## Release decision
 
-v1.55.4 is suitable as the **parity baseline**, not yet as proof that every visual/touch interaction has passed on the deployed real OpenLayers library. The next decision boundary is the live acceptance checklist above. If it passes, v1.55.5 can make OpenLayers the default while retaining Leaflet as a one-release fallback.
+## Architecture invariants
+
+### One map runtime
+
+- OpenLayers is the only native map implementation.
+- Normal startup has no engine selector or compatibility fallback.
+- Application code contains **0 direct `ol.*` calls**.
+- Application code contains **0 direct retired-native calls**.
+- Application code contains **0 `getNativeMap` escapes**.
+- Native calls belong in `editpolygon-map-adapter.js`.
+
+### One editable display authority
+
+The final cached renderer owns editable display materialisation through `EditPolygonMap.createEditableVectorLayer()`.
+
+Cache reuse is guarded by:
+
+- render generation;
+- monotonic history epoch;
+- geometry-content fingerprints;
+- native/model geometry identity checks;
+- owner-keyed hard purge on history restoration.
+
+A live drag may mutate the focused native feature for pointer responsiveness, but the project model becomes authoritative again at commit/end-of-edit.
+
+### Large-data interaction
+
+Performance-managed editable datasets keep a persistent native indexed source. Normal pan/zoom can use image-backed vector rendering, while selected/picked/edited geometry is displayed in a separate precise overlay. This preserves editing accuracy without making the complete source layer precision-rendered during one-feature interaction.
+
+### World-wrap correctness
+
+The following are regression requirements:
+
+- repeated horizontal world pans do not make editable geometry disappear;
+- Date Line lines/polygons remain local rather than wrapping around the globe;
+- vertex/edge/whole-feature edits remain on the stored longitude branch;
+- points and true-circle centres remain canonical in saved data;
+- true-circle previews, final display, edit guides and hit tests agree;
+- history restoration cannot resurrect a live-mutated world-copy representation.
+
+### Project persistence
+
+`.epz` is lossless packaging around the canonical project JSON. Save/reload must preserve:
+
+- editable geometry and attributes;
+- true-circle semantics;
+- measurements/annotations;
+- styles and labels;
+- visibility, opacity and order;
+- GIS workspace definitions;
+- reference overlays;
+- WMS/service definitions and display state.
+
+Compression is never a geometry simplification mechanism.
+
+### Mobile parity
+
+Mobile is a first-class interface. The quality gate covers:
+
+- Advanced GIS access;
+- full-width Layers/Inspector drawers;
+- Project sheet access;
+- touch-sized controls;
+- OpenLayers controls;
+- layer/GIS action popovers above the drawer;
+- viewport/horizontal-overflow safety;
+- touch interaction after drawer/workspace transitions.
+
+## Binding/source-order baseline
+
+The v1.55.6 no-growth ceilings are:
+
+- **198 duplicate function-binding names**;
+- **371 extra historical binding sites**.
+
+Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary.
+
+These numbers should decrease as the application is modularised.
+
+## Live parity evidence carried into v1.55.6
+
+The deployed OpenLayers path has been manually exercised for:
+
+- map startup/navigation and repeated-world movement;
+- point, line, polygon and true-circle drawing/editing;
+- Date Line geometry;
+- vertex/edge/whole-feature movement;
+- undo/redo with immediate visual authority;
+- snapping and topology;
+- measurements;
+- Geometry Health locate/preview/repair interactions;
+- simple/advanced styling and labels;
+- visibility, opacity and ordering;
+- Remote GeoJSON;
+- ArcGIS FeatureServer and MapServer paths;
+- WMS;
+- complex/large vector data and focused editing performance;
+- `.epz` save/reload including WMS persistence;
+- phone/touch GIS access and mobile action menus.
+
+v1.55.5 then made OpenLayers the normal/default runtime and was live-confirmed before v1.55.6 removed the alternate implementation.
+
+## v1.55.7 gate
+
+The next release may optimise aggressively because there is only one runtime, but it must not weaken the invariants above. Performance changes should be measured against large vector datasets while preserving exact canonical geometry and editing semantics.

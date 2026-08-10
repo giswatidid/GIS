@@ -1942,19 +1942,6 @@ function stopEditMeasureOnly(){
   MEASURE.editingId=null;
 }
 
-function makeMeasureLabelIcon(text,style={}){
-  const color=style.color||'#1664d6';
-  const size=style.size||14;
-  const font=style.font||'Arial';
-  const weight=style.bold?'700':'400';
-  const ital=style.italic?'italic':'normal';
-  const cls=measureLabelClass(style);
-  return L.divIcon({
-    className:cls,
-    html:`<div class="measure-label-inner" style="color:${esc(color)};font-size:${size}px;font-family:${esc(font)};font-weight:${weight};font-style:${ital};">${esc(text)}</div>`,
-    iconSize:null
-  });
-}
 function clearMeasurementDomOverlays(){while(measurementDomOverlays.length){try{measurementDomOverlays.pop()?.remove?.();}catch(_){ }}}
 function clearMeasurementEditHandles(){while(measurementEditHandleOverlays.length){try{measurementEditHandleOverlays.pop()?.remove?.();}catch(_){ }}}
 function measurementEditHandleHtml(kind){return `<span class="measurement-edit-handle measurement-edit-${kind}" aria-hidden="true"></span>`;}
@@ -2288,7 +2275,7 @@ document.addEventListener('click',swallowSuppressedMidpointEvent,true);
 function swallowPostVertexDragEvent(e){
   if(V.active && postVertexDragBlocked && postVertexDragBlocked()){
     const ov=overlay();
-    if(ov && (e.target===ov || ov.contains(e.target) || e.target.closest?.('.leaflet-container'))){
+    if(ov && (e.target===ov || ov.contains(e.target) || e.target.closest?.('.ol-viewport'))){
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -2985,24 +2972,18 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.5: OpenLayers is the default engine. ?mapEngine=leaflet explicitly
-// activates the one-release emergency fallback. Both engines still use the
-// same map adapter contract; OpenLayers never instantiates a hidden Leaflet map.
+// v1.55.6: OpenLayers is the sole map runtime. Application code talks only
+// to the engine-neutral EditPolygonMap contract; no secondary native map exists.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
-  engine:MAP_ADAPTER.requestedEngine(location.search),
   target:'map',
   center:[startingView.center[1],startingView.center[0]],
   zoom:startingView.zoom,
   doubleClickZoom:true,
-  preferCanvas:true,
-  L:window.L,
   ol:window.ol
 });
 try{
   window.EditPolygonMap=MAP_RUNTIME;
   document.body.dataset.mapEngine=MAP_RUNTIME.engine;
-  document.body.dataset.mapEngineRequested=MAP_RUNTIME.requestedEngine||MAP_RUNTIME.engine;
-  if(MAP_RUNTIME.fallbackReason)document.body.dataset.mapEngineFallback='1';else delete document.body.dataset.mapEngineFallback;
 }catch(_){ }
 function mapLayerHas(layer){return !!(layer&&MAP_RUNTIME.hasDisplayLayer?.(layer));}
 function mapLayerAdd(layer){if(!layer)return layer;return MAP_RUNTIME.addDisplayLayer?.(layer)||layer;}
@@ -3016,9 +2997,6 @@ function makeBuiltinBasemaps(){
   };
 }
 const basemaps=makeBuiltinBasemaps();mapLayerAdd(basemaps.osm);
-// The legacy featureGroup exists only for the Leaflet renderer. OpenLayers
-// editable vectors are normal OL layers owned by the final cached renderer.
-const featureGroup=MAP_RUNTIME.engine==='leaflet'?MAP_RUNTIME.createEmptyLayerGroup():null;if(featureGroup)MAP_RUNTIME.addDisplayLayer(featureGroup);
 const geometryPreviewGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:850});const locationSearchOverlays=[];const measurementGroup=MAP_RUNTIME.createVectorOverlayLayer({zIndex:1250,interactive:true});const measurementDomOverlays=[],measurementEditHandleOverlays=[];let drawLayer=null,drawPoints=[];
 
 
@@ -3551,31 +3529,7 @@ function setFeatureOpacity(featureId,value){
 }
 
 
-function bootstrapRenderMap(){
-  // This renderer exists only to cover the short Leaflet bootstrap interval
-  // before the final cached renderer is installed. OpenLayers never uses it.
-  if(MAP_RUNTIME.engine==='openlayers')return;
-  featureGroup.clearLayers();
-  const b=MAP_RUNTIME.getExtent(0.35);
-  for(const file of project.files){
-    if(isFileSleeping(file))continue;
-    for(const f of file.features){
-      if(isFeatureSleeping(file,f))continue;
-      let fb=featureBBox(f);
-      if(fb&&!MAP_ADAPTER.bboxIntersects(b,fb))continue;
-      let gj=mapFeatureJSON(f);
-      L.geoJSON(gj,{style:styleWithOpacity(f,file),smoothFactor:V.active?2.5:1.2,interactive:false,pointToLayer:(feature,latlng)=>{const st=styleWithOpacity(f,file);return L.circleMarker(latlng,{radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),color:st.color,fillColor:st.color,fillOpacity:st.opacity??1,weight:2})}}).eachLayer(layer=>{
-        layer.featureId=f.id;
-        layer.addTo(featureGroup);
-      });
-      if(f.properties?.annotation&&f.geometry?.type==='Point'){
-        const c=f.geometry.coordinates;
-        L.marker([c[1],c[0]],{icon:makeMeasureLabelIcon(f.name,{...(f.annotationStyle||{}),annotation:true}),interactive:false}).addTo(featureGroup);
-      }
-    }
-  }
-}
-let RENDER_MAP_IMPL=bootstrapRenderMap;
+let RENDER_MAP_IMPL=()=>{};
 function renderMap(){return RENDER_MAP_IMPL.apply(this,arguments)}
 function renderAll(){recomputeAllFeatures();renderMap();renderSidebar();renderSelected();renderOverlay();renderMeasurementPreview();renderImageOverlays();updateStatus();updateButtons();updateUndo();if(!V.active)updatePerfState(sleepingStatusText())}
 function baseSelectFeature(fid){IMAGE.selectedId=null;closeLayerMenu();closePickMenu();if(V.active)VStop(true);const r=selectOrWakeFeature(fid);if(!r)return;project.selectedFeatureId=fid;project.selectedFileId=r.file.id;clearGeometryPreview();renderAll();setStatus('Selected '+r.feature.name+'.');return r}
@@ -3654,7 +3608,7 @@ MAP_RUNTIME.on('mouseout',()=>{
 
 
 // Map-pan release guard. v1.55.0 keeps the recovery behaviour but the
-// application no longer reaches into Leaflet's private Draggable fields. Any
+// application no longer reaches into OpenLayers's private Draggable fields. Any
 // engine-specific recovery is contained by the map adapter.
 const MAP_PAN_GUARD={timer:0,lastResetAt:0,dragging:false};
 function customPointerDragActive(){
@@ -4057,7 +4011,7 @@ function vertexUp(e){
   finishVertexDrag(e,{cancel:false});
 }
 function vertexMouseUpFallback(e){
-  // Native mouseup is a deliberate fallback for Chrome/Leaflet cases where the
+  // Native mouseup is a deliberate fallback for Chrome/OpenLayers cases where the
   // pointerup is swallowed after the handle has been moved/re-rendered.
   finishVertexDrag(e,{cancel:false,fromFallback:true});
 }
@@ -7272,7 +7226,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.5'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.6'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -7846,7 +7800,7 @@ function ensurePolygonContextToolbar(){
   tb.innerHTML='<button id="polygonCtxEditBtn" class="primary" type="button">Edit polygon</button><button id="polygonCtxCopyStyleBtn" type="button">Copy style</button><button id="polygonCtxPasteStyleBtn" type="button">Paste style</button><button id="polygonCtxSoloBtn" type="button">Solo</button><button id="polygonCtxDuplicateBtn" type="button">Duplicate</button><button id="polygonCtxDeleteBtn" class="danger" type="button">Delete</button>';
   document.body.appendChild(tb);
   // Floating editor controls stop browser events directly so the behaviour is
-  // identical under Leaflet and OpenLayers; application UI never calls an
+  // identical under OpenLayers and OpenLayers; application UI never calls an
   // engine-specific DOM-event helper.
   for(const type of ['wheel','dblclick','contextmenu'])tb.addEventListener(type,event=>event.stopPropagation());
   // Stop the map from receiving pointer-down events from this floating UI,
@@ -7926,7 +7880,7 @@ function updatePolygonContextToolbar(){
   let left=rect.left+anchor.x;
   left=Math.max(rect.left+pad+toolbarW/2,Math.min(rect.right-pad-toolbarW/2,left));
   let top=rect.top+anchor.y-10-toolbarH;
-  // Keep it out from under the main top bar and Leaflet zoom control.
+  // Keep it out from under the main top bar and OpenLayers zoom control.
   const minTop=rect.top+58;
   if(top<minTop)top=Math.min(rect.bottom-pad-toolbarH,rect.top+anchor.maxY+10);
   tb.style.left=left+'px';
@@ -8373,7 +8327,7 @@ function applyCentreMovePosition(e,drag=V.moveDrag){
   drag.lastDx=dx;
   drag.lastDy=dy;
   drag.changed=true;
-  // Keep the grabbed centre handle under the pointer while the Leaflet layer is
+  // Keep the grabbed centre handle under the pointer while the OpenLayers layer is
   // redrawn. The overlay intentionally is not rebuilt during a drag, so without
   // this the handle remains at its original screen position.
   if(drag.handle){
@@ -8386,7 +8340,7 @@ function applyCentreMovePosition(e,drag=V.moveDrag){
       const live=V.moveDrag;
       if(V.active&&live){
         // Coalesce high-frequency pointer events into one geometry transform
-        // and one Leaflet redraw per animation frame. This keeps dense
+        // and one OpenLayers redraw per animation frame. This keeps dense
         // polygons responsive while still showing the complete shape moving.
         live.feature.geometry=transformGeometryByMoveBehavior(live.baseGeometry,live.start,live.lastDx,live.lastDy,polygonMoveBehavior());
         renderMap();renderSelected();
@@ -10886,7 +10840,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
   };
 
   // Click/touch/pen outside the selected image or its own controls should simply
-  // leave image-edit mode. Do not stop the event; Leaflet, toolbar buttons and
+  // leave image-edit mode. Do not stop the event; OpenLayers, toolbar buttons and
   // layer rows still receive the same click/drag.
   document.addEventListener('pointerdown',function(e){
     if(!selectedImage())return;
@@ -11380,7 +11334,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
    - Large-file handling now applies across supported vector imports, not just
      KML/KMZ. The modal title and copy use generic file/import wording.
    - Reference overlay mode keeps full source geometry and renders it via a
-     lightweight canvas reference layer instead of Leaflet GeoJSON, so large
+     lightweight canvas reference layer instead of OpenLayers GeoJSON, so large
      overlays remain usable without simplifying the polygon.
 
    v97: Large KML/KMZ import resilience.
@@ -11514,7 +11468,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     let finalGeom=geom,after=originalVertices,tolerance=0;
     // Editable optimisation can simplify the rendered copy, but reference overlays
     // are deliberately full-detail: they use a custom canvas renderer so the
-    // browser does not need Leaflet to build a massive editable/vector layer.
+    // browser does not need OpenLayers to build a massive editable/vector layer.
     if(mode!=='full'&&mode!=='reference'){
       const result=v96SimplifyGeometry(geom,stats.coordinateCount||stats.vertexCount||0);
       finalGeom=result.geometry;after=result.after;tolerance=result.tolerance;
@@ -11732,106 +11686,15 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     return raw;
   }
   function v96EnsureReferencePanes(){
-    // Pane names are meaningful to Leaflet and a deliberate no-op in OpenLayers.
-    // Keep even this legacy reference installer on the shared adapter contract.
+    // Reference pane requests remain semantic adapter hints; OpenLayers owns actual z-order.
     MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
     MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
   function v96ReferenceStore(){return window.REFERENCE_OVERLAYS||(window.REFERENCE_OVERLAYS={items:[],layers:new Map(),selectedId:null,menuId:null});}
   function v96StyleReference(item){return {pane:'referenceVectorPane',interactive:false,color:item.color||'#d92c32',weight:item.weight||2,opacity:item.opacity??0.75,fillColor:item.fillColor||item.color||'#d92c32',fillOpacity:item.fillOpacity??0.14};}
-  function v98RefNeedsCanvas(item){return !!(item&&item.type==='geojson'&&item.data&&(item.renderMode==='canvas-full'||item.meta?.fullDetailReference||item.meta?.largeImport));}
-  function v98GeomBbox(geom){
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    const add=c=>{if(Array.isArray(c)&&Number.isFinite(c[0])&&Number.isFinite(c[1])){if(c[0]<minX)minX=c[0];if(c[0]>maxX)maxX=c[0];if(c[1]<minY)minY=c[1];if(c[1]>maxY)maxY=c[1];}};
-    const walk=o=>{if(!o)return;if(typeof o[0]==='number'){add(o);return;}for(const p of o)walk(p);};
-    try{walk(geom&&geom.coordinates);}catch(_){ }
-    return Number.isFinite(minX)?[minX,minY,maxX,maxY]:null;
-  }
-  function v98BboxIntersects(a,b){return !!(a&&b&&a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1]);}
-  function v98EnsureReferenceRenderCache(item){
-    if(item._v98RenderCache&&item._v98RenderCache.source===item.data)return item._v98RenderCache;
-    const features=(item.data&&item.data.type==='FeatureCollection')?(item.data.features||[]):(item.data?[{type:'Feature',properties:{},geometry:item.data}]:[]);
-    const tasks=[];let vertices=0,featureCount=0;
-    const addTask=(kind,coords,feature,polyIndex,ringIndex)=>{
-      if(!coords||!coords.length)return;
-      vertices+=kind==='point'?1:coords.length;
-      // Large rings/lines are kept exact but split into draw chunks so a single
-      // huge polygon cannot monopolise the main thread for seconds at a time.
-      if(kind!=='point'&&coords.length>20000){
-        const chunkSize=7000;
-        for(let start=0;start<coords.length-1;start+=chunkSize){
-          const end=Math.min(coords.length,start+chunkSize+1);
-          const slice=coords.slice(start,end);
-          const bbox=v98GeomBbox({type:'LineString',coordinates:slice});
-          tasks.push({kind:kind+'Chunk',coords,start,end,bbox,feature,polyIndex,ringIndex});
-        }
-        return;
-      }
-      const bbox=v98GeomBbox({type:kind==='point'?'Point':kind==='line'?'LineString':'Polygon',coordinates:kind==='polygon'?[coords]:coords});
-      tasks.push({kind,coords,bbox,feature,polyIndex,ringIndex});
-    };
-    for(const ft of features){
-      const g=ft&&ft.geometry;if(!g)continue;featureCount++;
-      if(g.type==='Polygon'){
-        (g.coordinates||[]).forEach((ring,ri)=>addTask('polygon',ring,ft,0,ri));
-      }else if(g.type==='MultiPolygon'){
-        (g.coordinates||[]).forEach((poly,pi)=>(poly||[]).forEach((ring,ri)=>addTask('polygon',ring,ft,pi,ri)));
-      }else if(g.type==='LineString')addTask('line',g.coordinates||[],ft,0,0);
-      else if(g.type==='MultiLineString')(g.coordinates||[]).forEach((line,i)=>addTask('line',line,ft,i,0));
-      else if(g.type==='Point')addTask('point',[g.coordinates],ft,0,0);
-      else if(g.type==='MultiPoint')(g.coordinates||[]).forEach((pt,i)=>addTask('point',[pt],ft,i,0));
-    }
-    const bbox=tasks.reduce((acc,t)=>t.bbox?acc?[Math.min(acc[0],t.bbox[0]),Math.min(acc[1],t.bbox[1]),Math.max(acc[2],t.bbox[2]),Math.max(acc[3],t.bbox[3])]:t.bbox:acc,null);
-    const cache={source:item.data,tasks,vertices,featureCount,bbox};
-    item._v98RenderCache=cache;
-    if(!item.meta)item.meta={};
-    if(bbox)item.meta.bbox=bbox;
-    item.meta.fullDetailRenderVertices=vertices;
-    item.meta.fullDetailFeatureCount=featureCount;
-    return cache;
-  }
-  function v98CanvasLayer(item){
-    const Layer=L.Layer.extend({
-      initialize(it){this.item=it;this.__v98ReferenceCanvas=true;this._token=0;},
-      onAdd(mp){this._map=mp;v96EnsureReferencePanes();this._canvas=L.DomUtil.create('canvas','v98-reference-canvas-layer');this._canvas.style.position='absolute';this._canvas.style.pointerEvents='none';this._canvas.style.mixBlendMode='normal';mp.getPane('referenceVectorPane').appendChild(this._canvas);mp.on('moveend zoomend resize viewreset',this.redraw,this);this._reset();this.redraw();},
-      onRemove(mp){this._token++;mp.off('moveend zoomend resize viewreset',this.redraw,this);if(this._canvas&&this._canvas.parentNode)this._canvas.parentNode.removeChild(this._canvas);this._canvas=null;},
-      updateItem(it){this.item=it;this.redraw();},
-      _reset(){if(!this._map||!this._canvas)return;const size=this._map.getSize();this._canvas.width=Math.max(1,size.x);this._canvas.height=Math.max(1,size.y);L.DomUtil.setPosition(this._canvas,this._map.containerPointToLayerPoint([0,0]));},
-      redraw(){if(!this._map||!this._canvas)return;this._token++;const token=this._token;this._reset();const canvas=this._canvas,ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);const item=this.item;if(!item||item.visible===false)return;canvas.style.opacity=String(clamp(item.opacity??0.75,.05,1));const cache=v98EnsureReferenceRenderCache(item);const b=this._map.getBounds().pad(0.08);const view=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];const style=v96StyleReference(item);ctx.lineWidth=Math.max(1,Number(style.weight)||2);ctx.strokeStyle=style.color||'#d92c32';ctx.fillStyle=style.fillColor||style.color||'#d92c32';ctx.globalAlpha=1;let i=0;const tasks=cache.tasks||[];const map=this._map;const drawPoint=(coords)=>{const c=coords&&coords[0];if(!c)return;const p=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();ctx.stroke();};const drawLineRange=(coords,start,end,closed,fill)=>{if(!coords||coords.length<2)return;start=Math.max(0,start||0);end=Math.min(coords.length,end==null?coords.length:end);if(end-start<2)return;ctx.beginPath();let started=false;for(let j=start;j<end;j++){const c=coords[j];if(!c)continue;const p=MAP_RUNTIME.latLngToPixel([c[1],c[0]]);if(!started){ctx.moveTo(p.x,p.y);started=true;}else ctx.lineTo(p.x,p.y);}if(!started)return;if(closed)ctx.closePath();if(fill&&coords.length<=120000){ctx.save();ctx.globalAlpha=style.fillOpacity??0.14;ctx.fill('evenodd');ctx.restore();}ctx.save();ctx.globalAlpha=style.opacity??0.75;ctx.stroke();ctx.restore();};const drawLine=(coords,closed,fill)=>drawLineRange(coords,0,coords?.length||0,closed,fill);const step=()=>{if(token!==this._token)return;const startTime=v96Now();let drawn=0;while(i<tasks.length&&(v96Now()-startTime)<12){const t=tasks[i++];if(!v98BboxIntersects(t.bbox,view))continue;if(t.kind==='point')drawPoint(t.coords);else if(t.kind==='line')drawLine(t.coords,false,false);else if(t.kind==='lineChunk')drawLineRange(t.coords,t.start,t.end,false,false);else if(t.kind==='polygonChunk')drawLineRange(t.coords,t.start,t.end,false,false);else drawLine(t.coords,true,t.ringIndex===0);drawn++;}if(i<tasks.length)requestAnimationFrame(step);else{item.meta=item.meta||{};item.meta.lastRenderedTasks=drawn;}};step();}
-    });
-    return new Layer(item);
-  }
-  window.v98ReferenceNeedsCanvas=v98RefNeedsCanvas;
-  window.v98CreateFullDetailReferenceCanvasLayer=v98CanvasLayer;
-  window.v98EnsureFullDetailReferenceRenderCache=v98EnsureReferenceRenderCache;
-  function v96RenderOneReference(item){
-    if(MAP_RUNTIME?.engine==='openlayers'){try{window.syncReferenceMapLayers?.();}catch(_){ }return;}
-    const REF=v96ReferenceStore();
-    v96EnsureReferencePanes();
-    const old=REF.layers&&REF.layers.get?REF.layers.get(item.id):null;
-    if(old){try{mapLayerRemove(old);}catch(_){ }}
-    if(!REF.layers||!REF.layers.set)REF.layers=new Map();
-    if(item.visible===false)return;
-    if(item.type==='geojson'&&item.data){
-      const layer=v98RefNeedsCanvas(item)?v98CanvasLayer(item):MAP_RUNTIME.createGeoJsonLayer({data:item.data,pane:'referenceVectorPane',interactive:false,style:v96StyleReference(item),pointRadius:5});
-      REF.layers.set(item.id,layer);mapLayerAdd(layer);
-    }
-  }
-  function v96SyncReferenceLayers(){
-    if(MAP_RUNTIME?.engine==='openlayers'){try{window.syncReferenceMapLayers?.();}catch(_){ }return;}
-    const REF=v96ReferenceStore();
-    if(!REF.layers||!REF.layers.entries)REF.layers=new Map();
-    const live=new Set((REF.items||[]).map(x=>x.id));
-    for(const [id,layer] of Array.from(REF.layers.entries())){if(!live.has(id)){try{mapLayerRemove(layer);}catch(_){ }REF.layers.delete(id);}}
-    for(const item of REF.items||[]){
-      if(item.type!=='geojson')continue;
-      const layer=REF.layers.get(item.id);
-      if(item.visible===false){if(layer&&mapLayerHas(layer))try{mapLayerRemove(layer);}catch(_){ }continue;}
-      if(!layer||!mapLayerHas(layer))v96RenderOneReference(item);
-      else if(layer.__v98ReferenceCanvas&&typeof layer.updateItem==='function')try{layer.updateItem(item);}catch(_){ }
-      else if(layer.setStyle)try{layer.setStyle(v96StyleReference(item));}catch(_){ }
-    }
-  }
+  function v96RenderOneReference(){try{window.syncReferenceMapLayers?.();}catch(_){ }}
+  function v96SyncReferenceLayers(){try{window.syncReferenceMapLayers?.();}catch(_){ }}
+
   function v96AddGeoJsonReferenceOverlay(fc,name,stats){
     const REF=v96ReferenceStore();
     const item={id:uid('ref'),type:'geojson',renderMode:'canvas-full',name:name||'Reference overlay',visible:true,locked:true,opacity:0.75,color:'#d92c32',fillColor:'#d92c32',fillOpacity:0.14,weight:2,data:fc,meta:{largeImport:true,fullDetailReference:true,sourceFormat:stats.sourceFormat||stats.ext||'vector',coordinateCount:stats.coordinateCount||0,features:(fc.features||[]).length,optimizedVertices:stats.optimizedVertices||0,rawParsedVertices:stats.rawParsedVertices||0}};
@@ -13195,7 +13058,7 @@ initUxRehaul();
     const mr=mapEl.getBoundingClientRect();
     if(mr.width<=0||mr.height<=0)return;
 
-    const zoom=document.querySelector('.leaflet-control-zoom')||document.querySelector('.leaflet-top.leaflet-left .leaflet-control');
+    const zoom=document.querySelector('.ol-zoom')||document.querySelector('.ol-zoom');
     let left=62,top=8;
     if(zoom){
       const zr=zoom.getBoundingClientRect();
@@ -14198,7 +14061,7 @@ showAutosaveRecoveryIfAvailable();
 
 // v51: active-mode toolbar clarity fix.
 // Keeps the mode bar, hides duplicated selected toolbar during active modes,
-// and routes Finish/Cancel through the real mode functions before Leaflet can steal the click.
+// and routes Finish/Cancel through the real mode functions before OpenLayers can steal the click.
 (function(){
   function q(id){return document.getElementById(id)}
   function hasDrawSettings(){
@@ -15527,9 +15390,8 @@ showAutosaveRecoveryIfAvailable();
     };
   }
   function ensureReferencePanes(){
-    // Named panes are a Leaflet implementation detail; OpenLayers treats these
-    // calls as no-ops and uses layer z-index. The reference workflow itself is
-    // engine-neutral.
+    // Named-pane requests are retained as adapter-level semantic hints; OpenLayers
+    // uses layer z-index for the actual ordering.
     MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
     MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
@@ -15541,12 +15403,6 @@ showAutosaveRecoveryIfAvailable();
       return MAP_RUNTIME.createTileLayer({url:item.urlTemplate,pane:'referenceRasterPane',opacity,attribution:item.attribution||'',maxZoom:clamp(item.maxZoom??22,1,30),zIndex});
     }
     if(item.type==='geojson'){
-      // The old high-detail canvas renderer is retained only for the Leaflet
-      // transition engine. Normal reference vectors on both engines use the
-      // same adapter-owned GeoJSON primitive.
-      if(MAP_RUNTIME.engine==='leaflet'&&window.v98ReferenceNeedsCanvas?.(item)&&window.v98CreateFullDetailReferenceCanvasLayer){
-        return window.v98CreateFullDetailReferenceCanvasLayer(item);
-      }
       return MAP_RUNTIME.createGeoJsonLayer({data:normalizeGeoJson(item.data),pane:'referenceVectorPane',style:vectorStyle(item),pointRadius:clamp(item.pointRadius??5,2,20),opacity:1,visible:item.visible!==false,zIndex});
     }
     if(item.type==='geotiff'){
@@ -15571,9 +15427,6 @@ showAutosaveRecoveryIfAvailable();
         }catch(err){console.warn('Could not render reference overlay',item,err);return;}
       }
       if(!existing)return;
-      // The one remaining Leaflet full-detail canvas layer keeps its own item
-      // update hook; ordinary vector/tile/static-image state is runtime-owned.
-      if(existing.__v98ReferenceCanvas&&typeof existing.updateItem==='function')try{existing.updateItem(item);}catch(_){ }
       try{MAP_RUNTIME.setDisplayLayerZIndex?.(existing,referenceLayerZIndex(index));}catch(_){ }
       try{MAP_RUNTIME.setDisplayLayerVisible?.(existing,item.visible!==false);}catch(_){ }
       if(item.type==='geojson'){
@@ -16417,7 +16270,7 @@ showAutosaveRecoveryIfAvailable();
     if(!mr||mr.width<=0||mr.height<=0)return;
 
     let left=62;
-    const zoom=document.querySelector('.leaflet-control-zoom')||document.querySelector('.leaflet-top.leaflet-left .leaflet-control');
+    const zoom=document.querySelector('.ol-zoom')||document.querySelector('.ol-zoom');
     if(zoom){
       const zr=zoom.getBoundingClientRect();
       if(zr.width>0&&zr.height>0){
@@ -16441,12 +16294,12 @@ showAutosaveRecoveryIfAvailable();
     setPx('--v115-banner-top',bannerTop);
 
     let bottom=34;
-    const attribution=document.querySelector('.leaflet-control-attribution');
+    const attribution=document.querySelector('.ol-attribution');
     if(attribution){
       const ar=attribution.getBoundingClientRect();
       if(ar.width>0&&ar.height>0)bottom=Math.max(bottom,Math.ceil(mr.bottom-ar.top+8));
     }
-    document.querySelectorAll('.leaflet-bottom.leaflet-right .leaflet-control').forEach(ctrl=>{
+    document.querySelectorAll('.ol-attribution').forEach(ctrl=>{
       const cr=ctrl.getBoundingClientRect();
       if(cr.width>0&&cr.height>0)bottom=Math.max(bottom,Math.ceil(mr.bottom-cr.top+8));
     });
@@ -16466,7 +16319,7 @@ showAutosaveRecoveryIfAvailable();
       const el=byId(id);
       if(el&&window.ResizeObserver){try{new ResizeObserver(schedule).observe(el);}catch(_){}}
     });
-    ['.leaflet-control-zoom','.leaflet-control-attribution','.leaflet-bottom.leaflet-right'].forEach(sel=>{
+    ['.ol-zoom','.ol-attribution','.ol-attribution'].forEach(sel=>{
       const el=document.querySelector(sel);
       if(el&&window.ResizeObserver){try{new ResizeObserver(schedule).observe(el);}catch(_){}}
     });
@@ -16486,7 +16339,7 @@ showAutosaveRecoveryIfAvailable();
    GeoTIFF reference overlays are geographically fixed, so they should not expose
    lock controls. This patch also owns GeoTIFF visibility/opacity controls from
    the layer row, layer menu and inspector. Rendering state is delegated to the
-   map runtime so controls do not depend on native Leaflet/OpenLayers internals. */
+   map runtime so controls do not depend on native map runtime internals. */
 (function(){
   'use strict';
   if(window.__v110GeoTiffLayerControlsFinal)return;
@@ -16691,9 +16544,9 @@ showAutosaveRecoveryIfAvailable();
     const mr=mapRect();
     if(!mr||mr.width<=0||mr.height<=0)return;
 
-    // Start the toolbar immediately to the right of the Leaflet zoom buttons.
+    // Start the toolbar immediately to the right of the OpenLayers zoom buttons.
     let leftSafe=62;
-    const zoom=document.querySelector('.leaflet-control-zoom')||document.querySelector('.leaflet-top.leaflet-left .leaflet-control');
+    const zoom=document.querySelector('.ol-zoom')||document.querySelector('.ol-zoom');
     if(zoom){
       const zr=zoom.getBoundingClientRect();
       if(zr.width>0&&zr.height>0){
@@ -16719,17 +16572,17 @@ showAutosaveRecoveryIfAvailable();
       setPx('--v113-banner-top',8);
     }
 
-    // Place the coordinate readout above Leaflet attribution instead of over it.
+    // Place the coordinate readout above OpenLayers attribution instead of over it.
     let bottomSafe=28;
-    const attrib=document.querySelector('.leaflet-control-attribution');
+    const attrib=document.querySelector('.ol-attribution');
     if(attrib){
       const ar=attrib.getBoundingClientRect();
       if(ar.width>0&&ar.height>0){
         bottomSafe=Math.max(bottomSafe,Math.ceil(mr.bottom-ar.top+6));
       }
     }
-    // Also avoid the bottom-right Leaflet scale/control area if present.
-    document.querySelectorAll('.leaflet-bottom.leaflet-right .leaflet-control').forEach(ctrl=>{
+    // Also avoid the bottom-right OpenLayers scale/control area if present.
+    document.querySelectorAll('.ol-attribution').forEach(ctrl=>{
       const cr=ctrl.getBoundingClientRect();
       if(cr.width>0&&cr.height>0)bottomSafe=Math.max(bottomSafe,Math.ceil(mr.bottom-cr.top+6));
     });
@@ -16799,9 +16652,9 @@ showAutosaveRecoveryIfAvailable();
     const mr=mapRect();
     if(!mr||mr.width<=0||mr.height<=0)return;
 
-    // Stable left lane: toolbar starts beside Leaflet zoom, not based on toolbar/banner size.
+    // Stable left lane: toolbar starts beside OpenLayers zoom, not based on toolbar/banner size.
     let left=62;
-    const zoom=document.querySelector('.leaflet-control-zoom')||document.querySelector('.leaflet-top.leaflet-left .leaflet-control');
+    const zoom=document.querySelector('.ol-zoom')||document.querySelector('.ol-zoom');
     if(zoom){
       const zr=zoom.getBoundingClientRect();
       if(zr.width>0&&zr.height>0)left=Math.ceil(zr.right-mr.left+10);
@@ -16813,14 +16666,14 @@ showAutosaveRecoveryIfAvailable();
     setPx('--v114-toolbar-top',8);
     setPx('--v114-banner-top',52);
 
-    // Bottom-right coordinate readout above Leaflet attribution and right-side controls.
+    // Bottom-right coordinate readout above OpenLayers attribution and right-side controls.
     let bottom=30;
-    const attribution=document.querySelector('.leaflet-control-attribution');
+    const attribution=document.querySelector('.ol-attribution');
     if(attribution){
       const ar=attribution.getBoundingClientRect();
       if(ar.width>0&&ar.height>0)bottom=Math.max(bottom,Math.ceil(mr.bottom-ar.top+6));
     }
-    document.querySelectorAll('.leaflet-bottom.leaflet-right .leaflet-control').forEach(ctrl=>{
+    document.querySelectorAll('.ol-attribution').forEach(ctrl=>{
       const cr=ctrl.getBoundingClientRect();
       if(cr.width>0&&cr.height>0)bottom=Math.max(bottom,Math.ceil(mr.bottom-cr.top+6));
     });
@@ -16837,9 +16690,9 @@ showAutosaveRecoveryIfAvailable();
     window.addEventListener('orientationchange',schedule,{passive:true});
     const map=byId('map');
     if(map&&window.ResizeObserver){try{new ResizeObserver(schedule).observe(map);}catch(_){}}
-    // Only observe Leaflet chrome changes. Avoid observing toolbar/banner content because that
+    // Only observe OpenLayers chrome changes. Avoid observing toolbar/banner content because that
     // can re-trigger layout while the image toolbar is updating.
-    ['.leaflet-control-zoom','.leaflet-control-attribution','.leaflet-bottom.leaflet-right'].forEach(sel=>{
+    ['.ol-zoom','.ol-attribution','.ol-attribution'].forEach(sel=>{
       const el=document.querySelector(sel);
       if(el&&window.ResizeObserver){try{new ResizeObserver(schedule).observe(el);}catch(_){}}
     });
@@ -16950,7 +16803,7 @@ showAutosaveRecoveryIfAvailable();
     }
   }
 
-  /* Leaflet-anchored LineString endpoints. */
+  /* OpenLayers-anchored LineString endpoints. */
   let endpointLayer=null,endpointSignature='';
   function selectedLineGeometry(){
     try{
@@ -17109,7 +16962,7 @@ showAutosaveRecoveryIfAvailable();
 
 
 /* v130: large editable geometry performance architecture.
-   - Incremental Leaflet layer reuse instead of clearing/rebuilding every feature.
+   - Persistent native vector-source reuse instead of clearing/rebuilding every feature.
    - Zoom-dependent display-only LOD for inactive dense features; canonical geometry
      remains untouched for editing and export.
    - No whole-project geometry recomputation during ordinary UI renders.
@@ -17120,9 +16973,6 @@ showAutosaveRecoveryIfAvailable();
   'use strict';
 
   const V130={
-    layerCache:new Map(),
-    bulkVectorRenderer:null,
-    lodMinVertices:2500,
     optimizeTargetVertices:100000,
     optimizeMinTarget:50000,
     largeAutosaveDelay:6000,
@@ -17215,7 +17065,6 @@ showAutosaveRecoveryIfAvailable();
   clearFeatureCaches=function(f){
     if(!f)return;
     try{v130BaseClearFeatureCaches(f);}catch(_){delete f._bboxCache;}
-    delete f._v130MapLod;
     f._v130RenderRevision=(Number(f._v130RenderRevision)||0)+1;
   };
 
@@ -17442,188 +17291,6 @@ showAutosaveRecoveryIfAvailable();
     return true;
   };
 
-  function v130LodTolerance(zoom){
-    if(zoom>=12)return 0;
-    // Roughly a quarter of a screen pixel in longitude at the current zoom.
-    return Math.max(0.00002,360/(256*Math.pow(2,zoom))*0.25);
-  }
-  function v130MapGeometry(f){
-    if(isParametricCircleFeature(f)){
-      const c=f.parametricGeometry;
-      return {geom:null,key:`circle:${c.center[0]},${c.center[1]}:${c.radiusMetres}`};
-    }
-    const full=getDisplayGeometry(f);
-    const count=vertexCount(full);
-    // Dense selected features stay on a display-only LOD until vertex editing
-    // actually starts. Selection should not force hundreds of thousands of
-    // coordinates back through Leaflet merely to open the inspector.
-    if(count<V130.lodMinVertices||isVertexEditFeatureId(f.id))return {geom:full,key:'full'};
-    const zoom=MAP_RUNTIME.getZoom();
-    const denseSelected=f.id===project.selectedFeatureId&&count>=3000;
-    let bucket=zoom<=5?5:zoom<=7?7:zoom<=9?9:zoom<=11?11:12;
-    if(denseSelected&&bucket===12)bucket=11;
-    if(bucket===12)return {geom:full,key:'full'};
-    const revision=Number(f._v130RenderRevision)||0;
-    const key=`${revision}|${bucket}`;
-    if(f._v130MapLod?.key===key)return {geom:f._v130MapLod.geom,key};
-    let geom=full;
-    try{
-      const simplified=turf.simplify(
-        {type:'Feature',properties:{},geometry:full},
-        {tolerance:v130LodTolerance(bucket),highQuality:false,mutate:false}
-      )?.geometry;
-      if(simplified&&supported(simplified.type)&&vertexCount(simplified)>=3)geom=simplified;
-    }catch(_){geom=full;}
-    f._v130MapLod={key,geom};
-    return {geom,key};
-  }
-  function v130StyleSignature(f,file,styleObject,lodKey){
-    const circle=isParametricCircleFeature(f)?normaliseParametricCircle(f.parametricGeometry):null;
-    return JSON.stringify([
-      styleObject,
-      lodKey,
-      f.properties?.annotation||false,
-      f.name||'',
-      f.annotationStyle||null,
-      Number(file?.opacity??1),
-      Number(f?.opacity??1),
-      circle?circle.center:null,
-      circle?circle.radiusMetres:null,
-      circle?polygonMoveBehavior():null,
-      circle&&polygonMoveBehavior()==='screen'?MAP_RUNTIME.getZoom():null
-    ]);
-  }
-  function v130BulkVectorRenderer(){
-    // One shared Canvas renderer keeps imported datasets out of the SVG DOM.
-    // Leaflet still maintains feature layer objects for styling and caching, but
-    // panning no longer requires the browser to transform/repaint hundreds of
-    // individual SVG nodes. Selected/edit handles remain in their dedicated SVG
-    // overlays, preserving precise editing interaction.
-    if(!V130.bulkVectorRenderer){
-      V130.bulkVectorRenderer=L.canvas({padding:0.5,tolerance:8});
-    }
-    return V130.bulkVectorRenderer;
-  }
-
-  function v130BuildFeatureLayer(f,file,geom,styleObject,lodKey){
-    const group=L.layerGroup();
-    if(isParametricCircleFeature(f)){
-      const c=normaliseParametricCircle(f.parametricGeometry);
-      const center=circleDisplayCenterLatLng(c);
-      // v1.30 is now explicitly Leaflet-only. OpenLayers never enters this
-      // renderer, so this circle can remain a normal Leaflet hit target.
-      const legacyCircleInteractive=true;
-      const circle=polygonMoveBehavior()==='screen'
-        ?L.circleMarker(center,{
-          ...styleObject,
-          radius:circleScreenRadiusPixels(f.parametricGeometry),
-          interactive:legacyCircleInteractive,
-          bubblingMouseEvents:false
-        })
-        :L.circle(center,{
-          ...styleObject,
-          radius:c.radiusMetres,
-          interactive:legacyCircleInteractive,
-          bubblingMouseEvents:false
-        });
-      circle.featureId=f.id;
-      if(legacyCircleInteractive)circle.on('click',event=>{
-        if(D.active||V.active||MEASURE.active||MOVE.active||window.__editPolygonCircleEditState?.active)return;
-        const original=event.originalEvent;
-        if(original){
-          try{L.DomEvent.preventDefault(original);L.DomEvent.stopPropagation(original);}catch(_){ }
-        }
-        const additive=!!(original&&(original.shiftKey||original.ctrlKey||original.metaKey));
-        selectFeatureMulti(f.id,additive);
-      });
-      group.addLayer(circle);
-      return group;
-    }
-    const feature={type:'Feature',properties:f.properties||{},geometry:geom};
-    const bulkRenderer=v130BulkVectorRenderer();
-    const geo=L.geoJSON(feature,{
-      renderer:bulkRenderer,
-      style:()=>styleObject,
-      smoothFactor:lodKey==='full'?(V.active?2.5:1.2):0.5,
-      interactive:false,
-      pointToLayer:(feature,latlng)=>L.circleMarker(latlng,{
-        renderer:bulkRenderer,
-        radius:Math.max(1,Number(styleObject.radius??(f.annotationStyle?.size?Number(f.annotationStyle.size)/2:5))),
-        color:styleObject.color,fillColor:styleObject.fillColor||styleObject.color,
-        fillOpacity:styleObject.fillOpacity??styleObject.opacity??1,
-        opacity:styleObject.opacity??1,
-        weight:Number(styleObject.weight??2),interactive:false
-      })
-    });
-    geo.eachLayer(layer=>{layer.featureId=f.id;});
-    group.addLayer(geo);
-    if(f.properties?.annotation&&geom?.type==='Point'){
-      const c=geom.coordinates;
-      group.addLayer(L.marker([c[1],c[0]],{
-        icon:makeMeasureLabelIcon(f.name,{...(f.annotationStyle||{}),annotation:true}),
-        interactive:false
-      }));
-    }
-    return group;
-  }
-  function v130BringLayerForward(layer){
-    if(!layer)return;
-    if(typeof layer.eachLayer==='function')layer.eachLayer(v130BringLayerForward);
-    else if(typeof layer.bringToFront==='function')try{layer.bringToFront();}catch(_){}
-  }
-
-  RENDER_MAP_IMPL=function v130LeafletTransitionRenderMap(){
-    // This performance-era renderer is Leaflet-specific. In OpenLayers mode
-    // the final cached renderer below is the only editable-vector renderer.
-    if(MAP_RUNTIME.engine==='openlayers')return;
-    const viewport=MAP_RUNTIME.getExtent(0.35);
-    const desired=[];
-    const allIds=new Set();
-    for(const file of project.files||[]){
-      for(const f of file.features||[])allIds.add(f.id);
-      if(isFileSleeping(file))continue;
-      for(const f of file.features||[]){
-        if(isFeatureSleeping(file,f))continue;
-        const bbox=featureBBox(f);
-        if(bbox&&!MAP_ADAPTER.bboxIntersects(viewport,bbox))continue;
-        const {geom,lodKey}=v130MapGeometry(f);
-        const styleObject=styleWithOpacity(f,file);
-        const signature=v130StyleSignature(f,file,styleObject,lodKey);
-        const revision=Number(f._v130RenderRevision)||0;
-        let rec=V130.layerCache.get(f.id);
-        // Dragged geometry has no committed render revision yet. Rebuild only
-        // that feature's cached layer so vertex, edge, centre-handle, and
-        // dedicated polygon moves are visible before pointer-up.
-        const liveGeometryChange=!!(
-          (V?.drag?.feature&&V.drag.feature.id===f.id) ||
-          (V?.edgeDrag?.feature&&V.edgeDrag.feature.id===f.id) ||
-          (V?.moveDrag?.feature&&V.moveDrag.feature.id===f.id) ||
-          (MOVE?.drag?.featureId===f.id)
-        );
-        if(liveGeometryChange||!rec||rec.feature!==f||rec.revision!==revision||rec.signature!==signature){
-          if(rec?.layer&&featureGroup.hasLayer(rec.layer))featureGroup.removeLayer(rec.layer);
-          rec={
-            feature:f,revision,signature,lodKey,
-            layer:v130BuildFeatureLayer(f,file,geom,styleObject,lodKey)
-          };
-          V130.layerCache.set(f.id,rec);
-        }
-        if(!featureGroup.hasLayer(rec.layer))featureGroup.addLayer(rec.layer);
-        desired.push(rec);
-      }
-    }
-    const desiredIds=new Set(desired.map(rec=>rec.feature.id));
-    for(const [id,rec] of V130.layerCache){
-      if(!desiredIds.has(id)&&featureGroup.hasLayer(rec.layer))featureGroup.removeLayer(rec.layer);
-      if(!allIds.has(id)){
-        if(featureGroup.hasLayer(rec.layer))featureGroup.removeLayer(rec.layer);
-        V130.layerCache.delete(id);
-      }
-    }
-    // Preserve project/layer ordering without rebuilding geometry.
-    for(const rec of desired)v130BringLayerForward(rec.layer);
-  };
-
   // Geometry changes are recomputed at the operation which creates them.
   // Recomputing every feature again on every selection/render was the main
   // source of large-project cloning and UI stalls.
@@ -17798,15 +17465,6 @@ showAutosaveRecoveryIfAvailable();
     return await v130OptimiseLargeImportedFile(imported,onProgress);
   };
   try{window.importFile=importFile;}catch(_){}
-
-  // Refresh dense display caches when zoom changes; inactive features switch LOD
-  // without touching their full editable/export geometry.
-  MAP_RUNTIME.on('zoomend',()=>{
-    for(const rec of V130.layerCache.values()){
-      if(rec?.feature&&rec.lodKey!=='full')rec.signature='';
-    }
-    scheduleMapRender();
-  });
 })();
 
 
@@ -18302,7 +17960,7 @@ showAutosaveRecoveryIfAvailable();
     const ids=new Set((featureIds||[]).filter(Boolean));if(!ids.size)return;
     // The authoritative renderer is cached and adapter-owned on both engines.
     // Selection/style changes therefore refresh through renderMap rather than
-    // mutating the obsolete bootstrap Leaflet featureGroup.
+    // mutating the obsolete bootstrap render group.
     try{renderMap();}catch(_){ }
   }
   function v132RefreshLayerUi(changedIds,message){
@@ -19650,7 +19308,7 @@ normalize=function(raw,fb){if(raw?.parametricGeometry){const name=featureName(ra
 const v136GetDisplayGeometry=getDisplayGeometry;
 // Internal, non-GeoJSON descriptor used only so legacy UI guards can inspect
 // a geometry type without dereferencing null. It is never attached to a
-// feature, saved, exported, passed to Leaflet GeoJSON or treated as canonical
+// feature, saved, exported, passed to OpenLayers GeoJSON or treated as canonical
 // geometry. The centre + radius in parametricGeometry remain authoritative.
 const PARAMETRIC_CIRCLE_DISPLAY_DESCRIPTOR=Object.freeze({type:'CircleByCenterPoint'});
 getDisplayGeometry=function(f){return isParametricCircleFeature(f)?PARAMETRIC_CIRCLE_DISPLAY_DESCRIPTOR:v136GetDisplayGeometry(f);};
@@ -19925,7 +19583,7 @@ function gisRestoreRefs(items){
   store.selectedId=null;
 }
 function gisEnsurePane(){
-  // Leaflet maps this to a named pane; OpenLayers intentionally treats panes as
+  // OpenLayers maps this to a named pane; OpenLayers intentionally treats panes as
   // a no-op because its layer stack is controlled by z-index. Keeping the call
   // engine-neutral prevents GIS service code from escaping the map runtime.
   MAP_RUNTIME.ensureDisplayPane?.('gisServicePane',{zIndex:360,pointerEvents:'none'});
@@ -20000,7 +19658,7 @@ function syncGisRuntime(){
       GIS_RUNTIME.basemapKeys.add(key);
     }else{
       const shouldShow=layer.visible!==false&&gisLayerWithinZoom(layer);
-      // Pane placement (Leaflet) and z-index (OpenLayers) are runtime details;
+      // Pane placement (OpenLayers) and z-index (OpenLayers) are runtime details;
       // application state only expresses visibility and relative order.
       try{MAP_RUNTIME.setDisplayLayerVisible?.(instance,shouldShow);}catch(_){ }
       try{MAP_RUNTIME.setDisplayLayerZIndex?.(instance,30+Math.round(Number(layer.order)||0));}catch(_){ }
@@ -20910,7 +20568,7 @@ const v144LayerUi=gisLayerUiSnapshot;
 gisLayerUiSnapshot=function(){
   // The layer list only needs CRS metadata. Do not calculate layer bounds or a
   // recommended UTM/MGA zone here: this snapshot is requested by lightweight
-  // UI refreshes and may run while Leaflet is moving the map.
+  // UI refreshes and may run while OpenLayers is moving the map.
   return v144LayerUi().map(x=>{
     const file=gisEditableFile(x.id);
     if(!file)return x;
@@ -21682,7 +21340,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const all=(file.features||[]).filter(feature=>!isFeatureSleeping(file,feature));
     // A native indexed vector source can cull a heavy dataset more cheaply than
     // rebuilding the whole projected runtime layer every time our viewport query
-    // crosses a feature boundary. Leaflet reports false and keeps the legacy
+    // crosses a feature boundary. OpenLayers reports false and keeps the legacy
     // application-side viewport culling path.
     if(performanceManagedEditableFile(file)&&MAP_RUNTIME.prefersPersistentEditableVectorSource?.())return all;
     const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));
@@ -21823,7 +21481,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     cached.suppressedFeatureId=next||null;
   }
   function cachedRenderMap(){
-    const live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
+    const live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
       if(file.tableOnly||isFileSleeping(file))continue;
       live.add(file.id);
@@ -22765,18 +22423,17 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.4 — runtime authority boundary.
-   Historical enhancement blocks above may still compose older functions while
-   Leaflet remains a transition engine.  From this boundary onward there are no
-   feature patches or monkey-patches: these are the final runtime identities
-   exercised by parity tests.  Future work should change the authoritative
+/* v1.55.6 — runtime authority boundary.
+   OpenLayers is the sole native map runtime. From this boundary onward there are
+   no feature patches or monkey-patches: these are the final runtime identities
+   exercised by parity tests. Future work should change the authoritative
    implementation/module rather than append another late reassignment. */
 // Perform one final render after every historical installer has finished. This
 // hands initial display ownership to the authoritative renderer and clears any
-// temporary bootstrap-era Leaflet feature layers before the browser can paint.
+// any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.4',
+  version:'1.55.6',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

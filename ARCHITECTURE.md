@@ -1,202 +1,169 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.5**. OpenLayers is now the default renderer; the v1.55.4 parity/quality architecture remains in force while Leaflet is retained for one release as an explicit emergency fallback.
+This document describes the current application architecture as of **v1.55.6**.
 
-## v1.55.5 default-engine authority
+## Runtime authority
 
-`requestedEngine()` now resolves the absence of a query parameter to `openlayers`. The only supported opt-in to the old renderer is `?mapEngine=leaflet`. `createRuntime()` still owns automatic failure fallback: if the default OpenLayers runtime cannot initialise, the adapter creates the Leaflet runtime and records `requestedEngine: "openlayers"` plus a `fallbackReason`.
+EditPolygon now has **one map implementation: OpenLayers**. `docs/assets/editpolygon-map-adapter.js` owns every native map object and exposes the engine-neutral `EditPolygonMap` contract consumed by application code.
 
-This release deliberately does **not** remove Leaflet dependencies or legacy renderer blocks. Their presence is the one-release safety valve and remains covered by browser smoke tests. v1.55.6 is the removal boundary.
+There is no alternate map selector, automatic map-engine fallback, compatibility map, synchronized secondary map, or application-level native-map escape hatch. `createRuntime()` constructs the OpenLayers runtime directly.
 
-## v1.55.4.16 project-container boundary
+The application may know the runtime name for diagnostics (`document.body.dataset.mapEngine`), but feature behaviour and rendering must not branch on it.
 
-Saved projects now cross a dedicated packaging boundary in `docs/assets/editpolygon-project-format.js`. The application continues to own the canonical project payload; the format module serialises that payload as lossless `.epz` (`manifest.json` + `project.json` + reserved `assets/`) and validates/decompresses it on load. Container compression never simplifies GIS geometry. The old `.polygonproject` path is intentionally removed during development instead of retained as compatibility debt.
+## Application boundary
 
+`docs/assets/editpolygon-app.js` owns the canonical application and GIS model:
 
-## v1.55.4.18 mobile popover boundary
+- project files and editable features;
+- selection and editing state;
+- history and undo/redo;
+- measurements and annotations;
+- styling and labels;
+- CRS/schema/join/analysis state;
+- Geometry Health;
+- reference/service definitions;
+- project persistence orchestration.
 
-Mobile Layers is a fixed full-width drawer, while legacy layer/feature menus and the GIS layer menu are portaled outside that drawer. On a phone those portaled menus are explicit top-level interaction surfaces: they render above the drawer, remain within the viewport, use touch-sized targets, and are admitted by the mobile focus boundary. Desktop popover positioning remains authoritative outside mobile mode.
+Application code talks to the map only through `MAP_RUNTIME` / `EditPolygonMap`. Direct `ol.*` calls are prohibited outside the adapter and enforced by repository audits.
 
-## v1.55.4.17 mobile presentation boundary
+## OpenLayers adapter ownership
 
-Mobile parity is implemented as a presentation/controller layer in `editpolygon-mobile.js` and `editpolygon-mobile.css`. It does not duplicate project state, GIS services, selection, editing, history, export or map-engine behaviour. Mobile dock/sheet actions proxy the same authoritative desktop controls (including `gisWorkspaceToggle`), while Layers/Inspector are rehosted as drawers and the shared Advanced GIS panel becomes a phone-sized full-screen surface.
+`docs/assets/editpolygon-map-adapter.js` owns:
 
-The mobile layer owns viewport geometry, touch-target sizing, safe-area handling and contextual sheets only. OpenLayers remains adapter-owned; mobile CSS may resize native OpenLayers controls but application code does not call `ol.*`. Synthetic layout resize notifications are one-way so the mobile controller cannot recursively schedule itself through the window `resize` event.
+- map/view creation and navigation;
+- coordinate ↔ pixel conversion;
+- horizontal world wrapping and canonical-world materialisation;
+- map events and resize handling;
+- XYZ/TMS and WMS layers;
+- editable vector layers;
+- vector overlays and DOM overlays;
+- static/raster image layers;
+- hit detection;
+- live editable-geometry updates;
+- focused-feature suppression;
+- z-order, visibility and opacity;
+- native source reuse and spatial indexing.
 
+The adapter can expose `getNativeMap()` internally for adapter-oriented tests or integration work, but the application is forbidden from using it.
 
-## Product boundary
+## Authoritative editable renderer
 
-EditPolygon is a static, browser-local GIS editor. Local files, editable geometry, schemas/attributes, processing outputs, autosave and exports remain in the browser. Remote basemaps and public GIS services are contacted directly by the browser only when used.
+The final editable display path is the cached renderer beginning at `buildRuntimeCachedLayer()`.
 
-The application has one authoritative model rather than separate simple/advanced editors:
+Its contract is:
 
-- one project/file/feature model;
-- one selection model;
-- one history/undo model;
-- one schema/attribute model;
-- one style/label model;
-- one processing-output model.
+1. canonical project geometry is the durable authority;
+2. application code resolves engine-neutral style/label descriptors;
+3. the adapter creates and owns native vector layers;
+4. cache identity includes model/render generation and geometry-content fingerprints;
+5. history invalidation can hard-purge adapter-owned editable layers before rebuilding from the restored model;
+6. live native geometry mutation is permitted only as transient pointer feedback during an active edit;
+7. completion reconciles the display back to project geometry.
 
-Editable spatial geometry is stored canonically as WGS 84 GeoJSON longitude/latitude coordinates. Source/native/export CRS metadata is maintained separately.
+A monotonic history render epoch prevents an older restored state from accidentally reusing a later live-edit representation.
 
-## Runtime layers
+## Large-vector display strategy
 
-### GIS/domain modules
+Large editable datasets use a two-tier OpenLayers strategy:
 
-Reusable GIS behaviour belongs in focused modules where practical:
+- the complete background dataset can remain in a persistent indexed `VectorSource` and use image-backed vector rendering for fast pan/zoom;
+- selected, picked or actively edited features are isolated into a small precise vector overlay.
 
-- `gis-core.js`
-- `gis-data-core.js`
-- `gis-schema-core.js`
-- `gis-analysis-core.js`
-- `gis-join-core.js`
-- `gis-style-core.js`
-- `gis-crs-core.js`
-- `gis-geometry-health-core.js`
-- `gis-remote-source.js`
+This avoids promoting hundreds or thousands of unrelated features to the precision editing path while preserving exact source coordinates for the focused feature. Large-layer sidebar rendering is also bounded independently of the complete GIS dataset.
 
-Long-running analysis, joins and Geometry Health use web workers.
+## World-wrap and Date Line model
 
-### Application controller
+EditPolygon stores durable geographic geometry in a canonical/continuous longitude model while allowing the map to show repeated-world copies.
 
-`docs/assets/editpolygon-app.js` remains the historical application controller and UI integration layer. It is still large and contains older enhancement sections, so v1.55.4 treats **source order as an explicit engineering risk** rather than assuming the last patch is harmless.
+Key rules:
 
-New work must not append another late compatibility wrapper merely to alter a core runtime function. v1.55.4 publishes a final runtime-authority boundary and automatically rejects function patches after it. v1.55.4.5 additionally treats lexical initialization order as part of that source-order contract: state read by startup rendering must be initialized before the first `renderAll()` can reach it. v1.55.4.6 extends the repeated-world contract into editing: screen/pointer coordinates are rebranched to the stored coordinate they replace before partial geometry edits are committed, so one edited vertex cannot be separated from untouched neighbours by an accidental +/-360n offset. v1.55.4.7 separates **canonical storage** from **repeated-world display** more explicitly: standalone Point/MultiPoint coordinates and true-circle centres are canonical CRS84 longitudes; path geometry may retain continuous longitudes across the Date Line; and the OpenLayers adapter canonicalises vector projection inputs while preserving local path continuity. v1.55.4.8 tightens the history/render boundary: closing vertex editing for undo/redo performs no intermediate map paint, restored state is installed before the one authoritative render, and render-cache invalidation advances a monotonic generation so historical feature revisions cannot collide with geometry that was live-mutated in the native vector layer. v1.55.4.9 completes that lifecycle boundary by removing the late v1.16 `VStop` wrapper that was discarding the no-render option at runtime. `VStop` is now a stable, non-reassignable lifecycle authority that drains pending edit listeners/RAFs/timers before history replacement, and drag tools only create history once a real geometry change begins. v1.55.4.10 then makes the renderer itself enforce geometry authority: history advances a non-serialised render epoch, cached signatures include geometry-content fingerprints, selected native features are checked against the project model before cache reuse, and adapter-owned editable layers can be hard-purged by layer key. Native live geometry is therefore transient pointer feedback only; after commit or history restore the project model is the sole source used to rematerialise editable map layers. v1.55.4.11 extends the same stable-runtime principle to large remote vectors and WMS: cached editable-layer identity depends on the candidate feature set rather than raw viewport coordinates, identical OpenLayers feature styles are shared, decluttering is enabled only when label/annotation content needs it, and large editable remote datasets keep full geometry while their sidebar is virtualised. WMS CORS is opt-in rather than forced; GeoServer hints live in the adapter, while capabilities-based advertised extents are discovered opportunistically in the application for zoom-to-source UX. v1.55.4.12 makes the native-source ownership boundary explicit for performance-managed vectors: the application may ask whether a runtime prefers a persistent editable source, OpenLayers answers yes because its `VectorSource` owns spatial indexing/wrap, and Leaflet keeps the application-culling path. Heavy OpenLayers layers may use the adapter-owned image-backed vector renderer for interaction. Service visibility is also a map-membership contract on both engines, so a newly created off-map WMS layer is added when shown and removed when hidden. v1.55.4.13 refines that boundary again: a heavy layer no longer changes its whole renderer merely because one feature is selected or edited. The persistent image-backed background carries normal layer styling, while a small adapter-owned normal-vector focus overlay carries selection/picked styling and precision edit geometry. During an active edit only the focused background feature is suppressed; live geometry updates target the focus overlay first. The application asks for this capability through the map-runtime contract, so there are still no application-level OpenLayers calls. v1.55.4.14 extends canonicalisation to object creation: annotation/measurement conversion and direct Point drawing share one geometry-family default-style helper, so equivalent GIS Point features do not acquire different symbols merely because they entered the model through different tools. v1.55.4.15 makes project-file normalisation part of the GIS persistence contract: serialised `gisWorkspace` and `referenceOverlays` must survive the parse/normalise boundary before runtime restoration, so remote service definitions cannot be silently discarded between save and reload. v1.55.4.16 packages that canonical payload losslessly as `.epz` without moving GIS semantics into the container layer. v1.55.4.17 treats mobile as another presentation of the same application authority: phone GIS actions proxy the existing workspace toggle, drawers/sheets reorganise existing controls, and no mobile-only GIS model or map implementation is introduced.
+- standalone points and true-circle centres are canonicalised;
+- line/polygon geometry may retain a continuous longitude branch such as `179 → 181` so Date Line paths remain local;
+- pointer edits are rebranched beside the stored geometry before commit;
+- pixel/coordinate conversion chooses the nearest displayed world copy;
+- viewport spatial queries are longitude-periodic;
+- true-circle display materialisation and hit testing use the same projection-aware geometry.
 
-### Map abstraction
+These rules apply to drawing, vertex/edge movement, whole-feature movement, transient guides and history restoration.
 
-Application code talks to `EditPolygonMap`, created by `editpolygon-map-adapter.js`.
+## Selection and editing overlays
 
-The map contract owns:
+Selection highlighting, focused precision display, transient drawing geometry, snapping/topology feedback, Geometry Health previews and edit handles are runtime-owned overlays.
 
-- map creation/view state;
-- longitude/latitude ↔ screen/layer pixel conversion;
-- extent fitting, resize and pan/zoom interaction control;
-- normalised map events;
-- display layer add/remove/visibility/opacity/z-order;
-- named display panes where the engine supports them;
-- basemap/XYZ/TMS/WMS creation;
-- reference GeoJSON/static-image creation;
-- editable vector rendering and rendered-feature hit testing;
-- feature-level live geometry updates;
-- transient vector overlays;
-- DOM edit/measurement handles.
+DOM overlays are reserved for interaction surfaces that genuinely need DOM hit targets. They must not become a second geometry authority.
 
-Dependency direction:
+## Remote and reference layers
+
+The GIS workspace stores remote service definitions independently of their live OpenLayers objects. Runtime reconstruction creates display layers from those definitions.
+
+Supported runtime paths include:
+
+- Remote GeoJSON;
+- ArcGIS FeatureServer / MapServer ingestion;
+- XYZ/TMS;
+- WMS;
+- reference GeoJSON;
+- static/GeoTIFF preview imagery where supported.
+
+WMS definitions persist URL, layer/style parameters and display state. Visibility means actual runtime map membership, not only a UI flag.
+
+## Project-container boundary
+
+Manual projects are saved as **`.epz`** through `docs/assets/editpolygon-project-format.js`.
+
+An EPZ is a lossless ZIP/DEFLATE container:
 
 ```text
-EditPolygon project/GIS/UI logic
-              |
-              v
-       EditPolygonMap API
-              |
-        +-----+------+
-        |            |
-     Leaflet     OpenLayers
-    fallback        default
-     engine         engine
+project.epz
+├── manifest.json
+├── project.json
+└── assets/
 ```
 
-Direct `ol.*` calls in application code are prohibited. Remaining direct `L.*` calls are explicitly budgeted transition debt and are confined to legacy Leaflet-only renderers that disappear when Leaflet is removed. Application code has no `getNativeMap()` escape; ordinary renderer/layer/view work must stay on the adapter contract.
+`project.json` remains the canonical project payload. Compression does not round, simplify or otherwise alter geometry. `manifest.json` records the container format/version and SHA-256 integrity metadata. `assets/` is reserved for future binary project resources.
 
-## OpenLayers migration state
+The persistence normaliser must preserve `gisWorkspace` and `referenceOverlays` so live services reconstruct after reload.
 
-OpenLayers is the no-query default in v1.55.5. Leaflet is available only when explicitly requested with `?mapEngine=leaflet`, and is scheduled for removal in v1.55.6.
+## Mobile parity
 
-OpenLayers runs independently: there is no hidden/synchronised Leaflet map, compatibility target, compatibility click bridge or legacy-map global.
+Phone, tablet and desktop expose the same core GIS functionality. Mobile uses responsive drawers/sheets and bottom-dock actions rather than a reduced application mode.
 
-OpenLayers coordinate inversion preserves the continuous longitude represented by the active EPSG:3857 world copy rather than exposing `ol.proj.toLonLat()`'s canonical ±180° wrap to application drawing/edit logic. Live draw geometry is mirrored through the shared transient-vector overlay contract, while the DOM edit overlay remains responsible for pointer capture, vertex dots and hints.
+Mobile invariants include:
 
-OpenLayers currently owns its own:
+- Advanced GIS is directly reachable;
+- Layers and Inspector are viewport-safe;
+- touch targets are appropriately sized;
+- portaled layer/GIS action menus remain above drawers and inside the viewport;
+- pinch/pan/draw/edit interactions use the same map runtime;
+- synthetic layout resize notifications must not recursively trigger the mobile resize scheduler.
 
-- map/view/navigation and basemaps;
-- current editable-vector renderer and hit detection;
-- live geometry updates;
-- GIS XYZ/TMS/WMS layers;
-- reference GeoJSON, tiles and GeoTIFF/static-image previews;
-- Geometry Health/processing overlays;
-- measurements and measurement editing;
-- point/circle edit handles;
-- search/endpoint markers;
-- engine-neutral perspective/trace overlay positioning.
+## Runtime authority boundary
 
-## Rendering authority
+The end of `editpolygon-app.js` contains the v1.55.6 runtime-authority boundary. No later feature monkey-patches may be appended after that point.
 
-The authoritative editable renderer is `cachedRenderMap` near the end of `editpolygon-app.js`.
+Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
-Both map engines receive the same engine-neutral feature descriptors through `MAP_RUNTIME.createEditableVectorLayer()`. The renderer contains no direct `L.*`, no direct `ol.*`, and no engine branch.
+## Historical binding debt
 
-The cache design:
+The application remains a large historically layered file. v1.55.6 audits currently allow at most:
 
-- includes viewport, style, label and selection state in its signature;
-- updates individual dragged geometry through `updateEditableFeatureGeometry` when possible;
-- adds the replacement layer before removing the old one to avoid blank frames;
-- removes sleeping/table-only layers from the spatial render path.
+- **198** duplicated function-binding names;
+- **371** extra historical binding sites.
 
-Historical Leaflet renderers still exist earlier in the file because Leaflet remains a transition engine. They are not OpenLayers renderers and are guarded from OpenLayers execution. They will be removed with Leaflet rather than being disguised as shared code.
+Those are ceilings, not targets. New work should reduce them through extraction/modularisation rather than adding wrappers.
 
-## Selection authority
+The previous map-engine removal eliminated all direct retired-native calls from application code and reduced the transition surface to a single runtime.
 
-Ordinary click selection, spatial-selection tools, Layers and Inspector share the project selection state.
+## Quality gates
 
-Critical click-selection functions have exactly one source binding and are protected by audit:
+The repository uses three complementary static gates:
 
-- `featuresAtLatLng`
-- `featureHitAtMapPoint`
-- `parametricCircleHitAtMapPoint`
-- `applyMapFeatureSelection`
-- `selectFromMapClick`
+- `scripts/check-repo.mjs` — deployment/integration structure;
+- `scripts/audit-runtime.mjs` — single-runtime, persistence, renderer and deployment invariants;
+- `scripts/audit-bindings.mjs` — source-order authority and binding-debt ceilings.
 
-True circles are hit-tested using the same materialised display geometry used by the current renderer, avoiding a second competing circle representation.
+Node unit tests cover the canonical models and adapter contract. Browser smoke suites cover OpenLayers parity, CRS, remote sources, schema/data tools, joins, Geometry Health and mobile/touch behaviour.
 
-Selection style refresh calls the same authoritative cached renderer for both engines.
+## Next architecture step
 
-## Runtime lifecycle
-
-Cross-cutting edit subsystems register lifecycle callbacks through the v1.55.4 runtime-transition registry rather than wrapping selection/delete/history functions later in the source.
-
-Current transition events include:
-
-- `selection`
-- `delete`
-- `history`
-
-This is used by point and true-circle editing to end/cancel edit state safely when another application action takes control.
-
-## References and GIS services
-
-Reference tile, normal GeoJSON and static-raster/GeoTIFF display use map-runtime primitives on both engines. Visibility, opacity, order and removal are runtime-owned.
-
-The only special reference renderer still outside the adapter is the **Leaflet-only large/full-detail reference canvas** used for very large reference GeoJSON while Leaflet remains supported. It cannot execute in OpenLayers mode.
-
-Perspective/georeferenceable trace images remain DOM overlays because a four-corner projective transform cannot be represented faithfully by a rectangular static-image extent.
-
-GIS XYZ/TMS/WMS creation and runtime visibility/opacity/z-order also use the map contract. WMS source construction does not force CORS: providers that can be displayed as images but do not grant browser-readable CORS remain usable, while callers may opt into a cross-origin mode when needed. GeoServer URLs receive adapter-owned `serverType`/tiled hints. The application may fetch WMS capabilities on a best-effort basis to persist advertised geographic bounds and fit the view; failure to read capabilities does not block tile display.
-
-## History and outputs
-
-Consequential GIS operations materialise normal project layers/tables with provenance. Measurements have compact measurement-specific history entries while structural project history retains them when needed.
-
-## Source-order / wrapper debt policy
-
-The application grew historically through appended enhancement blocks. v1.55.4 does not attempt a dangerous all-at-once rewrite while map parity is being proven.
-
-Instead it establishes enforceable rules:
-
-1. core public runtime entry points (`renderMap`, selection/clear, delete, undo and redo) keep stable function identities; later stages update private delegates or lifecycle hooks instead of replacing the public functions;
-2. critical click-selection functions have one authoritative binding;
-3. the current cached renderer is engine-neutral;
-4. no function patch is permitted after the runtime-authority boundary;
-5. major historical wrapper chains have no-growth ceilings;
-6. application-level OpenLayers implementation calls are forbidden;
-7. direct Leaflet application debt has a no-growth ceiling and must remain confined to documented transition blocks;
-8. future work should reduce those ceilings as code moves into authoritative modules/functions.
-
-See `QUALITY_BASELINE.md` for counts, automated parity evidence and the live acceptance matrix.
-
-## Migration sequence after the v1.55.5 cutover
-
-1. **v1.55.5 (current):** OpenLayers is the default; `?mapEngine=leaflet` remains a one-release emergency fallback.
-2. **v1.55.6:** remove Leaflet dependency/runtime/renderers/CSS/workarounds and lower the wrapper/direct-call debt ceilings.
-3. **v1.55.7:** OpenLayers-specific cleanup and performance work (source reuse, hit detection, render buffers, style caches, large-data pan/zoom stability).
-4. Resume the GIS roadmap with the Processing Toolbox.
+**v1.55.7** should be an OpenLayers-only optimisation and cleanup release. Priorities are source reuse, feature-level updates, hit detection, render buffers, style caching, very-large-data interaction performance and further reduction of historical wrapper debt. After that, roadmap work can return to the Processing Toolbox and broader GIS capabilities.

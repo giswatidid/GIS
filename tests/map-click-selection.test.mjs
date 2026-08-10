@@ -25,7 +25,7 @@ test('map click semantics match the Layers selection model',()=>{
   assert.match(app,/window\.__editPolygonLayersV133\|\|null/);
 });
 
-test('selection state refreshes the authoritative cached renderer immediately on both engines',()=>{
+test('selection state refreshes the authoritative cached renderer immediately through the authoritative renderer',()=>{
   const v132=app.slice(app.indexOf('function v132ApplyFeatureStyles'),app.indexOf('function v132RefreshLayerUi'));
   const v133=app.slice(app.indexOf('function v133ApplyMapStyles'),app.indexOf('function v133SyncFeatureRow'));
   assert.match(v132,/renderMap\(\)/);
@@ -39,7 +39,7 @@ test('overlap picker is geometry neutral',()=>{
   assert.doesNotMatch(app,/Select overlapping polygon/);
 });
 
-test('click selection tests true circles against the exact materialised geometry rendered by either engine',()=>{
+test('click selection tests true circles against the exact materialised geometry rendered on the map',()=>{
   const start=app.indexOf('function parametricCircleHitAtMapPoint');
   const block=app.slice(start,app.indexOf('function mapSelectionHooks',start));
   assert.ok(start>=0);
@@ -59,7 +59,7 @@ test('OpenLayers click delivery is owned by the native OL map with no compatibil
   const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
   assert.match(adapter,/if\(type==='click'\)/);
   assert.match(adapter,/nativeMap\.on\(eventType,wrapped\)/);
-  assert.doesNotMatch(adapter,/editpolygon-leaflet-compat|queueMicrotask|syncLegacy|getLegacyMap/);
+  assert.doesNotMatch(adapter,/editpolygon-legacy-compat|queueMicrotask|syncLegacy|getLegacyMap/);
 });
 
 

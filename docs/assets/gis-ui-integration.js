@@ -132,7 +132,7 @@ function refresh(){
 const observer=new MutationObserver(refresh);
 function init(){
   // Observe only the controls that this integration enhances. Observing the
-  // entire document also catches Leaflet canvas/tile mutations during map
+  // entire document also catches legacy map runtime canvas/tile mutations during map
   // movement and can repeatedly rescan large datasets while the user pans.
   const targets=[document.getElementById('fileList'),document.getElementById('selectedPanel')].filter(Boolean);
   targets.forEach(target=>observer.observe(target,{childList:true,subtree:true}));

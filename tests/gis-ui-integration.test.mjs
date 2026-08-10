@@ -37,7 +37,7 @@ test('hidden and locked dataset features remain recoverable in the layer list',(
 });
 
 
-test('GIS UI refresh is scoped away from the Leaflet map DOM',()=>{
+test('GIS UI refresh is scoped away from the map DOM',()=>{
   assert.match(ui,/document\.getElementById\('fileList'\)/);
   assert.match(ui,/document\.getElementById\('selectedPanel'\)/);
   assert.doesNotMatch(ui,/observer\.observe\(document\.body/);

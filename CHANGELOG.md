@@ -1,5 +1,17 @@
 # EditPolygon changelog
 
+## v1.55.6 — OpenLayers-only runtime
+
+- Completes the map-runtime migration by making OpenLayers the only native map implementation in the repository.
+- Removes the retired map dependency from deployment HTML, the alternate runtime implementation, engine query selector, automatic fallback state and compatibility runtime metadata.
+- Removes the old bootstrap editable renderer, full-detail reference canvas renderer and v1.30 native performance renderer that existed only for the retired implementation.
+- Converts remaining native-control styling to OpenLayers selectors and removes obsolete retired-runtime CSS.
+- Deletes the alternate-runtime browser smoke and makes the OpenLayers parity smoke the single map-runtime browser contract.
+- Tightens architecture audits to require zero application native-map calls, zero native-map escapes, one runtime factory and no selector/fallback state.
+- Lowers the historical binding-debt ceilings to 198 duplicate names / 371 extra binding sites after the runtime cleanup.
+- Carries forward all live-tested parity fixes: repeated-world and Date Line editing, authoritative undo/redo, focused large-vector editing, WMS/remote services, lossless `.epz` projects and full mobile/touch GIS parity.
+- Sets v1.55.7 as the next OpenLayers-only performance/cleanup release before returning to the Processing Toolbox roadmap.
+
 ## v1.55.5 — OpenLayers default cutover
 
 - Makes OpenLayers the default map engine for normal URLs with no `mapEngine` parameter.

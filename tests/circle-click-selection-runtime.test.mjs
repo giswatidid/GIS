@@ -33,7 +33,7 @@ function pointInPolygon(point,polygon){
   return inside;
 }
 
-function runCircleHit({engine='openlayers',latlng={lng:0,lat:0},canonicalHit=false}={}){
+function runCircleHit({latlng={lng:0,lat:0},canonicalHit=false}={}){
   const context={
     result:null,
     feature:{id:'circle-1',parametricGeometry:{type:'CircleByCenterPoint'}},
@@ -41,7 +41,6 @@ function runCircleHit({engine='openlayers',latlng={lng:0,lat:0},canonicalHit=fal
     latlng,
     pixel:{x:100,y:100},
     isParametricCircleFeature:f=>f?.parametricGeometry?.type==='CircleByCenterPoint',
-    MAP_RUNTIME:{engine},
     mapFeatureJSON:()=>({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]]]}}),
     turf:{point:coordinates=>({type:'Feature',properties:{},geometry:{type:'Point',coordinates}}),booleanPointInPolygon:pointInPolygon},
     polygonBoundaryHitPixel:()=>false,
@@ -54,13 +53,11 @@ function runCircleHit({engine='openlayers',latlng={lng:0,lat:0},canonicalHit=fal
   return context.result;
 }
 
-test('true-circle click follows the rendered materialised polygon on both engines, not a separate circle-math result',()=>{
+test('true-circle click follows the rendered materialised polygon, not a separate circle-math result',()=>{
   // Deliberately make the old canonical/screen circle test fail. The click is
   // inside the exact polygon supplied to OpenLayers, so selection must still hit.
-  assert.equal(runCircleHit({engine:'openlayers',latlng:{lng:0,lat:0},canonicalHit:false}),true);
-  assert.equal(runCircleHit({engine:'openlayers',latlng:{lng:3,lat:3},canonicalHit:true}),false);
-  assert.equal(runCircleHit({engine:'leaflet',latlng:{lng:0,lat:0},canonicalHit:false}),true);
-  assert.equal(runCircleHit({engine:'leaflet',latlng:{lng:3,lat:3},canonicalHit:true}),false);
+  assert.equal(runCircleHit({latlng:{lng:0,lat:0},canonicalHit:false}),true);
+  assert.equal(runCircleHit({latlng:{lng:3,lat:3},canonicalHit:true}),false);
 });
 
 test('ordinary click candidate loop no longer has a separate true-circle screen-space shortcut',()=>{

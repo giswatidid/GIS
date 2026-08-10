@@ -1,5 +1,5 @@
 /* EditPolygon OpenLayers integration — v1.55.4
-   OpenLayers is now a standalone map runtime. No hidden/synchronised Leaflet
+   OpenLayers is now a standalone map runtime. No hidden/synchronised legacy map runtime
    map is created in OpenLayers mode. */
 body[data-map-engine="openlayers"] #map{
   position:relative;

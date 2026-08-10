@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.55.5
+**Current application baseline:** v1.55.6
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-engine work is a staged migration from Leaflet to OpenLayers. **v1.55.4** established the parity and architecture baseline; **v1.55.4.18** includes the deployed parity corrections found so far. As of **v1.55.5, OpenLayers is the default engine with no query parameter required**. Leaflet remains available for this release only through `?mapEngine=leaflet` as an emergency fallback. The editable renderer, rendered hit-testing, selection-highlight refresh, references, GIS services and transient/edit overlays all sit behind the `EditPolygonMap` contract. v1.55.4.1 aligned true-circle preview and committed display geometry. v1.55.4.2 made viewport culling longitude-periodic and targeted the nearest repeated-world copy. v1.55.4.3 fixed polygon/LineString drawing across the International Date Line and stale draw-overlay interaction state. v1.55.4.4 added authoritative live drawing feedback through the shared transient-vector runtime, Pointer Events for the live draw cursor, and continuous-longitude inverse pixel conversion so true circles stay local across the International Date Line. v1.55.4.5 corrected the startup source-order defect in that preview work by initializing its layer state before the first application render. v1.55.4.6 keeps vertex, edge, whole-feature and handle edits on the stored geometry's continuous-longitude branch after horizontal world wrapping, preventing edit-time world-spanning seams. v1.55.4.7 canonicalises standalone Point and true-circle centres, projects OpenLayers editable/transient vectors from a stable world branch, restores the circle radius guide in repeated worlds, and prevents point zoom from requesting unsupported OSM source zoom levels. v1.55.4.8 closes the remaining undo/redo display race: vertex editing now shuts down without painting the pre-history geometry, and renderer invalidation advances an explicit generation so a restored model cannot reuse a live-mutated vector-cache signature. v1.55.4.9 follows the live failure through the final runtime binding: it removes a stale late `VStop` wrapper that had been discarding the no-render history option, makes vertex-editor shutdown transaction-safe, and prevents pointerdown-only edit interactions from creating no-op undo entries. v1.55.4.10 removes the remaining implicit dual authority between the project geometry and native live-edit features: history uses a monotonic render epoch, cache reuse includes actual geometry-content identity, selected native geometry is verified against the model, and adapter-owned editable layers are hard-purged on history restoration before being rebuilt from project state. v1.55.4.11 addresses the first live external-source stress findings: WMS no longer forces anonymous CORS and recognises GeoServer tiled sources, WMS capabilities are used opportunistically to fit advertised bounds, and large editable remote GeoJSON keeps full geometry while reducing sidebar/render churn through performance-managed rows, viewport-independent cache reuse, shared OpenLayers styles and conditional decluttering. v1.55.4.12 follows the deployed retest through the remaining bottlenecks: OpenLayers WMS visibility now adds/removes off-map service layers correctly, heavy OpenLayers datasets keep a persistent native indexed source and use image-backed vector rendering during normal pan/zoom, and selected-feature toolbar DOM work is removed from active map movement. v1.55.4.13 removes the remaining selection/edit performance cliff on those heavy layers: the image-backed background stays resident, while selected and actively edited features are isolated into a small precise vector overlay; only the focused feature is suppressed from the background during an active edit, so precision is retained without promoting the other hundreds of features. v1.55.4.14 closes a creation-path consistency gap: converting an annotation point marker into an editable feature now uses the same canonical GIS Point defaults as Draw point, while text annotation typography remains preserved. v1.55.4.15 fixes the project-file persistence boundary for GIS service sources: `gisWorkspace` and reference overlays now survive import normalisation, so saved WMS definitions and their display state are rebuilt on reload. v1.55.4.16 replaces the development-only plain JSON save with the lossless `.epz` project container. v1.55.4.17 completes the mobile parity pass: Advanced GIS is available from the phone dock/project sheet, the old desktop-preference gate is removed, handset drawers and GIS/layer controls are touch-sized and aligned, and a dedicated touch-viewport browser smoke guards the mobile shell. v1.55.4.18 fixes the remaining phone layer-action popover boundary so GIS and feature action menus remain visible, focusable and touch-operable above the full-width Layers drawer. The deployed parity checklist has passed; v1.55.5 performs the default-engine cutover while retaining the explicit Leaflet fallback until v1.55.6. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-runtime migration is complete. **v1.55.6 uses OpenLayers as the sole native map runtime** behind the `EditPolygonMap` adapter. The deployed parity campaign covered drawing/editing, repeated-world and International Date Line behaviour, authoritative undo/redo, points and true circles, snapping/topology, measurements, Geometry Health, styling/labels, remote GeoJSON, ArcGIS services, WMS, large-vector performance, lossless `.epz` persistence and mobile/touch parity. Application code remains engine-neutral; native OpenLayers implementation details are isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -407,7 +407,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.55.5 runtime/repository audit, the binding/architecture no-growth audit and the JavaScript test suite.
+This runs repository integration checks, the v1.55.6 single-runtime audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -415,9 +415,9 @@ Run the browser smoke matrix with:
 npm run test:browser-smoke
 ```
 
-From v1.55.5 the normal URL uses OpenLayers. `EditPolygonMap.engine` should report `"openlayers"` with no query parameter. Append `?mapEngine=leaflet` only to exercise the one-release emergency fallback. If OpenLayers fails during normal startup, the adapter deliberately falls back to Leaflet and exposes `EditPolygonMap.fallbackReason`.
+From v1.55.6 OpenLayers is the only map runtime. `EditPolygonMap.engine` should report `"openlayers"` on normal startup. There is no alternate engine selector or compatibility fallback.
 
-v1.55.4 additionally verifies that the final cached editable renderer is engine-neutral, OpenLayers implementation details stay inside the adapter, critical click-selection functions have one authoritative binding, direct Leaflet transition debt cannot grow silently, and no new function patch appears after the final runtime-authority boundary.
+The audits verify that the final cached editable renderer is engine-neutral, OpenLayers implementation details stay inside the adapter, critical click-selection functions have one authoritative binding, application code contains no native-map escape, and no new function patch appears after the final runtime-authority boundary.
 
 The application should also be manually tested in a real browser after changes to map interaction, import/export, styling, CRS handling or processing.
 
@@ -435,19 +435,17 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-v1.55.4 establishes the tested parity/architecture baseline. The deployed real-browser checklist in [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) is the gate for the next transition:
+The map-runtime migration is complete. The next work is OpenLayers-only optimisation and then the normal GIS roadmap:
 
-1. **v1.55.4 — Parity + architecture baseline (current):** both engines use the authoritative map-runtime renderer/hit paths; source-order and engine-coupling debt is audited and prevented from growing; complete the documented deployed parity checklist.
-2. **v1.55.5 — OpenLayers default:** make OpenLayers the normal renderer while retaining `?mapEngine=leaflet` as one transition-release fallback.
-3. **v1.55.6 — Remove Leaflet:** delete the Leaflet dependency, fallback runtime, Leaflet-only renderers/CSS/workarounds/tests and lower the historical wrapper/direct-call debt ceilings.
-4. **v1.55.7 — OpenLayers cleanup/performance:** optimise source reuse, feature-level updates, hit detection, render buffers, style caches and large-data panning.
-5. Build a consolidated processing toolbox and additional geometry-construction tools.
-6. Add virtualised tables and larger-dataset performance architecture.
-7. Expand rule-based styling and professional label placement.
-8. Add GeoPackage, FlatGeobuf, GeoParquet and GPX support.
-9. Improve remote-layer refresh/source management, then project packages, print layouts and first-class raster analysis.
+1. **v1.55.6 — Single-runtime baseline (current):** OpenLayers is the sole map implementation; retired runtime dependencies, fallback selectors, compatibility renderers/CSS and obsolete browser coverage are removed.
+2. **v1.55.7 — OpenLayers cleanup/performance:** optimise source reuse, feature-level updates, hit detection, render buffers, style caches and very-large-data panning while reducing historical wrapper debt.
+3. Build a consolidated Processing Toolbox and additional geometry-construction tools.
+4. Add virtualised tables and larger-dataset performance architecture.
+5. Expand rule-based styling and professional label placement.
+6. Add GeoPackage, FlatGeobuf, GeoParquet and GPX support.
+7. Improve remote-layer refresh/source management, project assets and print layouts, then first-class raster analysis.
 
-The map migration preserves the existing project, geometry, CRS, schema, history and analysis models rather than rebuilding the application around OpenLayers.
+The migration preserves the existing project, geometry, CRS, schema, history and analysis models rather than rebuilding the application around the map library.
 
 ## Feedback
 

@@ -1,37 +1,65 @@
-# EditPolygon v1.55.5 release manifest
+# EditPolygon v1.55.6 release manifest
 
-v1.55.5 is the OpenLayers default-engine cutover. The deployed v1.55.4 parity gate has passed across desktop and mobile, so a normal EditPolygon URL now starts OpenLayers without requiring a query parameter.
+v1.55.6 completes the map-runtime migration. OpenLayers is now the **only** native map runtime in EditPolygon.
 
-## Engine authority
+## Removed in this release
 
-- No `mapEngine` parameter -> **OpenLayers**.
-- `?mapEngine=openlayers` / `?mapEngine=ol` -> OpenLayers (accepted but now redundant).
-- `?mapEngine=leaflet` -> **Leaflet emergency fallback** for this release only.
-- Unknown/empty engine values resolve to OpenLayers rather than silently restoring the old Leaflet default.
-- If OpenLayers itself fails to initialise, `createRuntime()` may fall back to Leaflet and exposes `requestedEngine: "openlayers"` plus `fallbackReason`.
+- retired map JavaScript/CSS dependency from `docs/index.html`;
+- alternate runtime factory and map-selector/fallback state from `editpolygon-map-adapter.js`;
+- `?mapEngine=` alternate-runtime behaviour;
+- automatic fallback to the retired runtime;
+- bootstrap/compatibility editable renderer that existed only for the retired runtime;
+- retired full-detail reference canvas renderer;
+- retired v1.30 native performance renderer;
+- retired native control/CSS selectors;
+- obsolete alternate-runtime browser smoke test;
+- audit allowances for direct retired-native calls.
 
-## What does not change
+`EditPolygonMap.createRuntime()` now directly creates the OpenLayers implementation.
 
-- The `EditPolygonMap` adapter remains the application boundary.
-- No application-level `ol.*` calls are introduced.
-- The v1.55.4 repeated-world, drawing/editing, history, selection, WMS/remote-source, large-vector, `.epz`, Geometry Health and mobile/touch parity fixes remain in place.
-- Leaflet JavaScript/CSS/runtime code remains present intentionally until v1.55.6 so the emergency fallback is genuine.
+## Retained architecture
+
+- application code remains engine-neutral and contains no direct `ol.*` calls;
+- authoritative cached editable renderer and focused precision overlay;
+- repeated-world / International Date Line protections;
+- authoritative history epochs and geometry-content cache checks;
+- large-vector persistent-source / image-backed interaction mode;
+- WMS/remote/reference service support;
+- lossless `.epz` persistence;
+- full mobile/touch GIS interface;
+- runtime-authority and source-order audits.
+
+## Repository deletion
+
+Delete:
+
+```text
+tests/browser-map-adapter-smoke.py
+```
+
+It tested the retired alternate runtime and has no role in the single-runtime repository.
 
 ## Automated gate
 
-`npm run check` must verify the OpenLayers default selector, version/cache coherence, adapter symmetry, runtime authority and the complete Node suite.
+Before packaging, the release must pass:
 
-`npm run test:browser-smoke` must keep both sides of the cutover exercised:
+```bash
+npm run check
+npm run test:browser-smoke
+```
 
-- the OpenLayers parity browser smoke calls `createRuntime()` **without forcing an engine**, proving no-query default startup;
-- the Leaflet browser smoke calls `createRuntime()` through `?mapEngine=leaflet`, proving the explicit fallback still works;
-- CRS, remote-source, schema, join, Geometry Health and mobile/touch browser suites remain green.
+Final verification: **266/266 Node tests** and **8/8 browser smoke suites**. The browser matrix contains the OpenLayers parity smoke plus CRS, remote source, schema/data, join, Geometry Health and mobile/touch suites; there is no alternate-runtime smoke.
+
+The binding/architecture audit enforces ceilings of **198 duplicate names / 371 extra binding sites**, with **0 application native-map calls** and **0 native-map escapes**.
 
 ## Live validation
 
-1. Open the normal deployed URL with no query parameter and confirm `EditPolygonMap.engine === "openlayers"`.
-2. Do a short representative desktop check: pan/zoom, select, draw/edit one feature, undo/redo and save/open `.epz`.
-3. On a phone, confirm the normal URL still supports pan/pinch, Layers/Inspector/GIS and one draw/edit interaction.
-4. Open once with `?mapEngine=leaflet` and confirm the emergency fallback still starts.
+After deployment:
 
-If these checks pass in the deployed build, v1.55.6 may remove Leaflet completely.
+1. open the normal application URL with no query parameter;
+2. confirm `EditPolygonMap.engine === "openlayers"`;
+3. pan/zoom, select, draw/edit and undo/redo a representative feature;
+4. open/save one `.epz` project;
+5. quickly verify Layers / Inspector / GIS on mobile.
+
+No alternate map-engine validation is required: that implementation has been deleted.

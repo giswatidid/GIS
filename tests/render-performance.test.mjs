@@ -4,11 +4,10 @@ import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
 
-test('bulk editable vector features share a Canvas renderer',()=>{
-  assert.match(app,/bulkVectorRenderer:L?null/);
-  assert.match(app,/L\.canvas\(\{padding:0\.5,tolerance:8\}\)/);
-  assert.match(app,/renderer:bulkRenderer/);
-  assert.match(app,/pointToLayer:[\s\S]*renderer:bulkRenderer/);
+test('bulk editable vectors use the adapter-owned persistent native source path',()=>{
+  assert.match(app,/MAP_RUNTIME\.createEditableVectorLayer/);
+  assert.match(app,/MAP_RUNTIME\.prefersPersistentEditableVectorSource\?\.\(\)/);
+  assert.doesNotMatch(app,/bulkVectorRenderer|renderer:bulkRenderer/);
 });
 
 test('map movement skips image rendering for vector-only projects',()=>{
@@ -19,7 +18,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260810-openlayers-default-1555/);
+  assert.match(html,/editpolygon-app\.js\?v=20260810-openlayers-only-1556/);
 });
 
 

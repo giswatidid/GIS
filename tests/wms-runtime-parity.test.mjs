@@ -6,27 +6,22 @@ const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 
 test('WMS display does not force anonymous CORS on image tiles',()=>{
-  const leafStart=adapter.indexOf('function createWmsLayer(spec={})',adapter.indexOf('function createLeafletRuntime'));
-  const olRuntime=adapter.indexOf('function createOpenLayersRuntime');
-  const olStart=adapter.indexOf('function createWmsLayer(spec={})',olRuntime);
-  const olEnd=adapter.indexOf('function parseDash',olStart);
-  assert.ok(leafStart>=0&&olStart>=0&&olEnd>olStart);
-  const leaf=adapter.slice(leafStart,olRuntime);
-  const ol=adapter.slice(olStart,olEnd);
-  assert.match(leaf,/if\(spec\.crossOrigin!=null\)options\.crossOrigin=spec\.crossOrigin/);
-  assert.doesNotMatch(leaf,/crossOrigin:true/);
-  assert.match(ol,/if\(spec\.crossOrigin!=null\)sourceOptions\.crossOrigin=spec\.crossOrigin/);
-  assert.doesNotMatch(ol,/crossOrigin:'anonymous'/);
+  const runtimeStart=adapter.indexOf('function createOpenLayersRuntime');
+  const start=adapter.indexOf('function createWmsLayer(spec={})',runtimeStart);
+  const end=adapter.indexOf('function parseDash',start);
+  const block=adapter.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/if\(spec\.crossOrigin!=null\)sourceOptions\.crossOrigin=spec\.crossOrigin/);
+  assert.doesNotMatch(block,/crossOrigin:'anonymous'|crossOrigin:true/);
 });
 
-test('GeoServer WMS gets tiled/server hints without requiring provider-specific application code',()=>{
-  const olStart=adapter.indexOf('function createWmsLayer(spec={})',adapter.indexOf('function createOpenLayersRuntime'));
-  const olEnd=adapter.indexOf('function parseDash',olStart);
-  const ol=adapter.slice(olStart,olEnd);
-  assert.ok(ol.includes('/\\/geoserver(?:\\/|$)/i'));
-  assert.match(ol,/params\.TILED=true/);
-  assert.match(ol,/sourceOptions\.serverType='geoserver'/);
-  assert.match(ol,/transition:spec\.transition\?\?0/);
+test('GeoServer WMS gets tiled/server hints without provider-specific application code',()=>{
+  const start=adapter.indexOf('function createWmsLayer(spec={})',adapter.indexOf('function createOpenLayersRuntime'));
+  const end=adapter.indexOf('function parseDash',start),block=adapter.slice(start,end);
+  assert.ok(block.includes('/\\/geoserver(?:\\/|$)/i'));
+  assert.match(block,/params\.TILED=true/);
+  assert.match(block,/sourceOptions\.serverType='geoserver'/);
+  assert.match(block,/transition:spec\.transition\?\?0/);
 });
 
 test('WMS capability discovery is best-effort and persists advertised bounds for zooming',()=>{
@@ -40,11 +35,10 @@ test('WMS capability discovery is best-effort and persists advertised bounds for
   assert.match(app,/MAP_RUNTIME\.fitExtent\(info\.bounds,\{padding:\[40,40\],maxZoom:12\}\)/);
 });
 
-test('OpenLayers service visibility owns map membership just like Leaflet',()=>{
+test('WMS service visibility owns map membership',()=>{
   const runtimeStart=adapter.indexOf('function createOpenLayersRuntime');
   const start=adapter.indexOf('function setDisplayLayerVisible(layer,visible)',runtimeStart);
-  const end=adapter.indexOf('function setDisplayLayerZIndex',start);
-  const block=adapter.slice(start,end);
+  const end=adapter.indexOf('function setDisplayLayerZIndex',start),block=adapter.slice(start,end);
   assert.ok(start>=0&&end>start);
   assert.match(block,/if\(!hasDisplayLayer\(layer\)\)addDisplayLayer\(layer\)/);
   assert.match(block,/else if\(hasDisplayLayer\(layer\)\)removeDisplayLayer\(layer\)/);

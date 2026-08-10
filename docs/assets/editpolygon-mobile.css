@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity layer · v1.55.5
+/* EditPolygon mobile parity layer · v1.55.6
    Phones, touch tablets and desktop browsers expose the same application
    capabilities. This stylesheet reorganises the shared interface into a
    map-first, touch-oriented layout without creating a separate mobile app. */
@@ -311,8 +311,8 @@ body.v151-mobile-layout .rail-flyout button{min-height:48px!important;touch-acti
 body.v151-mobile-layout .rail-flyout-label select{height:38px!important;}
 
 /* Map chrome stays reachable and does not sit behind the drawers or dock. */
-body.v151-mobile-layout .leaflet-control-zoom a{width:38px!important;height:38px!important;line-height:38px!important;font-size:20px!important;}
-body.v151-mobile-layout .leaflet-top.leaflet-left{margin-top:2px;}
+body.v151-mobile-layout .ol-zoom button{width:38px!important;height:38px!important;line-height:38px!important;font-size:20px!important;}
+body.v151-mobile-layout .ol-zoom{margin-top:2px;}
 body.v151-mobile-layout #selectedFloatToolbar.float-toolbar,
 body.v151-mobile-layout #drawFloatToolbar.float-toolbar,
 body.v151-mobile-layout #vertexFloatToolbar.float-toolbar,
@@ -358,7 +358,7 @@ body.v151-mobile-layout .map-display-control select{min-width:82px!important;hei
 body.v151-mobile-layout .map-display-control button{height:32px!important;min-height:32px!important;padding:0 6px!important;}
 body.v151-mobile-layout .fullscreen-editor-btn{display:none!important;}
 body.v151-mobile-layout #mouseCoords{margin:0 6px 7px 0!important;max-width:45%!important;font-size:9px!important;padding:3px 5px!important;}
-body.v151-mobile-layout .leaflet-control-attribution{max-width:70vw;font-size:8px!important;line-height:1.2!important;}
+body.v151-mobile-layout .ol-attribution{max-width:70vw;font-size:8px!important;line-height:1.2!important;}
 body.v151-mobile-layout .geometry-preview-panel{
   align-self:end!important;
   justify-self:stretch!important;
@@ -832,7 +832,7 @@ body.v151-mobile-layout .v151-mobile-context-actions button.primary{
   border-color:#1f2937!important;
   color:#fff!important;
 }
-body.v151-mobile-layout.v151-mobile-context-active .leaflet-bottom.leaflet-right{
+body.v151-mobile-layout.v151-mobile-context-active .ol-attribution{
   bottom:55px!important;
 }
 
@@ -877,8 +877,8 @@ body.v151-mobile-layout .v151-mobile-context-sheet-body button{
   padding:0 11px!important;
 }
 
-/* Keep Leaflet attribution legible and away from the mobile context strip. */
-body.v151-mobile-layout .leaflet-control-attribution{
+/* Keep OpenLayers attribution legible and away from the mobile context strip. */
+body.v151-mobile-layout .ol-attribution{
   max-width:82vw!important;
   padding:1px 3px!important;
   font-size:7px!important;
@@ -931,7 +931,7 @@ body.v151-mobile-layout #selectedPanel > *{flex:0 0 auto!important;}
 body.v151-mobile-layout #selectedPanel > .empty-inspector{min-height:180px;}
 
 /* -------------------------------------------------------------------------
-   v1.55.5 mobile parity and touch-target refinement
+   v1.55.6 mobile parity and touch-target refinement
    Keep the phone surface dense enough for GIS work without retaining desktop-
    sized controls. Full application capabilities remain available; only their
    layout changes on narrow/coarse-pointer screens.
@@ -1290,7 +1290,7 @@ body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
 }
 
 
-/* v1.55.5 — mobile layer-action popover authority.
+/* v1.55.6 — mobile layer-action popover authority.
    Layer action menus are portaled outside the drawer on desktop. On phones the
    drawer is itself a fixed stacking surface, so those popovers must explicitly
    sit above it and use touch-sized action targets. */
