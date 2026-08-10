@@ -7,7 +7,7 @@ const js=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.js',import.m
 const css=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.css',import.meta.url),'utf8');
 
 test('mobile controller is loaded after GIS integration and identifies the current parity release',()=>{
-  assert.match(js,/const VERSION='1\.55\.4\.17'/);
+  assert.match(js,/const VERSION='1\.55\.4\.18'/);
   assert.ok(html.indexOf('editpolygon-mobile.js')>html.indexOf('gis-ui-integration.js'));
 });
 
@@ -60,4 +60,14 @@ test('mobile parity styles provide touch targets for GIS, layer management and O
   assert.match(css,/\.gis-eye,[\s\S]*width:38px!important/);
   assert.match(css,/data-map-engine="openlayers"\] \.ol-control button[\s\S]*width:42px!important/);
   assert.match(css,/\.v151-mobile-sheet-close[\s\S]*width:44px!important/);
+});
+
+
+test('mobile layer and GIS action popovers remain touchable above the Layers drawer',()=>{
+  assert.match(css,/#filesSection \.gis-layer-actions-btn,[\s\S]*width:44px!important/);
+  assert.match(css,/#filesSection \.layer-kebab[\s\S]*height:44px!important/);
+  assert.match(css,/\.layer-menu\.active,[\s\S]*\.gis-layer-action-menu[\s\S]*z-index:6100!important/);
+  assert.match(css,/\.gis-layer-action-menu button[\s\S]*min-height:44px!important/);
+  assert.match(js,/function isMobilePopoverTarget/);
+  assert.match(js,/!isMobilePopoverTarget\(event\.target\)/);
 });

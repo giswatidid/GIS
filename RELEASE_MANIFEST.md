@@ -1,6 +1,6 @@
-# EditPolygon v1.55.4.17 release manifest
+# EditPolygon v1.55.4.18 release manifest
 
-v1.55.4.17 is the final mobile-parity/refinement pass before the OpenLayers default switch. It does not create a separate mobile GIS implementation: phone/tablet controls expose the same application state and `EditPolygonMap` runtime through touch-oriented drawers, sheets and dock actions.
+v1.55.4.18 is the mobile layer-action reliability follow-up before the OpenLayers default switch. It keeps the v1.55.4.17 full mobile GIS surface, while making portaled layer/feature/GIS menus authoritative above the full-width Layers drawer and inside the handset viewport.
 
 ## Mobile capability parity
 
@@ -30,8 +30,9 @@ All new layout rules are scoped under `body.v151-mobile-layout`, and the mobile 
 4. Open Layers and Inspector: on a phone they should use the full available width, with aligned/tappable search, filters, layer actions and close controls.
 5. Pan/pinch-zoom, select, draw a point/polygon and edit one feature; opening/closing drawers or GIS must not leave a stuck interaction state.
 6. Check portrait and landscape once; the map and bottom dock should resize without page-level horizontal overflow.
-7. Save/open an `.epz` project to ensure the mobile presentation changes do not affect project persistence.
+7. In the Layers drawer, tap the layer-level **GIS** button and a feature-level **⋮** button; both action menus must open above the drawer and remain fully tappable.
+8. Save/open an `.epz` project to ensure the mobile presentation changes do not affect project persistence.
 
 ## Automated gate
 
-The release must pass repository integration checks, runtime/binding audits, the complete Node test suite and **eight** browser smoke suites. The new mobile smoke uses a touch-enabled phone viewport and checks Advanced GIS state, full-width handset drawers, Project-sheet GIS access, touch target sizes, OpenLayers control sizing and horizontal-overflow safety.
+The release must pass repository integration checks, runtime/binding audits, the complete Node test suite and **nine** browser smoke suites. The mobile parity smoke uses a touch-enabled phone viewport to check Advanced GIS state, full-width handset drawers, Project-sheet GIS access, touch target sizes, OpenLayers control sizing and horizontal-overflow safety. A dedicated layer-action smoke additionally verifies that the layer-level GIS and feature action popovers sit above the drawer, retain focus and expose 44×44 px trigger targets.

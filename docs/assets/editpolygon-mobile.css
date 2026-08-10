@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity layer · v1.55.4.17
+/* EditPolygon mobile parity layer · v1.55.4.18
    Phones, touch tablets and desktop browsers expose the same application
    capabilities. This stylesheet reorganises the shared interface into a
    map-first, touch-oriented layout without creating a separate mobile app. */
@@ -931,7 +931,7 @@ body.v151-mobile-layout #selectedPanel > *{flex:0 0 auto!important;}
 body.v151-mobile-layout #selectedPanel > .empty-inspector{min-height:180px;}
 
 /* -------------------------------------------------------------------------
-   v1.55.4.17 mobile parity and touch-target refinement
+   v1.55.4.18 mobile parity and touch-target refinement
    Keep the phone surface dense enough for GIS work without retaining desktop-
    sized controls. Full application capabilities remain available; only their
    layout changes on narrow/coarse-pointer screens.
@@ -1287,4 +1287,46 @@ body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
   body.v151-mobile-layout .topbar-more-btn{height:40px!important;min-height:40px!important;padding:0 10px!important;}
   body.v151-mobile-layout .v151-mobile-action-grid{grid-template-columns:1fr 1fr;}
   body.v151-mobile-layout .gis-project-metrics{grid-template-columns:1fr!important;}
+}
+
+
+/* v1.55.4.18 — mobile layer-action popover authority.
+   Layer action menus are portaled outside the drawer on desktop. On phones the
+   drawer is itself a fixed stacking surface, so those popovers must explicitly
+   sit above it and use touch-sized action targets. */
+body.v151-mobile-layout #filesSection .gis-layer-actions-btn,
+body.v151-mobile-layout #filesSection .layer-kebab{
+  position:relative!important;
+  z-index:3!important;
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  padding:0!important;
+  pointer-events:auto!important;
+  touch-action:manipulation!important;
+}
+body.v151-mobile-layout .layer-menu.active,
+body.v151-mobile-layout .gis-layer-action-menu{
+  position:fixed!important;
+  top:auto!important;
+  left:max(8px,env(safe-area-inset-left,0px))!important;
+  right:max(8px,env(safe-area-inset-right,0px))!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 8px)!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  max-height:min(62dvh,560px)!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain!important;
+  -webkit-overflow-scrolling:touch;
+  z-index:6100!important;
+  touch-action:pan-y!important;
+}
+body.v151-mobile-layout .layer-menu button,
+body.v151-mobile-layout .gis-layer-action-menu button{
+  min-height:44px!important;
+  font-size:12px!important;
+  touch-action:manipulation!important;
 }

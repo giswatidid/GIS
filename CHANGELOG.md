@@ -1,5 +1,13 @@
 # EditPolygon changelog
 
+## v1.55.4.18 — Mobile layer-action menu reliability
+
+- Fixes phone/touch layer action controls that could appear unresponsive while the full-width Layers drawer was open.
+- Promotes the legacy feature/layer action popover above the mobile drawer stacking surface and presents both standard and GIS layer menus as viewport-safe bottom popovers.
+- Gives the layer GIS shortcut and kebab action buttons 44 × 44 CSS-pixel touch targets with explicit pointer/touch ownership.
+- Extends the mobile focus boundary to allow portaled layer/GIS menus to receive focus instead of immediately returning focus to the drawer close button.
+- Keeps desktop menu placement and interaction unchanged.
+
 ## v1.55.4.17 — Mobile GIS parity and touch UI refinement
 
 - Made mobile a first-class application surface rather than a reduced compatibility mode. Advanced GIS is now reachable from a dedicated **GIS** bottom-dock action and from the mobile Project actions sheet, both proxying the same authoritative `gisWorkspaceToggle` used on desktop.

@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity controller · v1.55.4.17
+/* EditPolygon mobile parity controller · v1.55.4.18
    The same application capabilities are exposed on touch devices through a
    map-first shell, full-width drawers, a dedicated project sheet and compact
    context controls. The historical v151-* class namespace is retained to avoid
@@ -6,7 +6,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='1.55.4.17';
+  const VERSION='1.55.4.18';
   const MOBILE_QUERY='(max-width: 860px), (pointer: coarse) and (max-width: 1024px)';
   const mq=window.matchMedia?window.matchMedia(MOBILE_QUERY):null;
   const $=id=>document.getElementById(id);
@@ -54,6 +54,9 @@
   }
   function drawerFor(name){return name==='layers'?sidebar:name==='inspector'?inspector:null;}
   function drawerButton(name){return rail.querySelector(`[data-v151-drawer="${name}"]`);}
+  function isMobilePopoverTarget(target){
+    return !!target?.closest?.('.layer-menu.active,.gis-layer-action-menu,.pick-menu.active,.rail-flyout.active,.v149-filter-menu,.v149-bulk-menu,.v133-layer-sort-menu');
+  }
   function gisButton(){return rail.querySelector('[data-v155-action="gis"]');}
   function gisIsAdvanced(){
     const toggle=$('gisWorkspaceToggle'),workspace=$('gisWorkspacePanel');
@@ -571,7 +574,7 @@
   document.addEventListener('focusin',event=>{
     if(!activeDrawer||!isMobile())return;
     const panel=drawerFor(activeDrawer);
-    if(panel&&!panel.contains(event.target))panel.querySelector('.v151-mobile-drawer-close')?.focus({preventScroll:true});
+    if(panel&&!panel.contains(event.target)&&!isMobilePopoverTarget(event.target))panel.querySelector('.v151-mobile-drawer-close')?.focus({preventScroll:true});
   });
 
   const bodyClassObserver=new MutationObserver(()=>scheduleContextRefresh());

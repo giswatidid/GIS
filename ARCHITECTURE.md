@@ -1,11 +1,15 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.4.17**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
+This document describes the current application architecture as of **v1.55.4.18**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
 
 ## v1.55.4.16 project-container boundary
 
 Saved projects now cross a dedicated packaging boundary in `docs/assets/editpolygon-project-format.js`. The application continues to own the canonical project payload; the format module serialises that payload as lossless `.epz` (`manifest.json` + `project.json` + reserved `assets/`) and validates/decompresses it on load. Container compression never simplifies GIS geometry. The old `.polygonproject` path is intentionally removed during development instead of retained as compatibility debt.
 
+
+## v1.55.4.18 mobile popover boundary
+
+Mobile Layers is a fixed full-width drawer, while legacy layer/feature menus and the GIS layer menu are portaled outside that drawer. On a phone those portaled menus are explicit top-level interaction surfaces: they render above the drawer, remain within the viewport, use touch-sized targets, and are admitted by the mobile focus boundary. Desktop popover positioning remains authoritative outside mobile mode.
 
 ## v1.55.4.17 mobile presentation boundary
 
