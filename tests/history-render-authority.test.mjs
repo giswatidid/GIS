@@ -125,7 +125,8 @@ test('cached renderer identity includes actual geometry content and history epoc
   assert.match(app,/EditPolygonMapAdapter\?\.geometryFingerprint/);
   assert.match(signature,/history:\$\{HISTORY_RENDER_EPOCH\}/);
   assert.match(signature,/renderGeometryFingerprint\(feature\)/);
-  assert.match(app,/cachedEditableGeometryMatchesModel\(cached\.group,features\)/);
+  assert.match(app,/cachedEditableGeometryMatchesModel\(cached\.group,features,\{skipIds:skipFocused\}\)/);
+  assert.match(app,/cachedEditableGeometryMatchesModel\(cached\.focusGroup,focus\)/);
 });
 
 test('committed manual geometry retires transient native edit materialisation',()=>{

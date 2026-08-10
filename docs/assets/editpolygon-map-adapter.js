@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.12';
+  const VERSION='1.55.4.13';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -299,7 +299,9 @@
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
     function prefersPersistentEditableVectorSource(){return false;}
-    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource});
+    function supportsFocusedEditableOverlay(){return false;}
+    function setEditableFeatureSuppressed(){return false;}
+    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource,supportsFocusedEditableOverlay,setEditableFeatureSuppressed});
   }
 
   function createOpenLayersRuntime(options={}){
@@ -476,12 +478,12 @@
       try{layer.setStyle?.(styleFromDescriptor(descriptor));layer.getSource?.()?.changed?.();nativeMap.render?.();return true;}catch(_){return false;}
     }
     function createEditableVectorLayer(spec={}){
-      const format=new ol.format.GeoJSON(),source=new ol.source.Vector({wrapX:true,useSpatialIndex:true}),olFeatures=[],geometryFeatures=new Map(),geometrySignatures=new Map(),styleCache=new Map();
+      const format=new ol.format.GeoJSON(),source=new ol.source.Vector({wrapX:true,useSpatialIndex:true}),olFeatures=[],geometryFeatures=new Map(),geometrySignatures=new Map(),geometryStyles=new Map(),styleCache=new Map();
       let hasDeclutterContent=false;
       const sharedStyle=descriptor=>{const key=JSON.stringify(descriptor||{});let style=styleCache.get(key);if(!style){style=styleFromDescriptor(descriptor||{});styleCache.set(key,style);}return style;};
       for(const item of spec.features||[]){
         if(!item?.geometry)continue;
-        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);f.setStyle(sharedStyle(item.style||{}));geometryFeatures.set(item.id,f);geometrySignatures.set(item.id,geometryFingerprint(item.geometry));olFeatures.push(f);}catch(_){ }
+        try{const f=format.readFeature({type:'Feature',geometry:geometryToCanonicalWorld(item.geometry),properties:{__editpolygonId:item.id,__editpolygonKind:'geometry'}},{dataProjection:'EPSG:4326',featureProjection:'EPSG:3857'});f.setId?.(item.id);const featureStyle=sharedStyle(item.style||{});f.setStyle(featureStyle);geometryFeatures.set(item.id,f);geometryStyles.set(item.id,featureStyle);geometrySignatures.set(item.id,geometryFingerprint(item.geometry));olFeatures.push(f);}catch(_){ }
         if(item.label?.coordinate&&item.label?.text!=null){hasDeclutterContent=true;try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
         if(item.annotation?.coordinate&&item.annotation?.text){hasDeclutterContent=true;try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
@@ -492,7 +494,18 @@
       const layer=canImage
         ?new ol.layer.VectorImage({...common,imageRatio:spec.imageRatio??1.2,renderOrder:null})
         :new ol.layer.Vector({...common,updateWhileAnimating:false,updateWhileInteracting:false,renderOrder:null});
-      layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;layer.__editpolygonStyleCacheSize=styleCache.size;layer.__editpolygonDeclutter=hasDeclutterContent;layer.__editpolygonRenderMode=canImage?'vector-image':'vector';return layer;
+      layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometryStyles=geometryStyles;layer.__editpolygonGeometrySignatures=geometrySignatures;layer.__editpolygonStyleCacheSize=styleCache.size;layer.__editpolygonDeclutter=hasDeclutterContent;layer.__editpolygonRenderMode=canImage?'vector-image':'vector';layer.__editpolygonSuppressedFeatures=new Set();return layer;
+    }
+    const suppressedEditableStyle=new ol.style.Style({});
+    function setEditableFeatureSuppressed(layer,featureId,suppressed){
+      if(!layer||featureId==null)return false;
+      const feature=layer.__editpolygonGeometryFeatures?.get?.(featureId)||layer.getSource?.()?.getFeatureById?.(featureId);
+      if(!feature||typeof feature.setStyle!=='function')return false;
+      const hidden=!!suppressed,registry=layer.__editpolygonSuppressedFeatures||(layer.__editpolygonSuppressedFeatures=new Set());
+      if(hidden===registry.has(featureId))return true;
+      feature.setStyle(hidden?suppressedEditableStyle:(layer.__editpolygonGeometryStyles?.get?.(featureId)||undefined));
+      if(hidden)registry.add(featureId);else registry.delete(featureId);
+      layer.changed?.();nativeMap.render?.();return true;
     }
     function updateEditableFeatureGeometry(layer,featureId,geometry){
       if(!layer||!featureId||!geometry)return false;
@@ -531,8 +544,9 @@
     // natively instead of making the application rebuild projected geometry
     // whenever the viewport crosses an application-side culling boundary.
     function prefersPersistentEditableVectorSource(){return true;}
+    function supportsFocusedEditableOverlay(){return true;}
 
-    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource});
+    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource,supportsFocusedEditableOverlay,setEditableFeatureSuppressed});
   }
 
   function createRuntime(options={}){

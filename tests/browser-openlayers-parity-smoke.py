@@ -47,6 +47,9 @@ with sync_playwright() as p:
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
       const hitIds=r.editableFeatureIdsAtPixel([15300,-2700],{hitTolerance:8});
       const bulkVec=r.createEditableVectorLayer({layerKey:'editable-bulk',renderMode:'image',interactionOptimized:true,imageRatio:1.2,features:[{id:'bulk1',geometry:{type:'Point',coordinates:[151,-26]},style:{color:'#234567',radius:4}}]});r.addDisplayLayer(bulkVec);
+      const focusedOverlay=r.supportsFocusedEditableOverlay();
+      const suppressOn=r.setEditableFeatureSuppressed(bulkVec,'bulk1',true),suppressed=bulkVec.__editpolygonSuppressedFeatures.has('bulk1');
+      const suppressOff=r.setEditableFeatureSuppressed(bulkVec,'bulk1',false),suppressionRestored=!bulkVec.__editpolygonSuppressedFeatures.has('bulk1');
       const initialGeometry={type:'Point',coordinates:[153,-27]},movedGeometry={type:'Point',coordinates:[154,-28]};
       const matchesInitial=r.editableLayerMatchesGeometry(vec,'p1',initialGeometry);
       const liveUpdated=r.updateEditableFeatureGeometry(vec,'p1',movedGeometry);
@@ -65,7 +68,7 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['center']==[873,-27],result
@@ -84,6 +87,9 @@ with sync_playwright() as p:
     assert result['wmsHiddenAbsent'] is True and result['wmsFinalPresent'] is True,result
     assert result['bulkRenderMode']=='vector-image' and abs(result['bulkImageRatio']-1.2)<1e-9,result
     assert result['persistentSource'] is True,result
+    assert result['focusedOverlay'] is True,result
+    assert result['suppressOn'] is True and result['suppressed'] is True,result
+    assert result['suppressOff'] is True and result['suppressionRestored'] is True,result
     assert result['styleCacheSize']==1,result
     assert result['disabled'] is True,result
     assert result['leafletMapCalls']==0,result

@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-adaptive-vector-image-1554412/);
+  assert.match(html,/editpolygon-app\.js\?v=20260810-focused-edit-overlay-1554413/);
 });
 
 
@@ -27,7 +27,7 @@ test('cached vector swaps add the replacement before removing the old layer on b
   const start=app.indexOf('function cachedRenderMap()');
   const block=app.slice(start,app.indexOf('function invalidateRenderCache',start));
   assert.ok(start>=0);
-  assert.match(block,/addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\);/s);
+  assert.match(block,/addCachedLayer\(group\);[\s\S]*if\(cached\?\.group\)removeCachedLayer\(cached\.group\);/);
   assert.doesNotMatch(block,/MAP_RUNTIME\.engine==='openlayers'/);
 });
 
@@ -40,7 +40,7 @@ test('cached editable renderer does not rebuild solely because viewport coordina
   assert.match(block,/function renderSignature\(file,features,renderMode=/);
   assert.doesNotMatch(block,/renderViewKey/);
   assert.doesNotMatch(block,/viewKey/);
-  assert.match(block,/const features=renderCandidateFeatures\(file\),renderMode=editableRenderMode\(file,features\),signature=renderSignature\(file,features,renderMode\)/);
+  assert.match(block,/const features=renderCandidateFeatures\(file\),useFocusedOverlay=focusedOverlayEnabled\(file\),renderMode=editableRenderMode\(file,features\),signature=renderSignature\(file,features,renderMode,useFocusedOverlay\)/);
 });
 
 test('large remote editable layers are performance-managed without simplifying their geometry',()=>{
@@ -54,23 +54,34 @@ test('large remote editable layers are performance-managed without simplifying t
 });
 
 
-test('heavy editable layers request interaction-optimised runtime rendering but return to precise vectors while editing',()=>{
-  const start=app.indexOf('function fileHasActivePrecisionEdit(file)');
-  const end=app.indexOf('function cachedEditableGeometryMatchesModel',start);
+test('heavy editable layers keep a fast background and isolate selection/editing in a precise focused overlay',()=>{
+  const start=app.indexOf('function focusedOverlayEnabled(file)');
+  const end=app.indexOf('function invalidateRenderCache',start);
   const block=app.slice(start,end);
   assert.ok(start>=0&&end>start);
   assert.match(app,/function performanceManagedEditableFile\(file\)/);
-  assert.match(app,/file\?\.performanceManaged\|\|file\?\.largeImport/);
-  assert.match(app,/coordinateCount\|\|0\)>=50000/);
-  assert.match(block,/project\.mode==='editPoint'/);
-  assert.match(block,/project\.mode==='editCircle'/);
-  assert.match(block,/return 'image'/);
-  assert.match(block,/renderMode:renderMode==='image'\?'image':'vector'/);
-  assert.match(block,/interactionOptimized:renderMode==='image'/);
-  assert.match(block,/imageRatio:1,/);
-  assert.match(block,/renderBuffer:labels\?\.enabled\?64:16/);
-  assert.match(block,/renderMode:\$\{renderMode\}/);
+  assert.match(block,/MAP_RUNTIME\.supportsFocusedEditableOverlay\?\.\(\)/);
+  assert.match(block,/if\(focusedOverlayEnabled\(file\)\)return 'image'/);
+  assert.match(block,/function buildFocusedRuntimeLayer\(file,features\)/);
+  assert.match(block,/renderMode:'vector'/);
+  assert.match(block,/interactionOptimized:false/);
+  assert.match(block,/gisResolvedFeatureStyle\(file,feature,\{highlight:false\}\)/);
+  assert.match(block,/const focusNow=useFocusedOverlay\?focusedFeatures\(file,features\):\[\]/);
+  assert.match(block,/precisionOnlyGeometryChange/);
+  assert.match(block,/geometryStateDiffersOnly\(cached\.geometryState,geometryState,precisionId\)/);
+  assert.match(block,/cached\?\.focusGroup/);
   assert.doesNotMatch(block,/MAP_RUNTIME\.engine==='openlayers'/);
+});
+
+test('focused edit overlay is the live geometry target and suppresses the stale background copy only during precision editing',()=>{
+  const start=app.indexOf('function liveGeometryUpdate(featureIds=[]');
+  const end=app.indexOf('function cachedRenderMap()',start);
+  const block=app.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/if\(cached\?\.focusGroup\)done=!!MAP_RUNTIME\.updateEditableFeatureGeometry\?\.\(cached\.focusGroup,id,getDisplayGeometry\(r\.feature\)\)/);
+  assert.match(block,/function syncFocusedSuppression\(cached,file\)/);
+  assert.match(block,/const next=fileHasActivePrecisionEdit\(file\)\?project\.selectedFeatureId:null/);
+  assert.match(block,/MAP_RUNTIME\.setEditableFeatureSuppressed\(cached\.group,next,true\)/);
 });
 
 test('selected polygon toolbar stays out of the hot pan loop and uses cached feature bounds',()=>{

@@ -55,7 +55,9 @@ test('authoritative cached editable rendering is engine-neutral at application l
   assert.match(renderer,/MAP_RUNTIME\.hasDisplayLayer/);
   assert.doesNotMatch(renderer,/\b(?:L|ol)\./);
   assert.doesNotMatch(renderer,/MAP_RUNTIME\.engine/);
-  assert.match(renderer,/addCachedLayer\(group\);if\(cached\)removeCachedLayer\(cached\.group\)/);
+  assert.match(renderer,/addCachedLayer\(group\);/);
+  assert.match(renderer,/if\(cached\?\.group\)removeCachedLayer\(cached\.group\);/);
+  assert.match(renderer,/function buildFocusedRuntimeLayer\(file,features\)/);
   assert.match(renderer,/featureGroup\.clearLayers\(\);MAP_RUNTIME\.removeDisplayLayer\(featureGroup\)/);
 });
 

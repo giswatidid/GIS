@@ -54,11 +54,12 @@ with sync_playwright() as p:
       const wms=runtime.createWmsLayer({url:'https://example.test/wms',layers:'demo',opacity:.6,zIndex:25});runtime.addDisplayLayer(wms);
       const reference=runtime.createGeoJsonLayer({data:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}}]},style:{color:'#d22f27'}});runtime.addDisplayLayer(reference);
       const raster=runtime.createStaticImageLayer({url:'data:image/png;base64,AA==',bounds:[[-28,152],[-26,154]],opacity:.7});runtime.addDisplayLayer(raster);runtime.setDisplayLayerOpacity(raster,.5);
-      return {engine:runtime.engine,version:runtime.version,persistentSource:runtime.prefersPersistentEditableVectorSource(),center:runtime.getCenter(),zoom:runtime.getZoom(),pixel:runtime.lonLatToPixel([153,-27]),event:{lonLat:evt.lonLat,pixel:[evt.pixel.x,evt.pixel.y],ctrl:evt.originalEvent.ctrlKey},panDisabled,editable:editable.__editpolygonEditable,featureCount:editable.__editpolygonFeatureCount,hitIds:ids,live,wmsLayers:wms.options.layers,refKind:reference.__editpolygonReferenceKind,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,layerCount:__native.layers.size};
+      return {engine:runtime.engine,version:runtime.version,persistentSource:runtime.prefersPersistentEditableVectorSource(),focusedOverlay:runtime.supportsFocusedEditableOverlay(),center:runtime.getCenter(),zoom:runtime.getZoom(),pixel:runtime.lonLatToPixel([153,-27]),event:{lonLat:evt.lonLat,pixel:[evt.pixel.x,evt.pixel.y],ctrl:evt.originalEvent.ctrlKey},panDisabled,editable:editable.__editpolygonEditable,featureCount:editable.__editpolygonFeatureCount,hitIds:ids,live,wmsLayers:wms.options.layers,refKind:reference.__editpolygonReferenceKind,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,layerCount:__native.layers.size};
     }''')
     assert result['engine']=='leaflet',result
-    assert result['version']=='1.55.4.12',result
+    assert result['version']=='1.55.4.13',result
     assert result['persistentSource'] is False,result
+    assert result['focusedOverlay'] is False,result
     assert result['center']==[151,-33],result
     assert result['zoom']==8,result
     assert result['pixel']['x']==306 and result['pixel']['y']==54,result

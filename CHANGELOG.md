@@ -1,5 +1,16 @@
 # EditPolygon changelog
 
+## v1.55.4.13 — Focused precision overlays for large-layer selection and editing
+
+- Removed the large-layer selection performance cliff. Performance-managed OpenLayers datasets keep their full image-backed background unchanged when a feature is selected; the selected/picked feature(s) are rendered in a small precise vector overlay instead of forcing a rebuild of the complete editable source merely to show highlight styling.
+- Removed the large-layer edit-mode renderer promotion. Entering polygon, line, point, circle or whole-feature editing no longer converts every feature in a heavy layer back to a normal `VectorLayer`; only the focused feature(s) use the precise vector path.
+- Live geometry updates target the focused precision overlay first. During active precision editing the corresponding feature in the image-backed background is temporarily suppressed so stale pre-edit geometry cannot show through, while the project model remains the authoritative geometry.
+- Added structural/background cache identity so geometry changes confined to the actively edited focused feature do not rebuild the heavy background after every pointer release. The background is reconciled once precision editing ends or another authoritative invalidation requires it.
+- Base large-layer styles are now selection-independent. Selection changes rebuild only the small focus overlay; the background style/source cache remains stable.
+- Removed private geometry revision counters from base renderer identity where actual geometry-content fingerprints already provide authoritative identity. Entering an editor can therefore normalise an unchanged feature without rebuilding a heavy background solely because an internal revision advanced.
+- Added adapter capabilities for focused editable overlays and single-feature background suppression without leaking OpenLayers calls into application code.
+- Added regressions for focused selection overlays, focused live-edit targets, active-edit background reuse, stale-background suppression and engine-neutral runtime ownership.
+
 ## v1.55.4.12 — Persistent large-vector rendering and WMS map-membership parity
 
 - Fixed the remaining OpenLayers WMS blank-layer defect. Remote service instances are created off-map and first displayed through `setDisplayLayerVisible()`; the OpenLayers implementation previously toggled only `visible` and never added a newly created WMS layer to the map. Visibility now owns add/remove map membership on both engines.

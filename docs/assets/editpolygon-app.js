@@ -21674,6 +21674,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const stats=file?.performanceManagedStats||file?.largeImportStats||{};
     return !!(file?.performanceManaged||file?.largeImport||Number(stats.coordinateCount||0)>=50000||(file?.features||[]).length>=500);
   }
+  function focusedOverlayEnabled(file){
+    return !!(performanceManagedEditableFile(file)&&MAP_RUNTIME.supportsFocusedEditableOverlay?.());
+  }
   function renderCandidateFeatures(file){
     const all=(file.features||[]).filter(feature=>!isFeatureSleeping(file,feature));
     // A native indexed vector source can cull a heavy dataset more cheaply than
@@ -21690,24 +21693,58 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return !!(V.active||MOVE.active||project.mode==='editPoint'||project.mode==='editCircle'||(typeof CIRCLE_EDIT!=='undefined'&&CIRCLE_EDIT.active));
   }
   function editableRenderMode(file,features){
-    // Ask the runtime for interaction-optimised display on heavy inactive
-    // layers. Leaflet simply ignores this hint; OpenLayers can fulfil it with
-    // its adapter-owned VectorImage primitive without leaking engine branches
-    // into application code.
+    // Heavy OpenLayers layers keep their interaction-optimised background even
+    // while one feature is selected or edited. A small precise overlay owns the
+    // focused feature(s), so editing accuracy no longer requires promoting the
+    // other hundreds/thousands of features back to a full VectorLayer.
     const heavy=performanceManagedEditableFile(file);
-    if(!heavy||fileHasActivePrecisionEdit(file))return 'vector';
+    if(!heavy)return 'vector';
+    if(focusedOverlayEnabled(file))return 'image';
+    if(fileHasActivePrecisionEdit(file))return 'vector';
     return 'image';
   }
-  function renderSignature(file,features,renderMode=editableRenderMode(file,features)){
-    gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
-    const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
-    const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|renderMode:${renderMode}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+  function focusedFeatures(file,features){
+    if(!focusedOverlayEnabled(file))return [];
+    const ids=new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean));
+    if(!ids.size)return [];
+    return features.filter(feature=>ids.has(feature.id));
   }
-  function buildRuntimeCachedLayer(file,features,renderMode=editableRenderMode(file,features)){
+  function baseFeatureStyle(file,feature,useFocusedOverlay){
+    return useFocusedOverlay?gisResolvedFeatureStyle(file,feature,{highlight:false}):styleWithOpacity(feature,file);
+  }
+  function renderSignature(file,features,renderMode=editableRenderMode(file,features),useFocusedOverlay=focusedOverlayEnabled(file)){
+    gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
+    const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=useFocusedOverlay?'':(featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:''),pickedSelection=useFocusedOverlay?'':(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
+    // Geometry-content identity is authoritative; private revision counters are
+    // deliberately not part of the base signature. Entering an editor can
+    // normalise/commit an unchanged feature and advance its revision, which must
+    // not rebuild an 821-feature background when the coordinates are identical.
+    const featureState=features.map(feature=>[feature.id,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
+    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|renderMode:${renderMode}|focusedOverlay:${useFocusedOverlay?1:0}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+  }
+  function renderStructuralSignature(file,features,renderMode=editableRenderMode(file,features),useFocusedOverlay=focusedOverlayEnabled(file)){
+    gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
+    const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=useFocusedOverlay?'':(featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:''),pickedSelection=useFocusedOverlay?'':(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
+    const featureState=features.map(feature=>[feature.id,feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
+    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|renderMode:${renderMode}|focusedOverlay:${useFocusedOverlay?1:0}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+  }
+  function renderGeometryState(features){return new Map(features.map(feature=>[feature.id,renderGeometryFingerprint(feature)]));}
+  function geometryStateDiffersOnly(previous,current,allowedId){
+    if(!(previous instanceof Map)||!(current instanceof Map)||previous.size!==current.size)return false;
+    for(const [id,value] of current){
+      if(!previous.has(id))return false;
+      if(id!==allowedId&&previous.get(id)!==value)return false;
+    }
+    return true;
+  }
+  function focusedRenderSignature(file,features){
+    if(!features.length)return '';
+    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|precision:${fileHasActivePrecisionEdit(file)?1:0}|selection:${project.selectedFeatureId||''}|picked:${(project.mergeIds||[]).slice().sort().join(',')}|${features.map(feature=>[feature.id,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,JSON.stringify(feature.styleOverride||null),JSON.stringify(styleWithOpacity(feature,file))]).join(';')}`;
+  }
+  function buildRuntimeCachedLayer(file,features,renderMode=editableRenderMode(file,features),{focusedBackground=false}={}){
     const labels=file.gisLabels;
     const descriptors=features.map(feature=>{
-      const raw=mapFeatureJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
+      const raw=mapFeatureJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:baseFeatureStyle(file,feature,focusedBackground)};
       if(labels?.enabled&&labels.field){const value=feature.properties?.[labels.field];if(value!=null&&value!=='')try{descriptor.label={text:String(value),coordinate:turf.pointOnFeature(raw).geometry.coordinates};}catch(_){ }}
       if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates,style:{...(feature.annotationStyle||{}),annotation:true}};}
       return descriptor;
@@ -21725,44 +21762,108 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       renderBuffer:labels?.enabled?64:16
     });
   }
+  function buildFocusedRuntimeLayer(file,features){
+    const descriptors=features.map(feature=>{
+      const raw=mapFeatureJSON(feature);
+      return {id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
+    });
+    return MAP_RUNTIME.createEditableVectorLayer({
+      layerKey:file.id,
+      features:descriptors,
+      zIndex:700+Math.max(0,project.files.indexOf(file)),
+      visible:file.visible!==false,
+      opacity:1,
+      smoothFactor:2.5,
+      renderMode:'vector',
+      interactionOptimized:false,
+      renderBuffer:24
+    });
+  }
   function cachedLayerPresent(layer){return MAP_RUNTIME.hasDisplayLayer(layer);}
   function addCachedLayer(layer){return MAP_RUNTIME.addDisplayLayer(layer);}
   function removeCachedLayer(layer){if(!layer)return;MAP_RUNTIME.removeDisplayLayer(layer);}
+  function removeCacheEntryLayers(cached){
+    if(!cached)return;
+    removeCachedLayer(cached.focusGroup);
+    removeCachedLayer(cached.group);
+  }
   function liveGeometryUpdate(featureIds=[]){
     const ids=[...new Set((featureIds||[]).filter(Boolean))];let updated=0;const fallbackFiles=new Set();
     for(const id of ids){
       const r=featureFile(id);if(!r)continue;const cached=ANALYSIS_RUNTIME.vectorCache.get(r.file.id);
-      if(cached?.group&&MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.group,id,getDisplayGeometry(r.feature)))updated++;else fallbackFiles.add(r.file.id);
+      // On performance-managed OpenLayers layers the precise focused overlay is
+      // the only live-edit target. The image-backed background stays stable.
+      let done=false;
+      if(cached?.focusGroup)done=!!MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.focusGroup,id,getDisplayGeometry(r.feature));
+      if(!done&&cached?.group)done=!!MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.group,id,getDisplayGeometry(r.feature));
+      if(done)updated++;else fallbackFiles.add(r.file.id);
     }
     if(fallbackFiles.size){for(const fileId of fallbackFiles)invalidateRenderCache(fileId);cachedRenderMap();}
     return {updated,requested:ids.length,fallbackFiles:[...fallbackFiles]};
   }
   window.__editpolygonLiveGeometryUpdate=liveGeometryUpdate;
-  function cachedEditableGeometryMatchesModel(layer,features){
+  function cachedEditableGeometryMatchesModel(layer,features,{skipIds=null}={}){
     if(typeof MAP_RUNTIME.editableLayerMatchesGeometry!=='function')return true;
-    // Selected/picked features are the ones eligible for direct native live
-    // mutation. Never trust a signature hit for them without verifying content.
     const watched=new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean));
     if(!watched.size)return true;
+    const skipped=skipIds instanceof Set?skipIds:new Set(skipIds||[]);
     for(const feature of features){
-      if(!watched.has(feature.id))continue;
+      if(!watched.has(feature.id)||skipped.has(feature.id))continue;
       if(!MAP_RUNTIME.editableLayerMatchesGeometry(layer,feature.id,mapFeatureJSON(feature).geometry))return false;
     }
     return true;
   }
+  function syncFocusedSuppression(cached,file){
+    if(!cached?.group||!focusedOverlayEnabled(file)||typeof MAP_RUNTIME.setEditableFeatureSuppressed!=='function')return;
+    const next=fileHasActivePrecisionEdit(file)?project.selectedFeatureId:null;
+    const previous=cached.suppressedFeatureId||null;
+    if(previous&&previous!==next)MAP_RUNTIME.setEditableFeatureSuppressed(cached.group,previous,false);
+    if(next&&previous!==next)MAP_RUNTIME.setEditableFeatureSuppressed(cached.group,next,true);
+    cached.suppressedFeatureId=next||null;
+  }
   function cachedRenderMap(){
     const live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
-      if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),renderMode=editableRenderMode(file,features),signature=renderSignature(file,features,renderMode),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
-      if(cached?.signature===signature&&cachedEditableGeometryMatchesModel(cached.group,features)){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
-      const group=buildRuntimeCachedLayer(file,features,renderMode);
-      // Both engines now use the same adapter-owned editable-vector primitive.
-      // Install the replacement before retiring the previous layer so a renderer
-      // never observes an empty intermediate frame during a viewport/cache swap.
-      addCachedLayer(group);if(cached)removeCachedLayer(cached.group);
-      ANALYSIS_RUNTIME.vectorCache.set(file.id,{signature,group,featureCount:features.length});
+      if(file.tableOnly||isFileSleeping(file))continue;
+      live.add(file.id);
+      const features=renderCandidateFeatures(file),useFocusedOverlay=focusedOverlayEnabled(file),renderMode=editableRenderMode(file,features),signature=renderSignature(file,features,renderMode,useFocusedOverlay),structuralSignature=renderStructuralSignature(file,features,renderMode,useFocusedOverlay),geometryState=renderGeometryState(features);
+      let cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
+      const focusNow=useFocusedOverlay?focusedFeatures(file,features):[],skipFocused=useFocusedOverlay?new Set(focusNow.map(feature=>feature.id)):null,precisionId=useFocusedOverlay&&fileHasActivePrecisionEdit(file)?project.selectedFeatureId:null;
+      const exactBaseMatch=!!(cached?.group&&cached.signature===signature);
+      const precisionOnlyGeometryChange=!!(cached?.group&&precisionId&&cached.structuralSignature===structuralSignature&&geometryStateDiffersOnly(cached.geometryState,geometryState,precisionId));
+      const baseReusable=!!((exactBaseMatch||precisionOnlyGeometryChange)&&cachedEditableGeometryMatchesModel(cached.group,features,{skipIds:skipFocused}));
+      if(!baseReusable){
+        const group=buildRuntimeCachedLayer(file,features,renderMode,{focusedBackground:useFocusedOverlay});
+        addCachedLayer(group);
+        if(cached?.group)removeCachedLayer(cached.group);
+        cached={...(cached||{}),signature,structuralSignature,geometryState,group,featureCount:features.length,suppressedFeatureId:null};
+        ANALYSIS_RUNTIME.vectorCache.set(file.id,cached);
+      }else{
+        if(exactBaseMatch){cached.signature=signature;cached.structuralSignature=structuralSignature;cached.geometryState=geometryState;}
+        if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);
+      }
+
+      if(useFocusedOverlay){
+        const focus=focusNow,focusSignature=focusedRenderSignature(file,focus);
+        if(!focus.length){
+          if(cached.focusGroup)removeCachedLayer(cached.focusGroup);
+          cached.focusGroup=null;cached.focusSignature='';cached.focusFeatureIds=[];
+        }else{
+          const focusReusable=!!(cached.focusGroup&&cached.focusSignature===focusSignature&&cachedEditableGeometryMatchesModel(cached.focusGroup,focus));
+          if(!focusReusable){
+            const focusGroup=buildFocusedRuntimeLayer(file,focus);
+            addCachedLayer(focusGroup);
+            if(cached.focusGroup)removeCachedLayer(cached.focusGroup);
+            cached.focusGroup=focusGroup;cached.focusSignature=focusSignature;cached.focusFeatureIds=focus.map(feature=>feature.id);
+          }else if(!cachedLayerPresent(cached.focusGroup))addCachedLayer(cached.focusGroup);
+        }
+        syncFocusedSuppression(cached,file);
+      }else{
+        if(cached.focusGroup)removeCachedLayer(cached.focusGroup);
+        cached.focusGroup=null;cached.focusSignature='';cached.focusFeatureIds=[];cached.suppressedFeatureId=null;
+      }
     }
-    for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
+    for(const [fileId,cached] of [...ANALYSIS_RUNTIME.vectorCache])if(!live.has(fileId)){removeCacheEntryLayers(cached);ANALYSIS_RUNTIME.vectorCache.delete(fileId);}
     if(typeof gisRenderMapLegends==='function')gisRenderMapLegends();
   }
   RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;
@@ -21773,7 +21874,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     // to collide with that signature. Bumping the generation guarantees the
     // next authoritative render rebuilds from the restored project model.
     ANALYSIS_RUNTIME.renderGeneration++;
-    if(fileId){const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.delete(fileId);try{MAP_RUNTIME.clearEditableVectorLayers?.(fileId);}catch(_){ }}else{for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCachedLayer(cached.group);ANALYSIS_RUNTIME.vectorCache.clear();try{MAP_RUNTIME.clearEditableVectorLayers?.();}catch(_){ }}
+    if(fileId){
+      const cached=ANALYSIS_RUNTIME.vectorCache.get(fileId);if(cached)removeCacheEntryLayers(cached);
+      ANALYSIS_RUNTIME.vectorCache.delete(fileId);try{MAP_RUNTIME.clearEditableVectorLayers?.(fileId);}catch(_){ }
+    }else{
+      for(const cached of ANALYSIS_RUNTIME.vectorCache.values())removeCacheEntryLayers(cached);
+      ANALYSIS_RUNTIME.vectorCache.clear();try{MAP_RUNTIME.clearEditableVectorLayers?.();}catch(_){ }
+    }
   }
   registerRuntimeTransition('history',()=>{invalidateSpatialIndex();invalidateRenderCache();});
 

@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-adaptive-vector-image-1554412';
+const RELEASE_KEY='20260810-focused-edit-overlay-1554413';
 
-function fail(message){throw new Error(`v1.55.4.12 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.13 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.12')fail(`package version is ${pkg.version}, expected 1.55.4.12`);
+if(pkg.version!=='1.55.4.13')fail(`package version is ${pkg.version}, expected 1.55.4.13`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -40,7 +40,8 @@ for(const method of [
   'createGeoJsonLayer','createStaticImageLayer','createEditableVectorLayer',
   'editableFeatureIdsAtPixel','updateEditableFeatureGeometry',
   'setDisplayLayerOpacity','setDisplayLayerVisible','setDisplayLayerZIndex',
-  'createVectorOverlayLayer','createDomOverlay','prefersPersistentEditableVectorSource'
+  'createVectorOverlayLayer','createDomOverlay','prefersPersistentEditableVectorSource',
+  'supportsFocusedEditableOverlay','setEditableFeatureSuppressed'
 ]){
   if(!leafRuntime.includes(method)||!olRuntime.includes(method))fail(`map-runtime contract is asymmetric for ${method}`);
 }
@@ -90,8 +91,15 @@ requireToken(cachedRendererBlock,'MAP_RUNTIME.prefersPersistentEditableVectorSou
 requireToken(leafRuntime,'function prefersPersistentEditableVectorSource(){return false;}','Leaflet persistent-source policy');
 requireToken(olRuntime,'function prefersPersistentEditableVectorSource(){return true;}','OpenLayers persistent-source policy');
 requireToken(olRuntime,"new ol.layer.VectorImage",'OpenLayers adaptive VectorImage rendering');
-requireToken(cachedRendererBlock,"if(!heavy||fileHasActivePrecisionEdit(file))return 'vector';",'precise editing render fallback');
-requireToken(cachedRendererBlock,"return 'image';",'heavy interaction render mode');
+requireToken(cachedRendererBlock,"if(!heavy)return 'vector';",'ordinary precise-vector render mode');
+requireToken(cachedRendererBlock,"if(focusedOverlayEnabled(file))return 'image';",'focused heavy background render mode');
+requireToken(cachedRendererBlock,'function buildFocusedRuntimeLayer(file,features)','precise focused edit overlay');
+requireToken(cachedRendererBlock,"renderMode:'vector'",'focused overlay precise-vector mode');
+requireToken(cachedRendererBlock,'geometryStateDiffersOnly(cached.geometryState,geometryState,precisionId)','active-edit background reuse');
+requireToken(cachedRendererBlock,'MAP_RUNTIME.setEditableFeatureSuppressed(cached.group,next,true)','active-edit stale-background suppression');
+requireToken(leafRuntime,'function supportsFocusedEditableOverlay(){return false;}','Leaflet focused-overlay policy');
+requireToken(olRuntime,'function supportsFocusedEditableOverlay(){return true;}','OpenLayers focused-overlay policy');
+requireToken(olRuntime,'function setEditableFeatureSuppressed(layer,featureId,suppressed)','OpenLayers focused-feature suppression');
 requireToken(app,'performanceManaged=models.length>200||coordinateCount>=50000','remote large-layer classification');
 requireToken(app,'file.performanceManaged=true','remote large-layer metadata');
 requireToken(app,'sidebarRowLimit:80','bounded Layers-panel rows');
@@ -160,7 +168,9 @@ for(const token of ['MAP_RUNTIME.createEditableVectorLayer','MAP_RUNTIME.addDisp
 if(/\b(?:L|ol)\./.test(renderer))fail('authoritative cached renderer contains engine-specific calls');
 if(/MAP_RUNTIME\.engine/.test(renderer))fail('authoritative cached renderer branches by engine');
 requireToken(renderer,"if(file.tableOnly||isFileSleeping(file))continue",'authoritative cached renderer');
-requireToken(renderer,'addCachedLayer(group);if(cached)removeCachedLayer(cached.group);','authoritative cached renderer');
+requireToken(renderer,'addCachedLayer(group);','authoritative cached renderer replacement-first install');
+requireToken(renderer,'if(cached?.group)removeCachedLayer(cached.group);','authoritative cached renderer old-layer retirement');
+requireToken(renderer,'function buildFocusedRuntimeLayer(file,features)','authoritative focused overlay');
 requireToken(renderer,'featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);','authoritative cached renderer handoff');
 requireToken(app,'RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;','application');
 for(const stable of ['function renderMap(){return RENDER_MAP_IMPL.apply(this,arguments)}','function selectFeature(fid){return SELECT_FEATURE_IMPL(fid)}','function selectFeatureMulti(fid,additive){return SELECT_FEATURE_MULTI_IMPL(fid,additive)}','function clearSelection(){return CLEAR_SELECTION_IMPL()}'])requireToken(app,stable,'stable public runtime identity');
@@ -247,4 +257,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.12 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors use persistent/adaptive interaction rendering with precise edit fallback, OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.13 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');
