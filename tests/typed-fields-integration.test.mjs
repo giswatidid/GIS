@@ -10,7 +10,7 @@ const ui=fs.readFileSync(new URL('../docs/assets/gis-ui-integration.js',import.m
 test('typed schema core loads before the application',()=>{
   assert.ok(html.indexOf('gis-schema-core.js')>html.indexOf('gis-data-core.js'));
   assert.ok(html.indexOf('gis-schema-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-schema-core\.js\?v=20260810-annotation-point-conversion-1554414/);
+  assert.match(html,/gis-schema-core\.js\?v=20260810-wms-project-persistence-1554415/);
 });
 
 test('application exposes schema, saved-filter, type-safe calculator and scoped export APIs',()=>{

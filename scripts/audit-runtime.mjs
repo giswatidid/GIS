@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260810-annotation-point-conversion-1554414';
+const RELEASE_KEY='20260810-wms-project-persistence-1554415';
 
-function fail(message){throw new Error(`v1.55.4.14 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.15 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.14')fail(`package version is ${pkg.version}, expected 1.55.4.14`);
+if(pkg.version!=='1.55.4.15')fail(`package version is ${pkg.version}, expected 1.55.4.15`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -62,6 +62,8 @@ requireToken(olRuntime,"sourceOptions.serverType='geoserver'",'OpenLayers GeoSer
 requireToken(olRuntime,'params.TILED=true','OpenLayers GeoServer tiled WMS hint');
 requireToken(app,'async function gisDiscoverWmsBounds(source)','WMS capabilities discovery');
 requireToken(app,"stored.bounds=info.bounds",'WMS advertised extent persistence');
+requireToken(app,"gisWorkspace:d.gisWorkspace&&typeof d.gisWorkspace==='object'?clone(d.gisWorkspace):null",'GIS workspace survives project normalisation');
+requireToken(app,'referenceOverlays:Array.isArray(d.referenceOverlays)?clone(d.referenceOverlays):[]','reference overlays survive project normalisation');
 const olVisibilityStart=olRuntime.indexOf('function setDisplayLayerVisible(layer,visible)');
 const olVisibilityEnd=olRuntime.indexOf('function setDisplayLayerZIndex',olVisibilityStart);
 const olVisibility=olRuntime.slice(olVisibilityStart,olVisibilityEnd);
@@ -257,4 +259,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.14 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.15 runtime/repository audit passed. WMS service definitions survive project normalisation/reload, WMS visibility owns map membership, heavy OpenLayers vectors keep a persistent image-backed background with precise focused selection/edit overlays, OpenLayers remains adapter-confined and deployment assets are clean.');

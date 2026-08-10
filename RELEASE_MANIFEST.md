@@ -1,26 +1,26 @@
-# Current release manifest — v1.55.4.14
+# Current release manifest — v1.55.4.15
 
-v1.55.4.14 is a creation-path consistency correction on top of v1.55.4.13. Live testing found that an **Annotate → Point marker → Convert to feature** result looked different from a Point created with **Draw point**. The review found that `featureFromMeasure()` applied the same polygon-like style (`weight: 3`, `fillOpacity: .18`, no point radius) to every converted geometry type, while Draw point used a filled radius-6 point symbol.
+v1.55.4.15 is a project-persistence parity correction on top of v1.55.4.14. Live save/reload testing found that a WMS layer worked in the active OpenLayers project but disappeared after reopening the saved `.polygonproject`. The saved payload already contained the GIS workspace; the loss occurred when `normaliseSavedProjectPayload()` stripped `gisWorkspace` before restoration.
 
 ## Upgrade basis
 
-Upgrade from **v1.55.4.13**.
+Upgrade from **v1.55.4.14**.
 
 ## Behavioural changes
 
-- Converted point-marker annotations use the same canonical GIS Point defaults as Draw point.
-- The chosen annotation colour is retained when the marker becomes a GIS feature.
-- Converted distance measurements use line defaults; converted area measurements use polygon defaults.
-- Text annotations still retain their text/typography metadata after conversion.
-- Direct Point drawing and annotation/measurement conversion share `canonicalEditableFeatureStyle()` so the two creation paths cannot silently drift apart again.
+- Manual project files retain custom GIS service definitions across the full save → JSON parse → normalise → restore path.
+- WMS URL, `LAYERS`, styles, image format, WMS version, transparency, discovered bounds and metadata are retained.
+- The associated custom layer retains visibility, opacity, order, role, lock state and group assignment through GIS-core normalisation.
+- `referenceOverlays` are preserved at the same normalisation boundary so all non-editable project context follows one persistence contract.
+- Runtime restoration rebuilds saved GIS services through the existing engine-neutral GIS runtime; no OpenLayers-specific project format is introduced.
 
 ## Files to update
 
-See `V1.55.4.14_CHANGED_FILES.md` in the release artifacts for the exact generated diff.
+See `V1.55.4.15_CHANGED_FILES.md` in the release artifacts for the exact generated diff.
 
 ## Files to add
 
-- `tests/annotation-feature-conversion.test.mjs`
+- `tests/wms-project-persistence.test.mjs`
 
 ## Files to delete
 
@@ -29,10 +29,10 @@ None.
 ## Deployment
 
 1. Replace every file listed in the generated changed-files manifest.
-2. Add the new regression test file.
-3. Wait for GitHub Pages to finish deploying.
+2. Add the new WMS project-persistence regression test file.
+3. Wait for GitHub Pages to deploy.
 4. Hard-refresh `?mapEngine=openlayers`.
-5. Create an Annotate → Point marker, convert it to a feature, and compare it with a directly drawn Point. They should use the same normal GIS Point symbol (subject to the same selection highlight state).
-6. Optionally convert a distance, area and text annotation to confirm their geometry-family styling remains appropriate.
+5. Add a WMS, change its opacity/visibility if desired, save the `.polygonproject`, then reopen it in a fresh page.
+6. Confirm the WMS card returns, the imagery renders, and its URL/layer/display state are preserved.
 
-The complete v1.55.4.14 repository ZIP can instead be used as the authoritative clean tree.
+The complete v1.55.4.15 repository ZIP can instead be used as the authoritative clean tree.

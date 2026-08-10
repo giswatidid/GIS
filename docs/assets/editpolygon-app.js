@@ -162,6 +162,8 @@ function normaliseSavedProjectPayload(raw){
     files,
     measurements,
     imageOverlays,
+    referenceOverlays:Array.isArray(d.referenceOverlays)?clone(d.referenceOverlays):[],
+    gisWorkspace:d.gisWorkspace&&typeof d.gisWorkspace==='object'?clone(d.gisWorkspace):null,
     selectedFileId:d.selectedFileId||null,
     selectedFeatureId:d.selectedFeatureId||null,
     polygonMoveBehavior:d.polygonMoveBehavior||d.ui?.polygonMoveBehavior||'screen',

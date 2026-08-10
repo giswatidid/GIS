@@ -1,3 +1,10 @@
+## v1.55.4.15 — WMS project persistence parity
+
+- Fixed manual project save/reload dropping custom GIS workspace definitions such as WMS layers. The saved `.polygonproject` already contained `gisWorkspace`, but the project-import normalisation step discarded that field before `restoreCompleteProjectPayload()` could rebuild runtime services.
+- Project-file normalisation now preserves both `gisWorkspace` and `referenceOverlays` across the parsed JSON → normalised payload boundary.
+- Restored WMS source definitions retain server URL, advertised layer names/styles, format/version, transparency, discovered bounds/metadata, and the associated layer visibility, opacity, order and lock state.
+- Added an end-to-end persistence regression that fails on v1.55.4.14, verifies the save/normalise/restore contract, and exercises GIS-core WMS source/layer round-tripping.
+
 ## v1.55.4.14 — Annotation-point conversion parity
 
 - Point-marker annotations converted to editable features now use the same canonical GIS Point symbol as **Draw point**: filled symbol, radius 6 and weight 2, while retaining the chosen annotation colour.

@@ -7,7 +7,7 @@ const tools=fs.readFileSync(new URL('../docs/assets/gis-data-tools.js',import.me
 
 test('CRS core loads before the main application',()=>{
   assert.ok(html.indexOf('gis-crs-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-crs-core\.js\?v=20260810-annotation-point-conversion-1554414/);
+  assert.match(html,/gis-crs-core\.js\?v=20260810-wms-project-persistence-1554415/);
 });
 
 test('application exposes assignment, coordinate interpretation and CRS-aware export APIs',()=>{
