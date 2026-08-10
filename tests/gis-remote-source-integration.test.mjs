@@ -9,7 +9,7 @@ const workspace=fs.readFileSync(new URL('../docs/assets/gis-workspace.js',import
  test('remote-source resolver loads before the application and workspace',()=>{
   assert.ok(html.indexOf('gis-remote-source.js')<html.indexOf('editpolygon-app.js'));
   assert.ok(html.indexOf('editpolygon-app.js')<html.indexOf('gis-workspace.js'));
-  assert.match(html,/gis-remote-source\.js\?v=20260810-openlayers-only-1556/);
+  assert.match(html,/gis-remote-source\.js\?v=20260810-openlayers-cleanup-1557/);
 });
 
 test('application exposes discovery and batch ArcGIS import APIs',()=>{

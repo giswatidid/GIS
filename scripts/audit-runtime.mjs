@@ -11,58 +11,78 @@ const appCss=read('docs/assets/editpolygon.css');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const projectFormat=read('docs/assets/editpolygon-project-format.js');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260810-openlayers-only-1556';
+const RELEASE_KEY='20260810-openlayers-cleanup-1557';
 const retiredWord=['lea','flet'].join('');
 const retiredWordRe=new RegExp(retiredWord,'i');
 const retiredFactory=['create','Lea','fletRuntime'].join('');
 
-function fail(message){throw new Error(`v1.55.6 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.7 runtime/repository audit: ${message}`);}
 function requireToken(source,token,label){if(!source.includes(token))fail(`${label} is missing ${JSON.stringify(token)}`);}
 function forbidToken(source,token,label){if(source.includes(token))fail(`${label} still contains ${JSON.stringify(token)}`);}
 
-if(pkg.version!=='1.55.6')fail(`package version is ${pkg.version}, expected 1.55.6`);
+if(pkg.version!=='1.55.7')fail(`package version is ${pkg.version}, expected 1.55.7`);
 requireToken(html,'ol@v10.9.0/dist/ol.js','OpenLayers dependency');
 requireToken(html,'ol@v10.9.0/ol.css','OpenLayers stylesheet');
 if(retiredWordRe.test(html))fail('retired map dependency remains in deployment HTML');
 
-// Every local runtime asset on the main application page must share one cache
-// key so the cutover cannot mix old and new modules after deployment.
+// Every local runtime asset on the main page shares one cache key so GitHub
+// Pages cannot combine modules from adjacent releases.
 for(const match of html.matchAll(/(?:src|href)=["']([^"']*assets\/[^"'?]+)(?:\?v=([^"']+))?["']/g)){
   const ref=match[1],version=match[2];
   if(!version)fail(`local runtime asset has no cache key: ${ref}`);
   if(version!==RELEASE_KEY)fail(`local runtime asset ${ref} uses ${version}, expected ${RELEASE_KEY}`);
 }
 
-requireToken(adapter,"const VERSION='1.55.6';",'map adapter version');
-requireToken(adapter,'function createOpenLayersRuntime(options={})','OpenLayers runtime factory');
-requireToken(adapter,'function createRuntime(options={}){\n    return createOpenLayersRuntime(options);\n  }','single runtime factory');
-requireToken(adapter,'createRuntime,createOpenLayersRuntime','adapter exports');
+// The map adapter now exposes one public factory only. OpenLayers remains an
+// implementation detail; transition-era capability shims and native escapes
+// must not reappear.
+requireToken(adapter,"const VERSION='1.55.7';",'map adapter version');
+requireToken(adapter,'function createRuntime(options={})','sole runtime factory');
+requireToken(adapter,'global.EditPolygonMapAdapter=Object.freeze({version:VERSION','adapter export');
+requireToken(adapter,'mercatorWorldPixel,createRuntime});','single runtime export');
 if(adapter.includes(retiredFactory))fail('retired runtime factory remains in adapter');
-for(const stale of ['requestedEngine','fallbackReason'])forbidToken(adapter,stale,'map adapter');
+for(const stale of ['requestedEngine','fallbackReason','createOpenLayersRuntime','getNativeMap','nativePanLooksActive','recoverNativePan','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','__editpolygonEngine'])forbidToken(adapter,stale,'map adapter');
 const retiredNamespace=new RegExp('\\b'+'L'+'\\.[A-Za-z_$][\\w$]*');
 if(retiredNamespace.test(adapter))fail('retired native namespace remains in adapter');
 
-requireToken(app,'// v1.55.6: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
+// Performance/cleanup invariants: one GeoJSON formatter per runtime, one
+// runtime-level DOM-overlay subscription set, and no per-overlay map listeners.
+if((adapter.match(/new ol\.format\.GeoJSON\(\)/g)||[]).length!==1)fail('OpenLayers runtime must allocate exactly one shared GeoJSON formatter');
+for(const token of [
+  'const geoJsonFormat=new ol.format.GeoJSON();',
+  "domOverlayPane.className='editpolygon-dom-overlays'",
+  'const domOverlays=new Set();',
+  'let domOverlayRefreshPending=false;',
+  "on('move zoomstart',scheduleDomOverlayRefresh);",
+  "on('moveend zoomend viewreset resize',refreshDomOverlays);",
+  'onRemove:()=>domOverlays.delete(controller)',
+  'source.clear?.(true)',
+  'function updateEditableFeatureGeometry(layer,featureId,geometry)'
+])requireToken(adapter,token,'OpenLayers cleanup invariant');
+forbidToken(adapter,'onMap=spec.onMap','per-overlay map subscription');
+
+requireToken(app,'// v1.55.7: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
 requireToken(app,"const MAP_RUNTIME=MAP_ADAPTER.createRuntime({",'application runtime creation');
 requireToken(app,'ol:window.ol','application OpenLayers dependency injection');
-for(const stale of ['requestedEngine','fallbackReason','L:window.L'])forbidToken(app,stale,'application startup');
+for(const stale of ['requestedEngine','fallbackReason','L:window.L','MAP_PAN_GUARD','mapPanLooksActive','hardResetMapPan','scheduleMapPanReleaseCheck','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','document.body.dataset.mapEngine'])forbidToken(app,stale,'application runtime');
 if(/\bol\.[A-Za-z_$][\w$]*/.test(app))fail('application directly calls OpenLayers instead of EditPolygonMap');
 if(retiredNamespace.test(app))fail('application directly calls retired native-map API');
 if(app.includes('getNativeMap'))fail('application escapes to native map object');
+if(/MAP_RUNTIME\.engine/.test(app))fail('application branches on or publishes engine-specific state');
 
 // The final renderer is the only editable display authority.
-const rendererStart=app.indexOf('function buildRuntimeCachedLayer');
+const rendererStart=app.indexOf('function performanceManagedEditableFile(file)');
 const rendererEnd=app.indexOf('function invalidateRenderCache',rendererStart);
 if(rendererStart<0||rendererEnd<rendererStart)fail('could not isolate authoritative cached renderer');
 const renderer=app.slice(rendererStart,rendererEnd);
-for(const token of ['MAP_RUNTIME.createEditableVectorLayer','MAP_RUNTIME.addDisplayLayer','MAP_RUNTIME.removeDisplayLayer','MAP_RUNTIME.hasDisplayLayer','function buildFocusedRuntimeLayer(file,features)','setEditableFeatureSuppressed'])requireToken(renderer,token,'authoritative cached renderer');
+for(const token of ['MAP_RUNTIME.createEditableVectorLayer','MAP_RUNTIME.addDisplayLayer','MAP_RUNTIME.removeDisplayLayer','MAP_RUNTIME.hasDisplayLayer','function buildFocusedRuntimeLayer(file,features)','setEditableFeatureSuppressed','if(performanceManagedEditableFile(file))return all','return performanceManagedEditableFile(file);'])requireToken(renderer,token,'authoritative cached renderer');
 if(/\b(?:L|ol)\./.test(renderer))fail('authoritative cached renderer contains native-engine calls');
 if(/MAP_RUNTIME\.engine/.test(renderer))fail('authoritative cached renderer branches by engine');
 requireToken(app,'let RENDER_MAP_IMPL=()=>{};','stable renderer bootstrap delegate');
 requireToken(app,'RENDER_MAP_IMPL=cachedRenderMap;window.renderMap=renderMap;','authoritative renderer installation');
 
 // Selection/history/edit invariants discovered during live parity remain hard
-// requirements after deleting the old runtime.
+// requirements after the cleanup.
 for(const token of [
   'function invalidateHistoryRestoreCaches(fileIds=null)',
   'VStop(true,{render:false})',
@@ -81,37 +101,41 @@ for(const token of [
   'const rendered=mapFeatureJSON(feature)?.geometry'
 ])requireToken(app,token,'parity invariant');
 forbidToken(app,'VStop=(function(base)','history source-order guard');
-for(const token of ['function geometryFingerprint(geometry)','function editableLayerMatchesGeometry(layer,featureId,geometry)','function clearEditableVectorLayers(layerKey=null)','function geometryToCanonicalWorld','geometry:geometryToCanonicalWorld(item.geometry)','function prefersPersistentEditableVectorSource(){return true;}','function supportsFocusedEditableOverlay(){return true;}'])requireToken(adapter,token,'OpenLayers runtime invariant');
+for(const token of ['function geometryFingerprint(geometry)','function editableLayerMatchesGeometry(layer,featureId,geometry)','function clearEditableVectorLayers(layerKey=null)','function geometryToCanonicalWorld','geometry:geometryToCanonicalWorld(item.geometry)'])requireToken(adapter,token,'OpenLayers runtime invariant');
 
-// Runtime authority must be final in source order.
-const authority='/* v1.55.6 — runtime authority boundary.';
+// Runtime authority remains final in source order.
+const authority='/* v1.55.7 — runtime authority boundary.';
 const authorityIndex=app.indexOf(authority);
 if(authorityIndex<0)fail('runtime authority boundary is missing');
 const authorityTail=app.slice(authorityIndex);
 requireToken(authorityTail,'renderAll();','runtime authority handoff');
-requireToken(authorityTail,"version:'1.55.6'",'runtime authority snapshot');
+requireToken(authorityTail,"version:'1.55.7'",'runtime authority snapshot');
 requireToken(authorityTail,'window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY','runtime authority publication');
 const afterPublish=app.slice(app.indexOf('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY',authorityIndex));
 if(/\bfunction\s+[A-Za-z_$]|(?<![\w$.])[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?function\s*\(/.test(afterPublish))fail('function patch appears after runtime authority boundary');
 
-// Current UI/runtime styling must address OpenLayers directly and contain no
-// retired native-engine selectors.
+// Styling no longer needs a body engine selector because only OpenLayers can
+// exist. The DOM overlay pane itself is engine-neutral to the application UI.
 for(const [name,source] of [['application CSS',appCss],['mobile CSS',mobileCss],['OpenLayers CSS',olCss],['mobile controller',mobile]]){
   if(retiredWordRe.test(source))fail(`${name} retains retired engine text/selectors`);
 }
 requireToken(appCss,'.ol-viewport','application CSS OpenLayers viewport');
+requireToken(olCss,'.editpolygon-dom-overlays','OpenLayers DOM overlay styling');
 requireToken(mobileCss,'.ol-zoom button','mobile CSS OpenLayers controls');
-requireToken(mobile,"const VERSION='1.55.6';",'mobile controller version');
+forbidToken(olCss,'data-map-engine','OpenLayers CSS');
+forbidToken(mobileCss,'data-map-engine="openlayers"','mobile CSS');
+requireToken(mobile,"const VERSION='1.55.7';",'mobile controller version');
 
-// Lossless project persistence is independent of the map implementation.
+// Lossless project persistence is independent of map implementation.
 for(const token of ["const FORMAT_VERSION=1;","const MANIFEST_FILE='manifest.json';","const PROJECT_FILE='project.json';",'async function sha256(text)','async function createArchive(payload','async function readArchive(file'])requireToken(projectFormat,token,'EPZ project format');
-requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.6'})",'EPZ save version');
+requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7'})",'EPZ save version');
 requireToken(app,'EditPolygonProjectFormat.readArchive(file,{onProgress})','EPZ load path');
 requireToken(app,"referenceOverlays:Array.isArray(d.referenceOverlays)?clone(d.referenceOverlays):[]",'reference overlay persistence');
 requireToken(app,"gisWorkspace:d.gisWorkspace&&typeof d.gisWorkspace==='object'?clone(d.gisWorkspace):null",'GIS workspace persistence');
 
-// Current root docs only; stale per-version note files should not accumulate.
-for(const required of ['README.md','ARCHITECTURE.md','CHANGELOG.md','QUALITY_BASELINE.md','RELEASE_MANIFEST.md'])if(!fs.existsSync(required))fail(`missing repository document ${required}`);
+// Current root docs only; stale per-version notes and common repository junk
+// should not accumulate.
+for(const required of ['.gitignore','README.md','ARCHITECTURE.md','CHANGELOG.md','QUALITY_BASELINE.md','RELEASE_MANIFEST.md'])if(!fs.existsSync(required))fail(`missing repository document ${required}`);
 const staleRoot=fs.readdirSync('.').filter(name=>/^GIS_.*(?:RELEASE_NOTES|HOTFIX|FIX_155|NOTES)\.md$/i.test(name)||/^V\d+(?:\.\d+)+.*\.md$/i.test(name)||name==='CRS_VALIDATION.md');
 if(staleRoot.length)fail(`stale root documentation remains: ${staleRoot.join(', ')}`);
 
@@ -147,4 +171,4 @@ for(const name of fs.readdirSync('docs',{recursive:true}).filter(name=>name.ends
 }
 for(const name of fs.readdirSync('.', {recursive:true}))if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 
-console.log('v1.55.6 runtime/repository audit passed. OpenLayers is the sole map runtime; mobile parity, lossless .epz persistence, authoritative rendering and adapter boundaries remain intact.');
+console.log('v1.55.7 runtime/repository audit passed. Single-runtime transition shims are removed; DOM overlays are batched; GeoJSON conversion is shared; mobile parity, lossless .epz persistence and authoritative rendering remain intact.');

@@ -1,5 +1,21 @@
 # EditPolygon changelog
 
+## v1.55.7 — OpenLayers-only performance and architecture cleanup
+
+- Collapses the map adapter to one `createRuntime()` factory and removes the remaining transition-era capability methods, native-map escape surface, engine markers and application runtime-name dataset.
+- Removes the dead pan-recovery compatibility stack and its global pointer/touch/visibility listeners, which had become no-ops after OpenLayers became the sole runtime.
+- Makes persistent indexed sources and focused precision overlays direct OpenLayers-era invariants rather than capabilities negotiated by application code.
+- Reuses one `ol.format.GeoJSON` formatter per runtime across editable layers, reference GeoJSON, transient overlays and live geometry updates.
+- Reworks DOM overlays so all handles/labels share runtime-level map/view subscriptions and requestAnimationFrame-batched position refresh instead of adding six map subscriptions per overlay.
+- Centralises zoom lifecycle detection and fans logical zoom start/end events to every subscriber. This closes a latent ordering bug where shared zoom state could let the first listener consume the transition before later listeners observed it.
+- Removes redundant explicit native render/source invalidations after OpenLayers setters and source mutations that already schedule their own redraw.
+- Removes the private `values_` fallback from editable feature hit detection and relies on public feature identity APIs.
+- Generalises OpenLayers-only DOM/CSS selectors now that there is no engine-specific body selector.
+- Adds `.gitignore` and removes the stale `CRS_VALIDATION.md` report from the normalized repository baseline.
+- Expands regression coverage for shared GeoJSON conversion, constant DOM-overlay listener counts, multi-subscriber zoom fan-out and the absence of the retired pan listener stack.
+- Final gate: 270/270 Node tests, 8/8 browser smoke suites, 1,686 named bindings, ceilings of 198 duplicate names / 371 extra binding sites, and zero application engine branches/native-map calls/escapes.
+- Processing Toolbox work resumes after this stabilisation release.
+
 ## v1.55.6 — OpenLayers-only runtime
 
 - Completes the map-runtime migration by making OpenLayers the only native map implementation in the repository.

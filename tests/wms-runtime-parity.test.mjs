@@ -6,7 +6,7 @@ const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 
 test('WMS display does not force anonymous CORS on image tiles',()=>{
-  const runtimeStart=adapter.indexOf('function createOpenLayersRuntime');
+  const runtimeStart=adapter.indexOf('function createRuntime');
   const start=adapter.indexOf('function createWmsLayer(spec={})',runtimeStart);
   const end=adapter.indexOf('function parseDash',start);
   const block=adapter.slice(start,end);
@@ -16,7 +16,7 @@ test('WMS display does not force anonymous CORS on image tiles',()=>{
 });
 
 test('GeoServer WMS gets tiled/server hints without provider-specific application code',()=>{
-  const start=adapter.indexOf('function createWmsLayer(spec={})',adapter.indexOf('function createOpenLayersRuntime'));
+  const start=adapter.indexOf('function createWmsLayer(spec={})',adapter.indexOf('function createRuntime'));
   const end=adapter.indexOf('function parseDash',start),block=adapter.slice(start,end);
   assert.ok(block.includes('/\\/geoserver(?:\\/|$)/i'));
   assert.match(block,/params\.TILED=true/);
@@ -36,7 +36,7 @@ test('WMS capability discovery is best-effort and persists advertised bounds for
 });
 
 test('WMS service visibility owns map membership',()=>{
-  const runtimeStart=adapter.indexOf('function createOpenLayersRuntime');
+  const runtimeStart=adapter.indexOf('function createRuntime');
   const start=adapter.indexOf('function setDisplayLayerVisible(layer,visible)',runtimeStart);
   const end=adapter.indexOf('function setDisplayLayerZIndex',start),block=adapter.slice(start,end);
   assert.ok(start>=0&&end>start);

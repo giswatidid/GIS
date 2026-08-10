@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity layer · v1.55.6
+/* EditPolygon mobile parity layer · v1.55.7
    Phones, touch tablets and desktop browsers expose the same application
    capabilities. This stylesheet reorganises the shared interface into a
    map-first, touch-oriented layout without creating a separate mobile app. */
@@ -931,7 +931,7 @@ body.v151-mobile-layout #selectedPanel > *{flex:0 0 auto!important;}
 body.v151-mobile-layout #selectedPanel > .empty-inspector{min-height:180px;}
 
 /* -------------------------------------------------------------------------
-   v1.55.6 mobile parity and touch-target refinement
+   v1.55.7 mobile parity and touch-target refinement
    Keep the phone surface dense enough for GIS work without retaining desktop-
    sized controls. Full application capabilities remain available; only their
    layout changes on narrow/coarse-pointer screens.
@@ -1235,7 +1235,7 @@ body.v151-mobile-layout .gis-join-sample{max-width:100%!important;overflow:auto!
 
 /* OpenLayers controls inherit desktop defaults after this stylesheet in the
    document, so use a more specific mobile rule to guarantee usable targets. */
-body.v151-mobile-layout[data-map-engine="openlayers"] .ol-control button{
+body.v151-mobile-layout .ol-control button{
   width:42px!important;
   min-width:42px!important;
   height:42px!important;
@@ -1244,8 +1244,8 @@ body.v151-mobile-layout[data-map-engine="openlayers"] .ol-control button{
   font-size:20px!important;
   touch-action:manipulation!important;
 }
-body.v151-mobile-layout[data-map-engine="openlayers"] .ol-zoom{top:8px!important;left:8px!important;}
-body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
+body.v151-mobile-layout .ol-zoom{top:8px!important;left:8px!important;}
+body.v151-mobile-layout .ol-attribution{
   max-width:82vw!important;
   right:4px!important;
   bottom:4px!important;
@@ -1290,7 +1290,7 @@ body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
 }
 
 
-/* v1.55.6 — mobile layer-action popover authority.
+/* v1.55.7 — mobile layer-action popover authority.
    Layer action menus are portaled outside the drawer on desktop. On phones the
    drawer is itself a fixed stacking surface, so those popovers must explicitly
    sit above it and use touch-sized action targets. */

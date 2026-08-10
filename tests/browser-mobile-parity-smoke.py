@@ -27,7 +27,7 @@ with sync_playwright() as p:
       .sidebar,.selected-section{background:#fff}.sidebar{display:flex;flex-direction:column}.sidebar-section{overflow:auto}.project-section{min-height:120px}.files-section{flex:1}
       #map{background:#dce8ef}.rail-btn{display:flex;flex-direction:column;align-items:center;justify-content:center}.ico svg{fill:none;stroke:currentColor}
       .gis-workspace-panel{display:none}.gis-workspace-panel.active{display:flex}.statusbar{display:flex}
-    </style></head><body data-map-engine="openlayers">
+    </style></head><body>
     <div class="app">
       <header class="compact-topbar">
         <div class="topbar-brand"><span class="title">EditPolygon</span></div>
@@ -75,7 +75,7 @@ with sync_playwright() as p:
       olSize:[document.querySelector('.ol-control button').getBoundingClientRect().width,document.querySelector('.ol-control button').getBoundingClientRect().height]
     })''')
     assert initial['mobile'] is True,initial
-    assert initial['version']=='1.55.6',initial
+    assert initial['version']=='1.55.7',initial
     assert initial['gisButtons']==1,initial
     assert initial['oldNotice'] is False,initial
     assert initial['docWidth']<=initial['viewport']+1,initial

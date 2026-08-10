@@ -1,14 +1,12 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.6**.
+This document describes the current application architecture as of **v1.55.7**.
 
 ## Runtime authority
 
-EditPolygon now has **one map implementation: OpenLayers**. `docs/assets/editpolygon-map-adapter.js` owns every native map object and exposes the engine-neutral `EditPolygonMap` contract consumed by application code.
+EditPolygon has **one map implementation: OpenLayers**. `docs/assets/editpolygon-map-adapter.js` owns every native map object and exposes the stable `EditPolygonMap` contract consumed by application code.
 
-There is no alternate map selector, automatic map-engine fallback, compatibility map, synchronized secondary map, or application-level native-map escape hatch. `createRuntime()` constructs the OpenLayers runtime directly.
-
-The application may know the runtime name for diagnostics (`document.body.dataset.mapEngine`), but feature behaviour and rendering must not branch on it.
+There is no alternate map selector, automatic engine fallback, compatibility map, synchronized secondary map, transition capability probe, or application-level native-map escape hatch. `createRuntime()` constructs the sole runtime directly. Application code does not branch on the runtime name.
 
 ## Application boundary
 
@@ -44,16 +42,32 @@ Application code talks to the map only through `MAP_RUNTIME` / `EditPolygonMap`.
 - z-order, visibility and opacity;
 - native source reuse and spatial indexing.
 
-The adapter can expose `getNativeMap()` internally for adapter-oriented tests or integration work, but the application is forbidden from using it.
+The runtime deliberately does **not** expose its native map object to application code. Adapter-oriented tests use their own fake OpenLayers state rather than a production escape hatch.
+
+### Runtime event and overlay policy
+
+v1.55.7 consolidates event work that became redundant after the single-runtime cutover:
+
+- zoom start/end are detected once by the runtime and fan out to every registered subscriber;
+- DOM overlays share one runtime-level set of map/view refresh subscriptions instead of each overlay adding its own listeners;
+- DOM overlay position refresh during movement is requestAnimationFrame-batched;
+- removing an overlay removes it from the shared registry immediately;
+- synthetic mobile layout resize events remain separated from real viewport resize scheduling.
+
+This keeps edit handles, measurement labels and other DOM overlays responsive without multiplying hot map listeners as overlay count grows.
+
+### Geometry conversion and render invalidation
+
+One `ol.format.GeoJSON` instance is created per runtime and reused by editable layers, reference GeoJSON, transient vector overlays and live geometry updates. OpenLayers source/layer setters remain responsible for their own render notifications; application/runtime code no longer stacks redundant `source.changed()` / `map.render()` calls after operations that already invalidate the native renderer.
 
 ## Authoritative editable renderer
 
-The final editable display path is the cached renderer beginning at `buildRuntimeCachedLayer()`.
+The final editable display path is the cached renderer around `performanceManagedEditableFile()`, `renderCandidateFeatures()`, `buildRuntimeCachedLayer()` and the focused overlay helpers.
 
 Its contract is:
 
 1. canonical project geometry is the durable authority;
-2. application code resolves engine-neutral style/label descriptors;
+2. application code resolves map-library-neutral style/label descriptors;
 3. the adapter creates and owns native vector layers;
 4. cache identity includes model/render generation and geometry-content fingerprints;
 5. history invalidation can hard-purge adapter-owned editable layers before rebuilding from the restored model;
@@ -66,10 +80,12 @@ A monotonic history render epoch prevents an older restored state from accidenta
 
 Large editable datasets use a two-tier OpenLayers strategy:
 
-- the complete background dataset can remain in a persistent indexed `VectorSource` and use image-backed vector rendering for fast pan/zoom;
+- the complete background dataset remains in a persistent indexed `VectorSource` and can use image-backed vector rendering for fast pan/zoom;
 - selected, picked or actively edited features are isolated into a small precise vector overlay.
 
-This avoids promoting hundreds or thousands of unrelated features to the precision editing path while preserving exact source coordinates for the focused feature. Large-layer sidebar rendering is also bounded independently of the complete GIS dataset.
+In v1.55.7 this is a direct single-runtime invariant rather than a negotiated capability. The application does not probe whether persistent sources or focused overlays are supported.
+
+This avoids promoting hundreds or thousands of unrelated features to the precision editing path while preserving exact source coordinates for the focused feature. Large-layer sidebar rendering is bounded independently of the complete GIS dataset.
 
 ## World-wrap and Date Line model
 
@@ -139,31 +155,29 @@ Mobile invariants include:
 
 ## Runtime authority boundary
 
-The end of `editpolygon-app.js` contains the v1.55.6 runtime-authority boundary. No later feature monkey-patches may be appended after that point.
+The end of `editpolygon-app.js` contains the **v1.55.7 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
 
 Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
 ## Historical binding debt
 
-The application remains a large historically layered file. v1.55.6 audits currently allow at most:
+The application remains a large historically layered file. v1.55.7 audits currently allow at most:
 
 - **198** duplicated function-binding names;
 - **371** extra historical binding sites.
 
-Those are ceilings, not targets. New work should reduce them through extraction/modularisation rather than adding wrappers.
-
-The previous map-engine removal eliminated all direct retired-native calls from application code and reduced the transition surface to a single runtime.
+Those are ceilings, not targets. The binding audit currently sees **1,686 named bindings**, with **0 application engine branches**, **0 application native-map calls** and **0 native-map escapes**. New work should reduce historical wrapper chains through extraction/modularisation rather than adding more.
 
 ## Quality gates
 
 The repository uses three complementary static gates:
 
 - `scripts/check-repo.mjs` — deployment/integration structure;
-- `scripts/audit-runtime.mjs` — single-runtime, persistence, renderer and deployment invariants;
+- `scripts/audit-runtime.mjs` — single-runtime, persistence, renderer, listener and deployment invariants;
 - `scripts/audit-bindings.mjs` — source-order authority and binding-debt ceilings.
 
 Node unit tests cover the canonical models and adapter contract. Browser smoke suites cover OpenLayers parity, CRS, remote sources, schema/data tools, joins, Geometry Health and mobile/touch behaviour.
 
 ## Next architecture step
 
-**v1.55.7** should be an OpenLayers-only optimisation and cleanup release. Priorities are source reuse, feature-level updates, hit detection, render buffers, style caching, very-large-data interaction performance and further reduction of historical wrapper debt. After that, roadmap work can return to the Processing Toolbox and broader GIS capabilities.
+With the runtime migration and OpenLayers-only cleanup complete, roadmap work can return to the **Processing Toolbox**. Large-dataset virtualisation and further modular extraction remain later performance/maintainability work, but they no longer need to accommodate a second map implementation.

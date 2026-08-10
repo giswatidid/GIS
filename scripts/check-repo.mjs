@@ -19,8 +19,8 @@ if(html.indexOf('gis-geometry-health.js')<html.indexOf('editpolygon-app.js'))thr
 
 const app=fs.readFileSync('docs/assets/editpolygon-app.js','utf8');
 const adapter=fs.readFileSync('docs/assets/editpolygon-map-adapter.js','utf8');
-for(const token of ['createRuntime','createOpenLayersRuntime','ensureDisplayPane','createEditableVectorLayer','editableFeatureIdsAtPixel','updateEditableFeatureGeometry','createTileLayer','createWmsLayer','createGeoJsonLayer','createStaticImageLayer','setDisplayLayerOpacity','setDisplayLayerVisible','setDisplayLayerZIndex','lonLatToPixel','pixelToLonLat','fitExtent','setPanEnabled','setDoubleClickZoomEnabled'])if(!adapter.includes(token))throw new Error('Map adapter missing '+token);
-for(const forbidden of ['requestedEngine','fallbackReason','create'+'Lea'+'fletRuntime'])if(adapter.includes(forbidden))throw new Error('Retired runtime contract remains: '+forbidden);
+for(const token of ['createRuntime','createEditableVectorLayer','editableFeatureIdsAtPixel','updateEditableFeatureGeometry','createTileLayer','createWmsLayer','createGeoJsonLayer','createStaticImageLayer','createDomOverlay','setDisplayLayerOpacity','setDisplayLayerVisible','setDisplayLayerZIndex','lonLatToPixel','pixelToLonLat','fitExtent','setPanEnabled','setDoubleClickZoomEnabled'])if(!adapter.includes(token))throw new Error('Map adapter missing '+token);
+for(const forbidden of ['requestedEngine','fallbackReason','create'+'Lea'+'fletRuntime','createOpenLayersRuntime','getNativeMap','nativePanLooksActive','recoverNativePan','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','__editpolygonEngine'])if(adapter.includes(forbidden))throw new Error('Retired runtime contract remains: '+forbidden);
 for(const token of ['MAP_RUNTIME','window.EditPolygonMap=MAP_RUNTIME','buildRuntimeCachedLayer','MAP_RUNTIME.createEditableVectorLayer','EDITPOLYGON_RUNTIME_AUTHORITY'])if(!app.includes(token))throw new Error('Application missing runtime integration '+token);
 if(app.includes('buildOpenLayersCachedLayer'))throw new Error('Old OpenLayers-specific cached renderer returned.');
 if(/\bol\.[A-Za-z_$]/.test(app))throw new Error('Application bypasses the map adapter with direct OpenLayers calls.');
@@ -36,4 +36,5 @@ for(const token of ['gis-geos-adapter.js','geos-wasm@3.1.1','GEOS-WASM','robustE
 const tools=fs.readFileSync('docs/assets/gis-data-tools.js','utf8');
 if(!tools.includes('Join & summarize'))throw new Error('Join and summarize interface is missing.');
 if(fs.existsSync('public'))throw new Error('Repository must use docs/, not public/.');
+if(!fs.existsSync('.gitignore'))throw new Error('Repository housekeeping is missing .gitignore.');
 console.log('Repository integration checks passed.');

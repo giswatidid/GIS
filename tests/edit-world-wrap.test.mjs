@@ -81,7 +81,7 @@ test('geographic centre movement removes repeated-world offset before metre-spac
 });
 
 test('DOM draggable overlays and true-circle centre editing preserve their pre-drag longitude branch',()=>{
-  const overlay=adapter.slice(adapter.indexOf('function createDomOverlayController'),adapter.indexOf('function createOpenLayersRuntime'));
+  const overlay=adapter.slice(adapter.indexOf('function createDomOverlayController'),adapter.indexOf('function createRuntime'));
   assert.match(overlay,/next\[0\]=wrapLongitudeNear\(next\[0\],coordinate\[0\]\);coordinate=next/);
   const circleBlock=app.slice(app.indexOf('function buildCircleEditHandles(){'),app.indexOf('function startCircleEditMode(){'));
   assert.match(circleBlock,/centerCoord=unwrapCoordNear\(\[ll\.lng,Math\.max\(-90,Math\.min\(90,ll\.lat\)\)\],drag\?\.base\?\.center\|\|f\.parametricGeometry\.center\)/);

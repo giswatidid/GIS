@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.6.** OpenLayers is the sole map runtime. The desktop/mobile parity campaign and the v1.55.5 default-engine soak passed before the previous runtime was removed.
+**Current baseline: v1.55.7.** OpenLayers is the sole map runtime. The desktop/mobile parity campaign, default-engine soak, runtime removal and first single-runtime cleanup have all passed automated regression coverage.
 
 ## Current automated gate
 
@@ -11,15 +11,14 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.6 currently expects:
+v1.55.7 currently expects:
 
-- **266/266 Node tests**;
-- **8/8 browser smoke suites** after removal of the obsolete alternate-runtime smoke;
+- **270/270 Node tests**;
+- **8/8 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
 - binding/architecture audit;
 - JavaScript syntax validation for critical runtime modules.
-
 
 ## Architecture invariants
 
@@ -27,10 +26,10 @@ v1.55.6 currently expects:
 
 - OpenLayers is the only native map implementation.
 - Normal startup has no engine selector or compatibility fallback.
+- Application code contains **0 runtime-engine branches**.
 - Application code contains **0 direct `ol.*` calls**.
-- Application code contains **0 direct retired-native calls**.
-- Application code contains **0 `getNativeMap` escapes**.
-- Native calls belong in `editpolygon-map-adapter.js`.
+- Application code contains **0 native-map escapes**.
+- Native implementation calls belong in `editpolygon-map-adapter.js`.
 
 ### One editable display authority
 
@@ -45,6 +44,15 @@ Cache reuse is guarded by:
 - owner-keyed hard purge on history restoration.
 
 A live drag may mutate the focused native feature for pointer responsiveness, but the project model becomes authoritative again at commit/end-of-edit.
+
+### Runtime performance invariants
+
+- One `ol.format.GeoJSON` formatter is reused per runtime rather than recreated in live geometry paths.
+- DOM overlays share runtime-owned map/view subscriptions; adding overlays must not add per-overlay map listeners.
+- DOM-overlay movement refresh is requestAnimationFrame-batched.
+- Zoom lifecycle uses a central detector/fan-out; multiple `zoomstart` and `zoomend` subscribers must all be notified exactly once for the same logical transition.
+- OpenLayers setters/source mutations are not followed by redundant explicit render invalidations unless a specific path demonstrably requires one.
+- The removed single-runtime pan-recovery compatibility listener stack must not return.
 
 ### Large-data interaction
 
@@ -91,16 +99,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.6 no-growth ceilings are:
+The v1.55.7 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
-Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary.
+The current audit sees **1,686 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-These numbers should decrease as the application is modularised.
-
-## Live parity evidence carried into v1.55.6
+## Live parity evidence carried into v1.55.7
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -121,8 +127,8 @@ The deployed OpenLayers path has been manually exercised for:
 - `.epz` save/reload including WMS persistence;
 - phone/touch GIS access and mobile action menus.
 
-v1.55.5 then made OpenLayers the normal/default runtime and was live-confirmed before v1.55.6 removed the alternate implementation.
+v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, and v1.55.7 simplifies only the now-single runtime without changing project semantics or GIS features.
 
-## v1.55.7 gate
+## Next gate
 
-The next release may optimise aggressively because there is only one runtime, but it must not weaken the invariants above. Performance changes should be measured against large vector datasets while preserving exact canonical geometry and editing semantics.
+The next feature work is the Processing Toolbox. New processing tools must continue to use the canonical project/geometry model, produce normal undoable layers with provenance where appropriate, and stay independent of native OpenLayers objects.

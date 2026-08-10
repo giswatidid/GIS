@@ -2972,8 +2972,8 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.6: OpenLayers is the sole map runtime. Application code talks only
-// to the engine-neutral EditPolygonMap contract; no secondary native map exists.
+// v1.55.7: OpenLayers is the sole map runtime. Application code talks only
+// to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
   center:[startingView.center[1],startingView.center[0]],
@@ -2983,11 +2983,10 @@ const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
 });
 try{
   window.EditPolygonMap=MAP_RUNTIME;
-  document.body.dataset.mapEngine=MAP_RUNTIME.engine;
 }catch(_){ }
-function mapLayerHas(layer){return !!(layer&&MAP_RUNTIME.hasDisplayLayer?.(layer));}
-function mapLayerAdd(layer){if(!layer)return layer;return MAP_RUNTIME.addDisplayLayer?.(layer)||layer;}
-function mapLayerRemove(layer){if(!layer)return layer;return MAP_RUNTIME.removeDisplayLayer?.(layer)||layer;}
+function mapLayerHas(layer){return !!(layer&&MAP_RUNTIME.hasDisplayLayer(layer));}
+function mapLayerAdd(layer){if(!layer)return layer;return MAP_RUNTIME.addDisplayLayer(layer)||layer;}
+function mapLayerRemove(layer){if(!layer)return layer;return MAP_RUNTIME.removeDisplayLayer(layer)||layer;}
 function makeBuiltinBasemaps(){
   return {
     osm:MAP_RUNTIME.createTileLayer({url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap contributors',maxZoom:22,maxNativeZoom:19,zIndex:0}),
@@ -3607,46 +3606,8 @@ MAP_RUNTIME.on('mouseout',()=>{
 });
 
 
-// Map-pan release guard. v1.55.0 keeps the recovery behaviour but the
-// application no longer reaches into OpenLayers's private Draggable fields. Any
-// engine-specific recovery is contained by the map adapter.
-const MAP_PAN_GUARD={timer:0,lastResetAt:0,dragging:false};
-function customPointerDragActive(){
-  return !!(V?.drag || V?.edgeDrag || IMAGE?.drag || (MEASURE?.active && MEASURE?.drawing) || D?.active || (V?.active && V?.lassoDrawing));
-}
-function mapPanLooksActive(){
-  return !!MAP_RUNTIME.nativePanLooksActive?.();
-}
-function hardResetMapPan(e,reason='release guard'){
-  if(customPointerDragActive())return;
-  const now=performance.now();
-  if(now-MAP_PAN_GUARD.lastResetAt<80)return;
-  MAP_PAN_GUARD.lastResetAt=now;
-  try{MAP_RUNTIME.recoverNativePan?.(e||{});}catch(_){ }
-  MAP_PAN_GUARD.dragging=false;
-}
-function scheduleMapPanReleaseCheck(e,reason='release'){
-  if(MAP_PAN_GUARD.timer)clearTimeout(MAP_PAN_GUARD.timer);
-  const evt=e;
-  MAP_PAN_GUARD.timer=setTimeout(()=>{
-    MAP_PAN_GUARD.timer=0;
-    if(!customPointerDragActive() && mapPanLooksActive())hardResetMapPan(evt,reason);
-  },35);
-}
-MAP_RUNTIME.on('dragstart',()=>{MAP_PAN_GUARD.dragging=true;});
-MAP_RUNTIME.on('dragend',()=>{MAP_PAN_GUARD.dragging=false;scheduleMapPanReleaseCheck(null,'map dragend');});
-document.addEventListener('pointerup',e=>scheduleMapPanReleaseCheck(e,'document pointerup'),true);
-document.addEventListener('pointercancel',e=>scheduleMapPanReleaseCheck(e,'document pointercancel'),true);
-document.addEventListener('mouseup',e=>scheduleMapPanReleaseCheck(e,'document mouseup'),true);
-document.addEventListener('touchend',e=>scheduleMapPanReleaseCheck(e,'document touchend'),true);
-document.addEventListener('touchcancel',e=>scheduleMapPanReleaseCheck(e,'document touchcancel'),true);
-document.addEventListener('pointermove',e=>{
-  if(e.pointerType==='mouse' && typeof e.buttons==='number' && e.buttons===0 && mapPanLooksActive()){
-    scheduleMapPanReleaseCheck(e,'buttons zero pointermove');
-  }
-},true);
-window.addEventListener('blur',e=>scheduleMapPanReleaseCheck(e,'window blur'),true);
-document.addEventListener('visibilitychange',e=>{if(document.hidden)scheduleMapPanReleaseCheck(e,'visibility hidden');},true);
+// OpenLayers owns pan gesture release. The former cross-runtime recovery guard
+// was a no-op after the single-runtime cutover and has been removed.
 
 
 function updateStatus(){const img=imageOverlayById(IMAGE.selectedId);const r=ref();const selectedName=img?(img.name||'Image overlay'):(r?r.feature.name:'None');$('selectedState').textContent=selectedName;$('selectionState').textContent=img?selectedName:(r?r.feature.name:'No selection');$('mergeState').textContent=`${project.mergeIds.length} picked`;$('vertexState').textContent=V.active?`Vertex editor · ${vertexEditIds().length} polygon${vertexEditIds().length===1?'':'s'} · ${V.selected.size} selected`:'No vertex editor';$('modeState').textContent='Mode: '+(img?'Image '+(img.mode||'move'):D.active?(drawKindStatusLabel(D.kind)):V.active?'Edit polygon':project.mode[0].toUpperCase()+project.mode.slice(1))}
@@ -7226,7 +7187,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.6'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -11687,8 +11648,6 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
   }
   function v96EnsureReferencePanes(){
     // Reference pane requests remain semantic adapter hints; OpenLayers owns actual z-order.
-    MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
-    MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
   function v96ReferenceStore(){return window.REFERENCE_OVERLAYS||(window.REFERENCE_OVERLAYS={items:[],layers:new Map(),selectedId:null,menuId:null});}
   function v96StyleReference(item){return {pane:'referenceVectorPane',interactive:false,color:item.color||'#d92c32',weight:item.weight||2,opacity:item.opacity??0.75,fillColor:item.fillColor||item.color||'#d92c32',fillOpacity:item.fillOpacity??0.14};}
@@ -15392,8 +15351,6 @@ showAutosaveRecoveryIfAvailable();
   function ensureReferencePanes(){
     // Named-pane requests are retained as adapter-level semantic hints; OpenLayers
     // uses layer z-index for the actual ordering.
-    MAP_RUNTIME.ensureDisplayPane?.('referenceRasterPane',{zIndex:345,pointerEvents:'none',className:'referenceRasterPane'});
-    MAP_RUNTIME.ensureDisplayPane?.('referenceVectorPane',{zIndex:360,pointerEvents:'none'});
   }
 
   function buildLayer(item,index=0){
@@ -19586,7 +19543,6 @@ function gisEnsurePane(){
   // OpenLayers maps this to a named pane; OpenLayers intentionally treats panes as
   // a no-op because its layer stack is controlled by z-index. Keeping the call
   // engine-neutral prevents GIS service code from escaping the map runtime.
-  MAP_RUNTIME.ensureDisplayPane?.('gisServicePane',{zIndex:360,pointerEvents:'none'});
 }
 function gisSourceSignature(source,layer){
   return JSON.stringify({source,role:layer.role,opacity:layer.opacity,minZoom:layer.minZoom,maxZoom:layer.maxZoom});
@@ -21334,15 +21290,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return !!(file?.performanceManaged||file?.largeImport||Number(stats.coordinateCount||0)>=50000||(file?.features||[]).length>=500);
   }
   function focusedOverlayEnabled(file){
-    return !!(performanceManagedEditableFile(file)&&MAP_RUNTIME.supportsFocusedEditableOverlay?.());
+    return performanceManagedEditableFile(file);
   }
   function renderCandidateFeatures(file){
     const all=(file.features||[]).filter(feature=>!isFeatureSleeping(file,feature));
-    // A native indexed vector source can cull a heavy dataset more cheaply than
-    // rebuilding the whole projected runtime layer every time our viewport query
-    // crosses a feature boundary. OpenLayers reports false and keeps the legacy
-    // application-side viewport culling path.
-    if(performanceManagedEditableFile(file)&&MAP_RUNTIME.prefersPersistentEditableVectorSource?.())return all;
+    // Heavy editable layers stay in one persistent OpenLayers VectorSource so its
+    // spatial index can cull at render time without application-side rebuilds.
+    if(performanceManagedEditableFile(file))return all;
     const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));
     return all.filter(feature=>ids.has(feature.id));
   }
@@ -21453,8 +21407,8 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       // On performance-managed OpenLayers layers the precise focused overlay is
       // the only live-edit target. The image-backed background stays stable.
       let done=false;
-      if(cached?.focusGroup)done=!!MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.focusGroup,id,getDisplayGeometry(r.feature));
-      if(!done&&cached?.group)done=!!MAP_RUNTIME.updateEditableFeatureGeometry?.(cached.group,id,getDisplayGeometry(r.feature));
+      if(cached?.focusGroup)done=!!MAP_RUNTIME.updateEditableFeatureGeometry(cached.focusGroup,id,getDisplayGeometry(r.feature));
+      if(!done&&cached?.group)done=!!MAP_RUNTIME.updateEditableFeatureGeometry(cached.group,id,getDisplayGeometry(r.feature));
       if(done)updated++;else fallbackFiles.add(r.file.id);
     }
     if(fallbackFiles.size){for(const fileId of fallbackFiles)invalidateRenderCache(fileId);cachedRenderMap();}
@@ -21462,7 +21416,6 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   }
   window.__editpolygonLiveGeometryUpdate=liveGeometryUpdate;
   function cachedEditableGeometryMatchesModel(layer,features,{skipIds=null}={}){
-    if(typeof MAP_RUNTIME.editableLayerMatchesGeometry!=='function')return true;
     const watched=new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean));
     if(!watched.size)return true;
     const skipped=skipIds instanceof Set?skipIds:new Set(skipIds||[]);
@@ -21473,7 +21426,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return true;
   }
   function syncFocusedSuppression(cached,file){
-    if(!cached?.group||!focusedOverlayEnabled(file)||typeof MAP_RUNTIME.setEditableFeatureSuppressed!=='function')return;
+    if(!cached?.group||!focusedOverlayEnabled(file))return;
     const next=fileHasActivePrecisionEdit(file)?project.selectedFeatureId:null;
     const previous=cached.suppressedFeatureId||null;
     if(previous&&previous!==next)MAP_RUNTIME.setEditableFeatureSuppressed(cached.group,previous,false);
@@ -22423,7 +22376,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.6 — runtime authority boundary.
+/* v1.55.7 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22433,7 +22386,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.6',
+  version:'1.55.7',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

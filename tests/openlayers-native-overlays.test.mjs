@@ -56,7 +56,7 @@ test('OpenLayers CDN bootstrap no longer uses parser-blocking document.write',()
 
 test('OpenLayers DOM overlays use a dedicated pane above the OL viewport',()=>{
   assert.match(adapter,/const domOverlayPane=global\.document\.createElement\('div'\)/);
-  assert.match(adapter,/domOverlayPane\.className='editpolygon-openlayers-dom-overlays'/);
+  assert.match(adapter,/domOverlayPane\.className='editpolygon-dom-overlays'/);
   assert.match(adapter,/zIndex:'40'/);
   assert.match(adapter,/createDomOverlayController\(\{\.\.\.spec,container:domOverlayPane/);
 });

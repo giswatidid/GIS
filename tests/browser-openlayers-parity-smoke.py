@@ -18,7 +18,7 @@ class V extends Obs{constructor(o){super();this.c=o.center;this.z=o.zoom}getCent
 class C{constructor(a=[]){this.a=a}getArray(){return this.a}}
 class I{constructor(){this.a=true}setActive(v){this.a=!!v}getActive(){return this.a}} class DragPan extends I{} class DoubleClickZoom extends I{}
 class ZoomControl{constructor(o={}){this.o=o;this.kind='zoom'}} class AttributionControl{constructor(o={}){this.o=o;this.kind='attribution'}}
-class M extends Obs{constructor(o){super();this.v=o.view;this.l=new C(o.layers||[]);this.controls=o.controls||[];this.i=new C([new DragPan(),new DoubleClickZoom()]);this.viewport=document.createElement('div');this.viewport.className='ol-viewport';o.target.appendChild(this.viewport)}getSize(){return[800,500]}getInteractions(){return this.i}getLayers(){return this.l}addLayer(x){if(!this.l.a.includes(x))this.l.a.push(x)}removeLayer(x){this.l.a=this.l.a.filter(v=>v!==x)}getPixelFromCoordinate(c){return[c[0]/10,c[1]/10]}getCoordinateFromPixel(p){return[p[0]*10,p[1]*10]}getEventPixel(e){return[e.clientX||0,e.clientY||0]}getViewport(){return this.viewport}updateSize(){this.updated=true}render(){this.rendered=(this.rendered||0)+1}forEachFeatureAtPixel(pixel,cb,opts={}){for(const layer of this.l.a){if(opts.layerFilter&&!opts.layerFilter(layer))continue;for(const feature of layer.getSource?.()?.f||[]){const out=cb(feature,layer);if(out)return out;}}}}
+class M extends Obs{constructor(o){super();window.__fakeOlLastMap=this;this.v=o.view;this.l=new C(o.layers||[]);this.controls=o.controls||[];this.i=new C([new DragPan(),new DoubleClickZoom()]);this.viewport=document.createElement('div');this.viewport.className='ol-viewport';o.target.appendChild(this.viewport)}getSize(){return[800,500]}getInteractions(){return this.i}getLayers(){return this.l}addLayer(x){if(!this.l.a.includes(x))this.l.a.push(x)}removeLayer(x){this.l.a=this.l.a.filter(v=>v!==x)}getPixelFromCoordinate(c){return[c[0]/10,c[1]/10]}getCoordinateFromPixel(p){return[p[0]*10,p[1]*10]}getEventPixel(e){return[e.clientX||0,e.clientY||0]}getViewport(){return this.viewport}updateSize(){this.updated=true}render(){this.rendered=(this.rendered||0)+1}forEachFeatureAtPixel(pixel,cb,opts={}){for(const layer of this.l.a){if(opts.layerFilter&&!opts.layerFilter(layer))continue;for(const feature of layer.getSource?.()?.f||[]){const out=cb(feature,layer);if(out)return out;}}}}
 class S{constructor(o={}){this.o=o}} class TWMS extends S{} class VS extends S{constructor(o={}){super(o);this.f=[];this.changedCount=0}addFeatures(x){this.f.push(...x)}clear(){this.f=[]}getFeatureById(id){return this.f.find(x=>x.id===id)||null}changed(){this.changedCount++}}
 class Lyr{constructor(o={}){this.o=o;this.v=o.visible!==false;this.opacity=o.opacity??1;this.z=o.zIndex??0;this.style=o.style}setVisible(v){this.v=!!v}setOpacity(v){this.opacity=v}setZIndex(v){this.z=v}setStyle(v){this.style=v}getSource(){return this.o.source}}
 class VImg extends Lyr{}
@@ -45,7 +45,7 @@ with sync_playwright() as p:
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
       const hitIds=r.editableFeatureIdsAtPixel([15300,-2700],{hitTolerance:8});
       const bulkVec=r.createEditableVectorLayer({layerKey:'editable-bulk',renderMode:'image',interactionOptimized:true,imageRatio:1.2,features:[{id:'bulk1',geometry:{type:'Point',coordinates:[151,-26]},style:{color:'#234567',radius:4}}]});r.addDisplayLayer(bulkVec);
-      const focusedOverlay=r.supportsFocusedEditableOverlay();
+      const transitionCapabilitiesAbsent=!('supportsFocusedEditableOverlay' in r)&&!('prefersPersistentEditableVectorSource' in r)&&!('getNativeMap' in r);
       const suppressOn=r.setEditableFeatureSuppressed(bulkVec,'bulk1',true),suppressed=bulkVec.__editpolygonSuppressedFeatures.has('bulk1');
       const suppressOff=r.setEditableFeatureSuppressed(bulkVec,'bulk1',false),suppressionRestored=!bulkVec.__editpolygonSuppressedFeatures.has('bulk1');
       const initialGeometry={type:'Point',coordinates:[153,-27]},movedGeometry={type:'Point',coordinates:[154,-28]};
@@ -62,11 +62,11 @@ with sync_playwright() as p:
       const handle=r.createDomOverlay({coordinate:[153,-27],className:'native-handle',anchor:[4,4]});
       const handleEngine=!!handle.getElement()?.dataset?.editpolygonMapOverlay;const handleParent=handle.getElement()?.parentElement?.className||'';const childOrder=[...document.getElementById('map').children].map(el=>el.className||'');handle.remove();
       let nativeClick=null;r.on('click',event=>{nativeClick={pixel:[event.pixel.x,event.pixel.y],lonLat:event.lonLat};});
-      r.getNativeMap().fire('click',{pixel:[320,210],coordinate:[3200,2100],originalEvent:{shiftKey:false}});
+      window.__fakeOlLastMap.fire('click',{pixel:[320,210],coordinate:[3200,2100],originalEvent:{shiftKey:false}});
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,hasRequestedEngine:('requestedEngine' in r),center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,hasRequestedEngine:('requestedEngine' in r),center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:window.__fakeOlLastMap.getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,transitionCapabilitiesAbsent,suppressOn,suppressed,suppressOff,suppressionRestored,disabled,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:window.__fakeOlLastMap.controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['hasRequestedEngine'] is False,result
@@ -85,8 +85,7 @@ with sync_playwright() as p:
     assert result['wmsInitiallyPresent'] is False and result['wmsShownPresent'] is True,result
     assert result['wmsHiddenAbsent'] is True and result['wmsFinalPresent'] is True,result
     assert result['bulkRenderMode']=='vector-image' and abs(result['bulkImageRatio']-1.2)<1e-9,result
-    assert result['persistentSource'] is True,result
-    assert result['focusedOverlay'] is True,result
+    assert result['transitionCapabilitiesAbsent'] is True,result
     assert result['suppressOn'] is True and result['suppressed'] is True,result
     assert result['suppressOff'] is True and result['suppressionRestored'] is True,result
     assert result['styleCacheSize']==1,result
@@ -101,11 +100,11 @@ with sync_playwright() as p:
     assert result['liveCoordinates']==[154,-28],result
     assert result['transientCount']==1,result
     assert result['handleEngine'] is True,result
-    assert result['handleParent']=='editpolygon-openlayers-dom-overlays',result
+    assert result['handleParent']=='editpolygon-dom-overlays',result
     assert result['refCount']==1,result
     assert result['rasterKind']=='image',result
     assert result['rasterOpacity']==0.5,result
-    assert result['childOrder'][-1]=='editpolygon-openlayers-dom-overlays',result
+    assert result['childOrder'][-1]=='editpolygon-dom-overlays',result
     assert result['nativeClick'] is not None,result
     assert result['nativeClick']['pixel']==[320,210],result
     assert abs(result['nativeClick']['lonLat'][0]-3.2)<1e-9 and abs(result['nativeClick']['lonLat'][1]-2.1)<1e-9,result

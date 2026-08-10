@@ -1,8 +1,8 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.55.6",
+  "version": "1.55.7",
   "private": true,
-  "description": "Static privacy-first browser GIS editor with OpenLayers as its sole map runtime, authoritative map rendering, guarded runtime bindings, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
+  "description": "Static privacy-first browser GIS editor with a single OpenLayers runtime, authoritative cached rendering, batched DOM overlays, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check-repo.mjs && node scripts/audit-runtime.mjs && node scripts/audit-bindings.mjs && npm test",

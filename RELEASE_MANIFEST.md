@@ -1,43 +1,42 @@
-# EditPolygon v1.55.6 release manifest
+# EditPolygon v1.55.7 release manifest
 
-v1.55.6 completes the map-runtime migration. OpenLayers is now the **only** native map runtime in EditPolygon.
+v1.55.7 is the first **OpenLayers-only performance and architecture cleanup** after the map-runtime migration. It deliberately adds no end-user GIS feature.
 
-## Removed in this release
+## Runtime cleanup
 
-- retired map JavaScript/CSS dependency from `docs/index.html`;
-- alternate runtime factory and map-selector/fallback state from `editpolygon-map-adapter.js`;
-- `?mapEngine=` alternate-runtime behaviour;
-- automatic fallback to the retired runtime;
-- bootstrap/compatibility editable renderer that existed only for the retired runtime;
-- retired full-detail reference canvas renderer;
-- retired v1.30 native performance renderer;
-- retired native control/CSS selectors;
-- obsolete alternate-runtime browser smoke test;
-- audit allowances for direct retired-native calls.
+- collapses the adapter to one public `createRuntime()` factory;
+- removes remaining transition-era capability methods and native-map test escape surfaces;
+- removes the application-level runtime-name dataset/branch surface;
+- removes the now-dead map-pan recovery compatibility/listener stack;
+- makes persistent heavy-vector sources and focused precision overlays direct single-runtime invariants;
+- removes engine markers that no longer carry information.
 
-`EditPolygonMap.createRuntime()` now directly creates the OpenLayers implementation.
+## Interaction/performance cleanup
 
-## Retained architecture
+- reuses one `ol.format.GeoJSON` formatter per runtime for editable/reference/transient geometry conversion;
+- batches DOM-overlay refresh at runtime level rather than attaching map/view listeners for every handle/label;
+- centralises zoom lifecycle detection and fans each logical zoom start/end to every subscriber;
+- removes redundant explicit source/map render invalidations after OpenLayers operations that already invalidate themselves;
+- removes a private OpenLayers feature-state fallback from editable hit detection.
 
-- application code remains engine-neutral and contains no direct `ol.*` calls;
-- authoritative cached editable renderer and focused precision overlay;
+The central zoom fan-out also fixes a latent single-runtime ordering bug where multiple subscribers sharing the old global zoom state could cause the first registered listener to consume a logical zoom transition before later listeners observed it.
+
+## Repository hygiene
+
+- adds `.gitignore` for dependencies, test/cache/log and editor-local files;
+- `CRS_VALIDATION.md` is absent from the authoritative baseline (the user removed the stale report before this release);
+- runtime/mobile cache keys and version metadata are advanced to v1.55.7;
+- architecture, quality baseline and changelog are updated for the single-runtime cleanup.
+
+## Preserved behaviour
+
+- authoritative cached editable rendering and focused precision overlays;
 - repeated-world / International Date Line protections;
 - authoritative history epochs and geometry-content cache checks;
-- large-vector persistent-source / image-backed interaction mode;
-- WMS/remote/reference service support;
+- large-vector image-backed interaction mode without geometry simplification;
+- WMS/ArcGIS/remote/reference service support;
 - lossless `.epz` persistence;
-- full mobile/touch GIS interface;
-- runtime-authority and source-order audits.
-
-## Repository deletion
-
-Delete:
-
-```text
-tests/browser-map-adapter-smoke.py
-```
-
-It tested the retired alternate runtime and has no role in the single-runtime repository.
+- full mobile/touch GIS interface.
 
 ## Automated gate
 
@@ -48,18 +47,16 @@ npm run check
 npm run test:browser-smoke
 ```
 
-Final verification: **266/266 Node tests** and **8/8 browser smoke suites**. The browser matrix contains the OpenLayers parity smoke plus CRS, remote source, schema/data, join, Geometry Health and mobile/touch suites; there is no alternate-runtime smoke.
+Final verification: **270/270 Node tests** and **8/8 browser smoke suites**. The binding/architecture audit reports **1,686 named bindings**, ceilings of **198 duplicate names / 371 extra binding sites**, **0 application engine branches**, **0 application native-map calls** and **0 native-map escapes**.
 
-The binding/architecture audit enforces ceilings of **198 duplicate names / 371 extra binding sites**, with **0 application native-map calls** and **0 native-map escapes**.
+## Targeted live validation
 
-## Live validation
+Because this is a cleanup release, live validation can stay narrow:
 
-After deployment:
+1. pan and zoom the normal map;
+2. draw/edit one representative feature and undo/redo it;
+3. select/edit one feature in a large layer such as the ecoregions test dataset;
+4. check one DOM-overlay-heavy interaction (for example a true-circle handle or measurement label);
+5. on mobile, perform one pan/pinch and one edit after opening/closing a drawer.
 
-1. open the normal application URL with no query parameter;
-2. confirm `EditPolygonMap.engine === "openlayers"`;
-3. pan/zoom, select, draw/edit and undo/redo a representative feature;
-4. open/save one `.epz` project;
-5. quickly verify Layers / Inspector / GIS on mobile.
-
-No alternate map-engine validation is required: that implementation has been deleted.
+If those remain normal, the Processing Toolbox can proceed from this baseline.

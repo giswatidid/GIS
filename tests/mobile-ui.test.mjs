@@ -7,7 +7,7 @@ const js=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.js',import.m
 const css=fs.readFileSync(new URL('../docs/assets/editpolygon-mobile.css',import.meta.url),'utf8');
 
 test('mobile controller is loaded after GIS integration and identifies the current parity release',()=>{
-  assert.match(js,/const VERSION='1\.55\.6'/);
+  assert.match(js,/const VERSION='1\.55\.7'/);
   assert.ok(html.indexOf('editpolygon-mobile.js')>html.indexOf('gis-ui-integration.js'));
 });
 
@@ -58,7 +58,7 @@ test('mobile parity styles provide touch targets for GIS, layer management and O
   assert.match(css,/#filesSection \.v54-layer-search-row input[\s\S]*height:42px!important/);
   assert.match(css,/\.gis-tabs button[\s\S]*height:46px!important/);
   assert.match(css,/\.gis-eye,[\s\S]*width:38px!important/);
-  assert.match(css,/data-map-engine="openlayers"\] \.ol-control button[\s\S]*width:42px!important/);
+  assert.match(css,/v151-mobile-layout \.ol-control button[\s\S]*width:42px!important/);
   assert.match(css,/\.v151-mobile-sheet-close[\s\S]*width:44px!important/);
 });
 

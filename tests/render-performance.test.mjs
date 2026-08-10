@@ -6,7 +6,8 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 
 test('bulk editable vectors use the adapter-owned persistent native source path',()=>{
   assert.match(app,/MAP_RUNTIME\.createEditableVectorLayer/);
-  assert.match(app,/MAP_RUNTIME\.prefersPersistentEditableVectorSource\?\.\(\)/);
+  assert.match(app,/if\(performanceManagedEditableFile\(file\)\)return all/);
+  assert.doesNotMatch(app,/prefersPersistentEditableVectorSource|supportsFocusedEditableOverlay/);
   assert.doesNotMatch(app,/bulkVectorRenderer|renderer:bulkRenderer/);
 });
 
@@ -18,11 +19,11 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260810-openlayers-only-1556/);
+  assert.match(html,/editpolygon-app\.js\?v=20260810-openlayers-cleanup-1557/);
 });
 
 
-test('cached vector swaps add the replacement before removing the old layer on both engines to avoid pan flicker',()=>{
+test('cached vector swaps add the replacement before removing the old layer to avoid pan flicker',()=>{
   const start=app.indexOf('function cachedRenderMap()');
   const block=app.slice(start,app.indexOf('function invalidateRenderCache',start));
   assert.ok(start>=0);
@@ -59,7 +60,8 @@ test('heavy editable layers keep a fast background and isolate selection/editing
   const block=app.slice(start,end);
   assert.ok(start>=0&&end>start);
   assert.match(app,/function performanceManagedEditableFile\(file\)/);
-  assert.match(block,/MAP_RUNTIME\.supportsFocusedEditableOverlay\?\.\(\)/);
+  assert.match(block,/function focusedOverlayEnabled\(file\)\{[\s\S]*return performanceManagedEditableFile\(file\)/);
+  assert.doesNotMatch(block,/supportsFocusedEditableOverlay/);
   assert.match(block,/if\(focusedOverlayEnabled\(file\)\)return 'image'/);
   assert.match(block,/function buildFocusedRuntimeLayer\(file,features\)/);
   assert.match(block,/renderMode:'vector'/);
@@ -77,7 +79,7 @@ test('focused edit overlay is the live geometry target and suppresses the stale 
   const end=app.indexOf('function cachedRenderMap()',start);
   const block=app.slice(start,end);
   assert.ok(start>=0&&end>start);
-  assert.match(block,/if\(cached\?\.focusGroup\)done=!!MAP_RUNTIME\.updateEditableFeatureGeometry\?\.\(cached\.focusGroup,id,getDisplayGeometry\(r\.feature\)\)/);
+  assert.match(block,/if\(cached\?\.focusGroup\)done=!!MAP_RUNTIME\.updateEditableFeatureGeometry\(cached\.focusGroup,id,getDisplayGeometry\(r\.feature\)\)/);
   assert.match(block,/function syncFocusedSuppression\(cached,file\)/);
   assert.match(block,/const next=fileHasActivePrecisionEdit\(file\)\?project\.selectedFeatureId:null/);
   assert.match(block,/MAP_RUNTIME\.setEditableFeatureSuppressed\(cached\.group,next,true\)/);
@@ -97,14 +99,19 @@ test('selected polygon toolbar stays out of the hot pan loop and uses cached fea
   assert.doesNotMatch(block,/MAP_RUNTIME\.on\('move zoom/);
 });
 
-test('heavy indexed runtimes can retain the full editable source instead of rebuilding on viewport membership changes',()=>{
+test('heavy OpenLayers sources stay persistent instead of rebuilding on viewport membership changes',()=>{
   const start=app.indexOf('function performanceManagedEditableFile(file)');
   const end=app.indexOf('function fileHasActivePrecisionEdit(file)',start);
   const block=app.slice(start,end);
   assert.ok(start>=0&&end>start);
-  assert.match(block,/MAP_RUNTIME\.prefersPersistentEditableVectorSource\?\.\(\)/);
-  assert.match(block,/return all/);
+  assert.match(block,/if\(performanceManagedEditableFile\(file\)\)return all/);
+  assert.doesNotMatch(block,/prefersPersistentEditableVectorSource/);
   assert.match(block,/querySpatialIndexWrapped\(file,bbox\)/);
+});
+
+test('single-runtime cleanup removes the dead map-pan recovery listener stack',()=>{
+  assert.doesNotMatch(app,/MAP_PAN_GUARD|mapPanLooksActive|hardResetMapPan|scheduleMapPanReleaseCheck/);
+  assert.doesNotMatch(app,/document\.addEventListener\('pointerup',e=>scheduleMapPanReleaseCheck/);
 });
 
 test('enhanced mouse coordinate readout replaces rather than stacks the core pointermove handler',()=>{

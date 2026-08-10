@@ -11,11 +11,11 @@ function block(startToken,endToken){
   return app.slice(start,end);
 }
 
-test('v1.55.6 publishes one final runtime-authority snapshot at the end of the application scope',()=>{
-  const marker='/* v1.55.6 — runtime authority boundary.';
+test('v1.55.7 publishes one final runtime-authority snapshot at the end of the application scope',()=>{
+  const marker='/* v1.55.7 — runtime authority boundary.';
   const start=app.indexOf(marker);assert.ok(start>=0);
   const tail=app.slice(start);
-  assert.match(tail,/version:'1\.55\.6'/);
+  assert.match(tail,/version:'1\.55\.7'/);
   assert.match(tail,/renderAll\(\);[\s\S]*window\.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY/);
   assert.match(tail,/renderMap,renderAll,renderSidebar,renderSelected,renderOverlay/);
   assert.match(tail,/featuresAtLatLng,featureHitAtMapPoint,parametricCircleHitAtMapPoint/);
@@ -89,7 +89,8 @@ test('native OpenLayers implementation stays confined to the adapter and no reti
   assert.doesNotMatch(app,/\bol\.[A-Za-z_$][\w$]*/);
   assert.equal((app.match(/getNativeMap/g)||[]).length,0,'application code must not escape the map adapter through getNativeMap');
   assert.doesNotMatch(adapter,/requestedEngine|fallbackReason|createLeaf.*Runtime/i);
-  const olStart=adapter.indexOf('function createOpenLayersRuntime'),runtimeStart=adapter.indexOf('function createRuntime(',olStart);
-  assert.ok(olStart>=0&&runtimeStart>olStart);
-  assert.match(adapter.slice(olStart,runtimeStart),/\bol\./);
+  const runtimeStart=adapter.indexOf('function createRuntime('),runtimeEnd=adapter.indexOf('global.EditPolygonMapAdapter',runtimeStart);
+  assert.ok(runtimeStart>=0&&runtimeEnd>runtimeStart);
+  assert.match(adapter.slice(runtimeStart,runtimeEnd),/\bol\./);
+  assert.doesNotMatch(adapter,/createOpenLayersRuntime|getNativeMap/);
 });

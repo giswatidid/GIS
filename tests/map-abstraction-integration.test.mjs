@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.6 loads the sole OpenLayers dependency before the map adapter and application',()=>{
+test('v1.55.7 loads the sole OpenLayers dependency before the map adapter and application',()=>{
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
   const application=html.indexOf('editpolygon-app.js');
@@ -36,8 +36,8 @@ test('editor viewport, coordinate and interaction calls route through MAP_RUNTIM
 test('application does not reach into native map implementation details',()=>{
   assert.doesNotMatch(app,/\bol\./);
   assert.doesNotMatch(app,/getNativeMap\(/);
-  assert.match(adapter,/nativePanLooksActive/);
-  assert.match(adapter,/recoverNativePan/);
+  assert.doesNotMatch(adapter,/nativePanLooksActive|recoverNativePan|getNativeMap/);
+  assert.doesNotMatch(app,/MAP_PAN_GUARD|mapPanLooksActive|hardResetMapPan/);
 });
 
 test('main map event subscriptions use normalised adapter events',()=>{
@@ -50,7 +50,8 @@ test('main map event subscriptions use normalised adapter events',()=>{
 });
 
 test('OpenLayers runtime owns editable, service and reference primitives',()=>{
-  assert.match(adapter,/createOpenLayersRuntime/);
+  assert.doesNotMatch(adapter,/createOpenLayersRuntime/);
+  assert.match(adapter,/function createRuntime\(options=\{\}\)/);
   assert.match(adapter,/engine:'openlayers'/);
   assert.match(adapter,/createEditableVectorLayer/);
   assert.match(adapter,/createGeoJsonLayer/);

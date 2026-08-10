@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const app=fs.readFileSync('docs/assets/editpolygon-app.js','utf8');
 const adapter=fs.readFileSync('docs/assets/editpolygon-map-adapter.js','utf8');
 
-function fail(message){throw new Error(`v1.55.6 binding/architecture audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.7 binding/architecture audit: ${message}`);}
 function lineAt(index){return app.slice(0,index).split('\n').length;}
 
 // Source-order tripwire for the remaining historical application file. New
@@ -18,8 +18,8 @@ for(const match of app.matchAll(bindingPattern)){
 }
 const duplicateNames=[...bindings].filter(([,sites])=>sites.length>1);
 const extraBindings=[...bindings.values()].reduce((sum,sites)=>sum+Math.max(0,sites.length-1),0);
-if(duplicateNames.length>198)fail(`duplicate function-binding names grew to ${duplicateNames.length} (v1.55.6 ceiling 198)`);
-if(extraBindings>371)fail(`extra historical function bindings grew to ${extraBindings} (v1.55.6 ceiling 371)`);
+if(duplicateNames.length>198)fail(`duplicate function-binding names grew to ${duplicateNames.length} (v1.55.7 ceiling 198)`);
+if(extraBindings>371)fail(`extra historical function bindings grew to ${extraBindings} (v1.55.7 ceiling 371)`);
 
 const bindingCeilings={
   renderMap:1,selectFeature:1,selectFeatureMulti:1,clearSelection:1,deletePolygon:1,undo:1,redo:1,
@@ -35,8 +35,8 @@ for(const name of ['featuresAtLatLng','featureHitAtMapPoint','parametricCircleHi
   if(sites.length!==1)fail(`${name} must have exactly one authoritative binding; found ${sites.length} at ${sites.join(', ')||'none'}`);
 }
 
-// v1.55.6 has one native implementation and it is adapter-owned. Application
-// code must remain completely engine-neutral.
+// v1.55.7 keeps the native OpenLayers implementation adapter-owned. The
+// application has no native-map escape and no engine-specific branch.
 const directOl=[...app.matchAll(/\bol\.[A-Za-z_$][\w$]*/g)];
 const retiredNamespace=new RegExp('\\b'+'L'+'\\.[A-Za-z_$][\\w$]*','g');
 const directRetired=[...app.matchAll(retiredNamespace)];
@@ -45,7 +45,7 @@ if(directRetired.length)fail(`application contains ${directRetired.length} retir
 if((app.match(/getNativeMap/g)||[]).length!==0)fail('application code must not escape to a native map object');
 
 const engineMentions=[...app.matchAll(/MAP_RUNTIME\.engine/g)];
-if(engineMentions.length>1)fail(`application engine metadata references grew to ${engineMentions.length}; ceiling is 1`);
+if(engineMentions.length)fail(`application contains ${engineMentions.length} engine-specific metadata reference(s)`);
 
 const finalRendererStart=app.indexOf('function buildRuntimeCachedLayer');
 const finalRendererEnd=app.indexOf('function invalidateRenderCache',finalRendererStart);
@@ -79,28 +79,28 @@ for(const required of ["registerRuntimeTransition('selection'","registerRuntimeT
   if(!app.includes(required))fail(`central runtime lifecycle is missing ${required}`);
 }
 
-const authorityMarker='/* v1.55.6 — runtime authority boundary.';
+const authorityMarker='/* v1.55.7 — runtime authority boundary.';
 const authority=app.indexOf(authorityMarker);
 if(authority<0)fail('runtime authority boundary is missing');
 const authorityTail=app.slice(authority);
 if(!authorityTail.includes('renderAll();'))fail('runtime authority boundary no longer performs final renderer handoff');
-if(!authorityTail.includes("version:'1.55.6'"))fail('runtime authority snapshot has the wrong version');
+if(!authorityTail.includes("version:'1.55.7'"))fail('runtime authority snapshot has the wrong version');
 if(!authorityTail.includes('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY'))fail('runtime authority snapshot is not published');
 const afterPublish=app.slice(app.indexOf('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY',authority));
 if(/\bfunction\s+[A-Za-z_$]|(?<![\w$.])[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?function\s*\(/.test(afterPublish))fail('new function patch appears after runtime authority boundary');
 
-const olStart=adapter.indexOf('function createOpenLayersRuntime');
-const runtimeStart=adapter.indexOf('function createRuntime(',olStart);
-if(olStart<0||runtimeStart<olStart)fail('could not isolate OpenLayers runtime implementation');
-const olBlock=adapter.slice(olStart,runtimeStart);
-for(const method of ['ensureDisplayPane','createEditableVectorLayer','editableFeatureIdsAtPixel','updateEditableFeatureGeometry','createGeoJsonLayer','createStaticImageLayer','createVectorOverlayLayer','createDomOverlay','supportsFocusedEditableOverlay']){
+const runtimeStart=adapter.indexOf('function createRuntime(');
+const runtimeEnd=adapter.indexOf('global.EditPolygonMapAdapter',runtimeStart);
+if(runtimeStart<0||runtimeEnd<runtimeStart)fail('could not isolate OpenLayers runtime implementation');
+const olBlock=adapter.slice(runtimeStart,runtimeEnd);
+for(const method of ['createEditableVectorLayer','editableFeatureIdsAtPixel','updateEditableFeatureGeometry','createGeoJsonLayer','createStaticImageLayer','createVectorOverlayLayer','createDomOverlay']){
   if(!olBlock.includes(method))fail(`OpenLayers runtime contract is missing ${method}`);
 }
 if(!olBlock.includes('ol.'))fail('OpenLayers implementation does not own native calls');
 if(retiredNamespace.test(adapter))fail('retired native namespace remains in map adapter');
 const retiredFactory=['create','Lea','fletRuntime'].join('');
 if(adapter.includes(retiredFactory))fail('retired runtime factory remains in map adapter');
-for(const stale of ['requestedEngine','fallbackReason'])if(adapter.includes(stale))fail(`retired multi-engine state remains in map adapter: ${stale}`);
+for(const stale of ['requestedEngine','fallbackReason','createOpenLayersRuntime','getNativeMap','nativePanLooksActive','recoverNativePan','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','__editpolygonEngine'])if(adapter.includes(stale))fail(`retired runtime state remains in map adapter: ${stale}`);
 
 const top=[...duplicateNames].sort((a,b)=>b[1].length-a[1].length).slice(0,8).map(([name,sites])=>`${name}:${sites.length}`).join(', ');
-console.log(`v1.55.6 binding/architecture audit passed: ${bindings.size} named bindings, ${duplicateNames.length} duplicate names, ${extraBindings} extra sites, ${engineMentions.length} engine metadata reference(s), 0 application native-map calls, 0 native-map escapes. Highest wrapper chains: ${top}.`);
+console.log(`v1.55.7 binding/architecture audit passed: ${bindings.size} named bindings, ${duplicateNames.length} duplicate names, ${extraBindings} extra sites, 0 application engine branches, 0 application native-map calls, 0 native-map escapes. Highest wrapper chains: ${top}.`);
