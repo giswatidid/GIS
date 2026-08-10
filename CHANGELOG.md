@@ -1,5 +1,16 @@
 # EditPolygon changelog
 
+## v1.55.5 — OpenLayers default cutover
+
+- Makes OpenLayers the default map engine for normal URLs with no `mapEngine` parameter.
+- Retains Leaflet for this release only as the explicit `?mapEngine=leaflet` emergency fallback.
+- Keeps automatic runtime fallback to Leaflet if the OpenLayers runtime fails to initialise, with `EditPolygonMap.fallbackReason` preserving the failure reason.
+- Updates default-engine browser coverage so the OpenLayers parity smoke starts through `createRuntime()` without forcing an engine.
+- Updates the Leaflet browser smoke to exercise the actual explicit fallback selector rather than constructing the Leaflet runtime directly.
+- Adds Node-level guards for the no-query OpenLayers default, unknown-query safe default, explicit Leaflet selection and default runtime startup without any Leaflet map creation.
+- Carries forward the complete v1.55.4 parity baseline: repeated-world/date-line editing, authoritative history rendering, large-vector performance/focus overlays, WMS/service parity, lossless `.epz` persistence and full mobile/touch GIS access.
+- Leaflet implementation code, CSS and transition debt are intentionally retained until v1.55.6; this release changes authority, not dependency removal.
+
 ## v1.55.4.18 — Mobile layer-action menu reliability
 
 - Fixes phone/touch layer action controls that could appear unresponsive while the full-width Layers drawer was open.

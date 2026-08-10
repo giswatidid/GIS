@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.18';
+  const VERSION='1.55.5';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -88,7 +88,7 @@
     let raw='';
     try{raw=new URLSearchParams(search==null?global.location?.search||'':search).get('mapEngine')||'';}catch(_){ }
     raw=String(raw).trim().toLowerCase();
-    return raw==='openlayers'||raw==='ol'?'openlayers':'leaflet';
+    return raw==='leaflet'?'leaflet':'openlayers';
   }
   function normalisePadding(padding){
     if(!Array.isArray(padding))return undefined;
@@ -306,7 +306,7 @@
 
   function createOpenLayersRuntime(options={}){
     const ol=options.ol||global.ol;
-    if(!ol||typeof ol.Map!=='function'||!ol.proj?.fromLonLat||!ol.proj?.toLonLat)throw new Error('OpenLayers failed to load. Reload without ?mapEngine=openlayers to use Leaflet.');
+    if(!ol||typeof ol.Map!=='function'||!ol.proj?.fromLonLat||!ol.proj?.toLonLat)throw new Error('OpenLayers failed to load. Append ?mapEngine=leaflet to use the Leaflet fallback.');
     const target=typeof options.target==='string'?global.document?.getElementById(options.target):options.target;
     if(!target)throw new Error('Map target was not found.');
     const center=lonLat(options.center||[0,20]),zoom=Number.isFinite(Number(options.zoom))?Number(options.zoom):3;
@@ -553,7 +553,7 @@
     const engine=options.engine||requestedEngine(options.search);
     if(engine!=='openlayers')return createLeafletRuntime(options);
     try{return createOpenLayersRuntime(options);}catch(error){
-      console.warn('OpenLayers parity runtime could not start; using Leaflet fallback.',error);
+      console.warn('OpenLayers default runtime could not start; using Leaflet fallback.',error);
       const fallback=createLeafletRuntime(options);
       return Object.freeze({...fallback,requestedEngine:'openlayers',fallbackReason:String(error?.message||error||'OpenLayers unavailable')});
     }

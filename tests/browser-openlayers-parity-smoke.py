@@ -41,7 +41,7 @@ with sync_playwright() as p:
     page.set_content('<!doctype html><html><body><div id="map" style="width:800px;height:500px"></div><script>'+FAKE_OL+'</script></body></html>')
     page.add_script_tag(path=str(ROOT/'docs/assets/editpolygon-map-adapter.js'))
     result=page.evaluate('''async()=>{
-      const r=EditPolygonMapAdapter.createRuntime({engine:'openlayers',target:'map',center:[153,-27],zoom:6,ol});
+      const r=EditPolygonMapAdapter.createRuntime({target:'map',center:[153,-27],zoom:6,L,ol});
       const base=r.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png'});r.addDisplayLayer(base);
       const vec=r.createEditableVectorLayer({layerKey:'editable-main',features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
@@ -68,9 +68,10 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
+      return {engine:r.engine,requestedEngine:r.requestedEngine,center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:r.getNativeMap().getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,focusedOverlay,suppressOn,suppressed,suppressOff,suppressionRestored,persistentSource:r.prefersPersistentEditableVectorSource(),disabled,leafletMapCalls,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:r.getNativeMap().controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
+    assert result['requestedEngine']=='openlayers',result
     assert result['center']==[873,-27],result
     assert result['zoom']==6,result
     assert result['wrappedPixel']==[87300,-2700],result

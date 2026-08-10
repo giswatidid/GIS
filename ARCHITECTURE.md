@@ -1,6 +1,12 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.4.18**, retaining the v1.55.4 dual-engine parity/quality architecture baseline before OpenLayers becomes the default renderer.
+This document describes the current application architecture as of **v1.55.5**. OpenLayers is now the default renderer; the v1.55.4 parity/quality architecture remains in force while Leaflet is retained for one release as an explicit emergency fallback.
+
+## v1.55.5 default-engine authority
+
+`requestedEngine()` now resolves the absence of a query parameter to `openlayers`. The only supported opt-in to the old renderer is `?mapEngine=leaflet`. `createRuntime()` still owns automatic failure fallback: if the default OpenLayers runtime cannot initialise, the adapter creates the Leaflet runtime and records `requestedEngine: "openlayers"` plus a `fallbackReason`.
+
+This release deliberately does **not** remove Leaflet dependencies or legacy renderer blocks. Their presence is the one-release safety valve and remains covered by browser smoke tests. v1.55.6 is the removal boundary.
 
 ## v1.55.4.16 project-container boundary
 
@@ -87,7 +93,7 @@ EditPolygon project/GIS/UI logic
         +-----+------+
         |            |
      Leaflet     OpenLayers
-   transition       parity
+    fallback        default
      engine         engine
 ```
 
@@ -95,7 +101,7 @@ Direct `ol.*` calls in application code are prohibited. Remaining direct `L.*` c
 
 ## OpenLayers migration state
 
-OpenLayers remains opt-in with `?mapEngine=openlayers`; Leaflet remains the default/reference renderer during the v1.55.4 parity gate.
+OpenLayers is the no-query default in v1.55.5. Leaflet is available only when explicitly requested with `?mapEngine=leaflet`, and is scheduled for removal in v1.55.6.
 
 OpenLayers runs independently: there is no hidden/synchronised Leaflet map, compatibility target, compatibility click bridge or legacy-map global.
 
@@ -188,10 +194,9 @@ Instead it establishes enforceable rules:
 
 See `QUALITY_BASELINE.md` for counts, automated parity evidence and the live acceptance matrix.
 
-## Migration sequence after v1.55.4
+## Migration sequence after the v1.55.5 cutover
 
-1. Complete the deployed real-browser parity gate documented in `QUALITY_BASELINE.md`.
-2. **v1.55.5:** make OpenLayers the default; keep `?mapEngine=leaflet` as a one-release fallback.
-3. **v1.55.6:** remove Leaflet dependency/runtime/renderers/CSS/workarounds and lower the wrapper/direct-call debt ceilings.
-4. **v1.55.7:** OpenLayers-specific cleanup and performance work (source reuse, hit detection, render buffers, style caches, large-data pan/zoom stability).
-5. Resume the GIS roadmap with the Processing Toolbox.
+1. **v1.55.5 (current):** OpenLayers is the default; `?mapEngine=leaflet` remains a one-release emergency fallback.
+2. **v1.55.6:** remove Leaflet dependency/runtime/renderers/CSS/workarounds and lower the wrapper/direct-call debt ceilings.
+3. **v1.55.7:** OpenLayers-specific cleanup and performance work (source reuse, hit detection, render buffers, style caches, large-data pan/zoom stability).
+4. Resume the GIS roadmap with the Processing Toolbox.

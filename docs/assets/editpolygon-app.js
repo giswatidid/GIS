@@ -2985,9 +2985,9 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.4: Leaflet remains the default engine while ?mapEngine=openlayers
-// activates a compatibility-map-free OpenLayers runtime. Both engines use the
-// same map adapter contract; OpenLayers no longer instantiates a hidden Leaflet map.
+// v1.55.5: OpenLayers is the default engine. ?mapEngine=leaflet explicitly
+// activates the one-release emergency fallback. Both engines still use the
+// same map adapter contract; OpenLayers never instantiates a hidden Leaflet map.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   engine:MAP_ADAPTER.requestedEngine(location.search),
   target:'map',
@@ -7272,7 +7272,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.18'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.5'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');

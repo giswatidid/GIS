@@ -124,7 +124,7 @@ test('map adapter exposes an engine-neutral Leaflet runtime with canonical lon/l
   const context=load(),native=new FakeMap();
   const runtime=context.EditPolygonMapAdapter.createLeafletRuntime({L:context.L,map:native});
   assert.equal(runtime.engine,'leaflet');
-  assert.equal(runtime.version,'1.55.4.18');
+  assert.equal(runtime.version,'1.55.5');
   assert.deepEqual([...runtime.getCenter()],[153,-27]);
   runtime.setView([151,-33],9,{animate:false});
   assert.equal(JSON.stringify(native.lastSetView.ll),JSON.stringify([-33,151]));
@@ -315,12 +315,29 @@ function openLayersContext(){
   return {context,target,globalHandlers,getLeafletMapCalls:()=>leafletMapCalls};
 }
 
-test('map engine selection is explicit and defaults safely to Leaflet',()=>{
+test('map engine selection defaults to OpenLayers and keeps Leaflet as the explicit fallback',()=>{
   const {context}=openLayersContext();
   assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=openlayers'),'openlayers');
   assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=ol'),'openlayers');
   assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=leaflet'),'leaflet');
-  assert.equal(context.EditPolygonMapAdapter.requestedEngine(''),'leaflet');
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine(''),'openlayers');
+  assert.equal(context.EditPolygonMapAdapter.requestedEngine('?mapEngine=unknown'),'openlayers');
+});
+
+test('createRuntime starts OpenLayers by default without touching Leaflet',()=>{
+  const {context,getLeafletMapCalls}=openLayersContext();
+  const runtime=context.EditPolygonMapAdapter.createRuntime({target:'map',center:[153,-27],zoom:6,L:context.L,ol:context.ol});
+  assert.equal(runtime.engine,'openlayers');
+  assert.equal(runtime.requestedEngine,'openlayers');
+  assert.equal(getLeafletMapCalls(),0);
+});
+
+test('createRuntime honours the explicit Leaflet fallback',()=>{
+  const context=load(),native=new FakeMap();
+  context.L.map=()=>native;
+  const runtime=context.EditPolygonMapAdapter.createRuntime({search:'?mapEngine=leaflet',L:context.L,map:native});
+  assert.equal(runtime.engine,'leaflet');
+  assert.equal(runtime.requestedEngine,'leaflet');
 });
 
 test('OpenLayers runtime preserves canonical lon/lat state without creating a Leaflet map',()=>{

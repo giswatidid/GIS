@@ -14,13 +14,14 @@ if(html.indexOf('jszip.min.js')>html.indexOf('editpolygon-project-format.js'))th
 if(html.indexOf('editpolygon-project-format.js')>html.indexOf('editpolygon-app.js'))throw new Error('Project-format module must load before the application.');
 if(html.indexOf('editpolygon-map-adapter.js')>html.indexOf('editpolygon-app.js'))throw new Error('Map adapter must load before the application.');
 if(html.indexOf('leaflet@1.9.4/dist/leaflet.js')>html.indexOf('editpolygon-map-adapter.js'))throw new Error('Leaflet transition engine must load before the dual-engine adapter.');
-if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))throw new Error('OpenLayers parity runtime is not wired into the page.');
+if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))throw new Error('OpenLayers default runtime is not wired into the page.');
 if(html.indexOf('gis-join-core.js')>html.indexOf('editpolygon-app.js'))throw new Error('Join core must load before the application.');
 if(html.indexOf('gis-geometry-health-core.js')>html.indexOf('editpolygon-app.js'))throw new Error('Geometry Health core must load before the application.');
 if(html.indexOf('gis-geometry-health.js')<html.indexOf('editpolygon-app.js'))throw new Error('Geometry Health UI must load after the application.');
 
 const app=fs.readFileSync('docs/assets/editpolygon-app.js','utf8');
 const adapter=fs.readFileSync('docs/assets/editpolygon-map-adapter.js','utf8');
+if(!adapter.includes("return raw==='leaflet'?'leaflet':'openlayers';"))throw new Error('OpenLayers is not the no-query default map engine.');
 for(const token of ['createRuntime','createLeafletRuntime','createOpenLayersRuntime','ensureDisplayPane','createEditableVectorLayer','editableFeatureIdsAtPixel','updateEditableFeatureGeometry','createTileLayer','createWmsLayer','createGeoJsonLayer','createStaticImageLayer','setDisplayLayerOpacity','setDisplayLayerVisible','setDisplayLayerZIndex','lonLatToPixel','pixelToLonLat','fitExtent','setPanEnabled','setDoubleClickZoomEnabled'])if(!adapter.includes(token))throw new Error('Map adapter missing '+token);
 for(const token of ['MAP_RUNTIME','window.EditPolygonMap=MAP_RUNTIME','requestedEngine(location.search)','buildRuntimeCachedLayer','MAP_RUNTIME.createEditableVectorLayer','EDITPOLYGON_RUNTIME_AUTHORITY'])if(!app.includes(token))throw new Error('Application missing parity-baseline integration '+token);
 if(app.includes('buildOpenLayersCachedLayer'))throw new Error('Old OpenLayers-specific cached renderer returned.');

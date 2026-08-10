@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity layer · v1.55.4.18
+/* EditPolygon mobile parity layer · v1.55.5
    Phones, touch tablets and desktop browsers expose the same application
    capabilities. This stylesheet reorganises the shared interface into a
    map-first, touch-oriented layout without creating a separate mobile app. */
@@ -931,7 +931,7 @@ body.v151-mobile-layout #selectedPanel > *{flex:0 0 auto!important;}
 body.v151-mobile-layout #selectedPanel > .empty-inspector{min-height:180px;}
 
 /* -------------------------------------------------------------------------
-   v1.55.4.18 mobile parity and touch-target refinement
+   v1.55.5 mobile parity and touch-target refinement
    Keep the phone surface dense enough for GIS work without retaining desktop-
    sized controls. Full application capabilities remain available; only their
    layout changes on narrow/coarse-pointer screens.
@@ -1290,7 +1290,7 @@ body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
 }
 
 
-/* v1.55.4.18 — mobile layer-action popover authority.
+/* v1.55.5 — mobile layer-action popover authority.
    Layer action menus are portaled outside the drawer on desktop. On phones the
    drawer is itself a fixed stacking surface, so those popovers must explicitly
    sit above it and use touch-sized action targets. */

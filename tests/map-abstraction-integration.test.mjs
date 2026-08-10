@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.4 loads both map engines and the map adapter before the application',()=>{
+test('v1.55.5 loads the OpenLayers default and Leaflet fallback before the map adapter/application',()=>{
   const leaflet=html.indexOf('leaflet@1.9.4/dist/leaflet.js');
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
@@ -53,8 +53,9 @@ test('main map event subscriptions use normalised adapter events',()=>{
   assert.match(adapter,/originalEvent:/);
 });
 
-test('OpenLayers remains opt-in while running without a synchronized Leaflet compatibility map',()=>{
+test('OpenLayers is the default while running without a synchronized Leaflet compatibility map',()=>{
   assert.match(adapter,/requestedEngine/);
+  assert.match(adapter,/return raw==='leaflet'\?'leaflet':'openlayers';/);
   assert.match(adapter,/createOpenLayersRuntime/);
   assert.match(adapter,/engine:'openlayers'/);
   assert.match(adapter,/createEditableVectorLayer/);

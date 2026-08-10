@@ -10,24 +10,27 @@ const mobileCss=read('docs/assets/editpolygon-mobile.css');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260810-mobile-layer-popovers-1554418';
+const RELEASE_KEY='20260810-openlayers-default-1555';
 
-function fail(message){throw new Error(`v1.55.4.18 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.5 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.18')fail(`package version is ${pkg.version}, expected 1.55.4.18`);
+if(pkg.version!=='1.55.5')fail(`package version is ${pkg.version}, expected 1.55.5`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
-if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
+if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet one-release fallback was removed before v1.55.6');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
+requireToken(adapter,"return raw==='leaflet'?'leaflet':'openlayers';",'map-engine default selector');
+requireToken(app,'// v1.55.5: OpenLayers is the default engine. ?mapEngine=leaflet explicitly','application default-engine boundary');
+forbidToken(app,'Leaflet remains the default engine','application default-engine boundary');
 if(html.indexOf('editpolygon-project-format.js')>html.indexOf('editpolygon-app.js'))fail('project-format module loads after the application');
 for(const token of ["const EXTENSION='epz'","const MANIFEST_FILE='manifest.json'","const PROJECT_FILE='project.json'","compression:'DEFLATE'","algorithm:'SHA-256'"]){requireToken(projectFormat,token,'project format module');}
-for(const token of ["EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.18'})","downloadBlob('editpolygon_project.epz',archive.blob)","else if(ext==='epz')","EditPolygonProjectFormat.readArchive(file,{onProgress})"]){requireToken(app,token,'EPZ project persistence');}
+for(const token of ["EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.5'})","downloadBlob('editpolygon_project.epz',archive.blob)","else if(ext==='epz')","EditPolygonProjectFormat.readArchive(file,{onProgress})"]){requireToken(app,token,'EPZ project persistence');}
 if(/\.polygonproject/i.test(app)||/\.polygonproject/i.test(html)||/ext===['"]polygonproject['"]/i.test(app))fail('obsolete .polygonproject runtime support remains');
 
 
 // Mobile is a full presentation of the shared application, not a reduced gate.
-for(const token of ["const VERSION='1.55.4.18'","mobileActionButton('gis','GIS'","v155MobileGisProjectAction","gisWorkspaceToggle","editpolygon:gis-changed"]){requireToken(mobileJs,token,'mobile controller');}
+for(const token of ["const VERSION='1.55.5'","mobileActionButton('gis','GIS'","v155MobileGisProjectAction","gisWorkspaceToggle","editpolygon:gis-changed"]){requireToken(mobileJs,token,'mobile controller');}
 for(const token of ['v155-mobile-action-button[aria-pressed="true"]','@media(max-width:600px)','width:100vw!important','data-map-engine="openlayers"] .ol-control button','gis-layer-actions-btn','z-index:6100!important','touch-action:pan-y!important']){requireToken(mobileCss,token,'mobile parity stylesheet');}
 for(const token of ['function isMobilePopoverTarget','gis-layer-action-menu','!isMobilePopoverTarget(event.target)']){requireToken(mobileJs,token,'mobile layer-action focus boundary');}
 for(const token of ['mobileDesktopNotice','editpolygon-mobile-notice-dismissed','works best on desktop']){forbidToken(html,token,'index mobile surface');forbidToken(app,token,'application mobile surface');}
@@ -274,4 +277,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.18 runtime/repository audit passed. Mobile layer/GIS action popovers are above the full-width drawer and admitted by its focus boundary; Advanced GIS parity, lossless .epz persistence and adapter-confined OpenLayers remain intact.');
+console.log('v1.55.5 runtime/repository audit passed. OpenLayers is the no-query default; explicit ?mapEngine=leaflet fallback, mobile parity, lossless .epz persistence and adapter boundaries remain intact.');
