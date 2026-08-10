@@ -1,3 +1,14 @@
+# EditPolygon changelog
+
+## v1.55.4.17 — Mobile GIS parity and touch UI refinement
+
+- Made mobile a first-class application surface rather than a reduced compatibility mode. Advanced GIS is now reachable from a dedicated **GIS** bottom-dock action and from the mobile Project actions sheet, both proxying the same authoritative `gisWorkspaceToggle` used on desktop.
+- Removed the phone/tablet “works best on desktop” gate, its dismissal/session-storage logic and the related CSS. Public application metadata/help copy now describes phone, tablet and desktop as supported browser surfaces.
+- Completed a phone-width UI audit: Layers and Inspector use full-width drawers on handsets; close buttons, project actions, search/filter controls, bulk actions, menus and major GIS controls use consistent touch targets; dense layer rows reflow instead of squeezing names/actions; Advanced GIS and data-tool controls gain mobile-sized inputs/buttons.
+- Added mobile-specific OpenLayers control sizing so zoom/map controls remain comfortably tappable even though the OpenLayers stylesheet loads after the mobile stylesheet.
+- Fixed an old mobile resize feedback loop: application-triggered synthetic resize notifications are no longer re-scheduled by the mobile window-resize listener. Real viewport/orientation changes still refresh contextual/layout state.
+- Added static mobile-parity regressions plus a headless touch-viewport browser smoke covering GIS access/state, full-width Layers drawer geometry, project-sheet access, touch target sizes, OpenLayers controls and horizontal-overflow safety.
+
 ## v1.55.4.16 — Compressed `.epz` project container
 
 - Replaced the development-only plain-JSON `.polygonproject` format with `.epz`, a lossless ZIP/DEFLATE EditPolygon project container. No geometry, coordinate precision, attributes, true-circle metadata, styling, measurements, reference definitions or GIS workspace state are simplified or discarded.
@@ -22,7 +33,6 @@
 - The Draw point path and annotation/measurement conversion path now share `canonicalEditableFeatureStyle()`, preventing their default point appearance from drifting apart again.
 - Added conversion regression coverage for Point, LineString, Polygon and text-annotation conversions.
 
-# EditPolygon changelog
 
 ## v1.55.4.13 — Focused precision overlays for large-layer selection and editing
 

@@ -1,34 +1,37 @@
-# EditPolygon v1.55.4.16 release manifest
+# EditPolygon v1.55.4.17 release manifest
 
-v1.55.4.16 replaces the development-only plain JSON project download with the new lossless `.epz` EditPolygon project container. This is deliberately a clean format cutover: `.polygonproject` is not retained as a supported import or export format because there are no production project files requiring compatibility yet.
+v1.55.4.17 is the final mobile-parity/refinement pass before the OpenLayers default switch. It does not create a separate mobile GIS implementation: phone/tablet controls expose the same application state and `EditPolygonMap` runtime through touch-oriented drawers, sheets and dock actions.
 
-## Project format
+## Mobile capability parity
 
-A normal saved project is now `editpolygon_project.epz`. It is a ZIP/DEFLATE container containing:
+- A dedicated **GIS** bottom-dock button opens/closes the existing Advanced GIS workspace on mobile.
+- Project actions also expose **Open Advanced GIS / Return to simple editor**, using the same authoritative `gisWorkspaceToggle`.
+- Layers, Inspector, project save/export, conversion/validation, drawing/editing and contextual actions continue to use the shared application controls and models.
+- The previous “EditPolygon works best on desktop” dialog and dismissal storage path are removed.
 
-- `manifest.json` — EditPolygon container identity, format version, app version, project member name, save timestamp, compression method and optional SHA-256 integrity record;
-- `project.json` — the complete canonical EditPolygon project payload, unchanged in GIS semantics;
-- `assets/` — reserved for future embedded binary/reference assets without forcing Base64 data into the JSON model.
+## Phone UI refinement
 
-Compression is lossless. The project model still preserves exact stored coordinates, feature properties, styles/labels, true-circle metadata, measurements/annotations, images, reference overlays, GIS workspace/service definitions, layer visibility/opacity/order, CRS metadata and view/UI state.
+- Layers and Inspector occupy the full handset width at <=600 CSS px; tablets retain a capped drawer width.
+- Drawer/sheet close actions and primary project/GIS controls use consistent touch targets.
+- Layer search/filter/bulk actions, feature/layer icon controls and viewport menus are reflowed/sized for touch without hiding the underlying layer-management capability.
+- Advanced GIS forms, tabs, layer controls, remote-source chooser, data tools and table/join controls receive phone-appropriate sizing and scrolling.
+- OpenLayers native controls receive explicit mobile sizing even though the engine stylesheet loads after mobile CSS.
+- The old mobile resize feedback loop is removed: synthetic application resize notifications are not fed back into `scheduleLayoutRefresh()`.
 
-## Load safety
+## Desktop isolation
 
-`.epz` loading validates the ZIP structure, manifest identity and format version, requires `project.json`, verifies SHA-256 when Web Crypto is available, parses the canonical project JSON, and only then hands it to the existing project normalisation/restoration path. CRC re-decompression is deliberately not enabled because SHA-256 already verifies the canonical project member after a single decompression, avoiding a large-project performance penalty. Corrupt, malformed or newer unsupported containers fail with a clear project-file error rather than attempting partial state restoration.
-
-## Architecture
-
-Project packaging is isolated in `docs/assets/editpolygon-project-format.js`, loaded after JSZip and before `editpolygon-app.js`. The application owns project state; the project-format module owns only container encode/decode/integrity. The historical v1.72 project save/import wrapper no longer replaces `saveProject` or `importFile`.
+All new layout rules are scoped under `body.v151-mobile-layout`, and the mobile controller only activates for the existing narrow/coarse-pointer media query. Desktop application geometry and workflows remain unchanged. The mobile GIS buttons proxy existing controls rather than creating new GIS state.
 
 ## Validation checklist
 
-1. Save a mixed project and confirm the downloaded file ends in `.epz`.
-2. Optionally rename a copy to `.zip` and inspect it: `manifest.json`, `project.json` and `assets/` should be present.
-3. Compare the `.epz` file size with the uncompressed `project.json`; geometry-heavy projects should compress substantially without changing data.
-4. Open the `.epz` in a fresh EditPolygon page and confirm editable geometry, true circles, measurements, styles, remote/reference layers, WMS, visibility/opacity/order and view state restore.
-5. Edit a restored feature and verify undo/redo still renders immediately.
-6. Corrupt/truncate a copy of the `.epz` and confirm EditPolygon reports an unreadable/damaged project rather than loading partial state.
+1. Open `?mapEngine=openlayers` on a phone and confirm no desktop-preference dialog appears.
+2. Confirm **GIS** is visible in the bottom dock; open it and verify Advanced GIS Layers/Add data/Basemaps/Project are reachable and scrollable.
+3. Open **More → Tools** and verify Advanced GIS can also be toggled there.
+4. Open Layers and Inspector: on a phone they should use the full available width, with aligned/tappable search, filters, layer actions and close controls.
+5. Pan/pinch-zoom, select, draw a point/polygon and edit one feature; opening/closing drawers or GIS must not leave a stuck interaction state.
+6. Check portrait and landscape once; the map and bottom dock should resize without page-level horizontal overflow.
+7. Save/open an `.epz` project to ensure the mobile presentation changes do not affect project persistence.
 
 ## Automated gate
 
-The release must pass repository integration checks, runtime/binding audits, the complete Node test suite and all seven browser smoke suites before deployment.
+The release must pass repository integration checks, runtime/binding audits, the complete Node test suite and **eight** browser smoke suites. The new mobile smoke uses a touch-enabled phone viewport and checks Advanced GIS state, full-width handset drawers, Project-sheet GIS access, touch target sizes, OpenLayers control sizing and horizontal-overflow safety.

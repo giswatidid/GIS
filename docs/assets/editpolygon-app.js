@@ -7272,7 +7272,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.16'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.4.17'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -17102,27 +17102,8 @@ showAutosaveRecoveryIfAvailable();
     openInfo(location.hash==='#privacy'?'editPolygonPrivacy':null);
   }
 
-  const mobileNotice=document.getElementById('mobileDesktopNotice');
-  const continueButton=document.getElementById('continueOnMobileBtn');
-  function storageGet(key){try{return sessionStorage.getItem(key);}catch(_){return null;}}
-  function storageSet(key,value){try{sessionStorage.setItem(key,value);}catch(_){}}
-  function shouldShowMobileNotice(){
-    return window.matchMedia&&window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-width: 980px)').matches;
-  }
-  function showMobileNotice(){
-    if(!mobileNotice||storageGet('editpolygon-mobile-notice-dismissed')==='1'||!shouldShowMobileNotice())return;
-    mobileNotice.hidden=false;
-    requestAnimationFrame(function(){if(continueButton)continueButton.focus();});
-  }
-  function hideMobileNotice(){
-    if(!mobileNotice)return;
-    mobileNotice.hidden=true;
-    storageSet('editpolygon-mobile-notice-dismissed','1');
-    try{if(MAP_RUNTIME&&typeof MAP_RUNTIME.resize==='function')MAP_RUNTIME.resize({pan:false,animate:false});}catch(_){}
-  }
-  if(continueButton)continueButton.addEventListener('click',hideMobileNotice);
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',showMobileNotice,{once:true});
-  else showMobileNotice();
+  // Mobile is a first-class application surface; no device-gating notice is shown.
+
 })();
 ;
 

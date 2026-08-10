@@ -54,11 +54,11 @@ test('EPZ manifest validator rejects unrelated and newer project containers',()=
 test('EPZ archive creation keeps the canonical project JSON intact and adds integrity metadata',async()=>{
   const format=load();
   const payload={kind:'polygon-editor-project',version:3,savedAt:'2026-08-10T00:00:00.000Z',files:[{id:'a',features:[{id:'p',geometry:{type:'Point',coordinates:[153.123456789,-27.987654321]}}]}],gisWorkspace:{layers:[{id:'wms'}]}};
-  const result=await format.createArchive(payload,{appVersion:'1.55.4.16'});
+  const result=await format.createArchive(payload,{appVersion:'1.55.4.17'});
   assert.deepEqual(JSON.parse(result.projectJson),payload);
   assert.equal(result.manifest.formatVersion,1);
   assert.equal(result.manifest.projectFile,'project.json');
-  assert.equal(result.manifest.appVersion,'1.55.4.16');
+  assert.equal(result.manifest.appVersion,'1.55.4.17');
   assert.match(result.manifest.integrity.projectSha256,/^[a-f0-9]{64}$/);
   assert.ok(FakeZip.last.entries.has('manifest.json'));
   assert.ok(FakeZip.last.entries.has('project.json'));
@@ -68,7 +68,7 @@ test('EPZ archive creation keeps the canonical project JSON intact and adds inte
 test('EPZ archive loading verifies and returns the exact project payload',async()=>{
   const format=load();
   const payload={kind:'polygon-editor-project',version:3,files:[],measurements:[{id:'m1',type:'distance'}],gisWorkspace:{layers:[{id:'wms',opacity:.42}]}};
-  const created=await format.createArchive(payload,{appVersion:'1.55.4.16'});
+  const created=await format.createArchive(payload,{appVersion:'1.55.4.17'});
   FakeZip.nextLoad=archiveFrom([
     ['manifest.json',JSON.stringify(created.manifest)],
     ['project.json',created.projectJson]
@@ -80,7 +80,7 @@ test('EPZ archive loading verifies and returns the exact project payload',async(
 });
 
 test('application uses only .epz for project save/open and loads the format module before the app',()=>{
-  assert.match(app,/EditPolygonProjectFormat\.createArchive\(payload,\{appVersion:'1\.55\.4\.16'\}\)/);
+  assert.match(app,/EditPolygonProjectFormat\.createArchive\(payload,\{appVersion:'1\.55\.4\.17'\}\)/);
   assert.match(app,/downloadBlob\('editpolygon_project\.epz',archive\.blob\)/);
   assert.match(app,/else if\(ext==='epz'\)/);
   assert.match(app,/EditPolygonProjectFormat\.readArchive\(file,\{onProgress\}\)/);

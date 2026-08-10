@@ -1,10 +1,12 @@
-/* EditPolygon mobile compatibility controller · v1.51.2
-   Map-first mobile shell, stable project menu, off-canvas drawers and compact
-   context controls. Desktop behaviour is left to the main application. */
+/* EditPolygon mobile parity controller · v1.55.4.17
+   The same application capabilities are exposed on touch devices through a
+   map-first shell, full-width drawers, a dedicated project sheet and compact
+   context controls. The historical v151-* class namespace is retained to avoid
+   unnecessary DOM/CSS churn while the mobile implementation evolves. */
 (()=>{
   'use strict';
 
-  const VERSION='1.51.2';
+  const VERSION='1.55.4.17';
   const MOBILE_QUERY='(max-width: 860px), (pointer: coarse) and (max-width: 1024px)';
   const mq=window.matchMedia?window.matchMedia(MOBILE_QUERY):null;
   const $=id=>document.getElementById(id);
@@ -52,6 +54,26 @@
   }
   function drawerFor(name){return name==='layers'?sidebar:name==='inspector'?inspector:null;}
   function drawerButton(name){return rail.querySelector(`[data-v151-drawer="${name}"]`);}
+  function gisButton(){return rail.querySelector('[data-v155-action="gis"]');}
+  function gisIsAdvanced(){
+    const toggle=$('gisWorkspaceToggle'),workspace=$('gisWorkspacePanel');
+    return toggle?.getAttribute('aria-pressed')==='true'||workspace?.classList.contains('active')||false;
+  }
+  function syncGisAccess(){
+    const advanced=gisIsAdvanced(),button=gisButton(),projectAction=$('v155MobileGisProjectAction');
+    if(button){
+      button.classList.toggle('active',advanced);
+      button.setAttribute('aria-pressed',advanced?'true':'false');
+      button.title=advanced?'Close Advanced GIS':'Open Advanced GIS';
+      button.setAttribute('aria-label',button.title);
+    }
+    if(projectAction)projectAction.textContent=advanced?'Return to simple editor':'Open Advanced GIS';
+  }
+  function toggleGisWorkspace(){
+    closeDrawer();closeProjectMenu();closeContextSheet();closeRailFlyouts();
+    if(!safeClick('gisWorkspaceToggle'))return;
+    requestAnimationFrame(()=>{syncGisAccess();scheduleLayoutRefresh();});
+  }
 
   function updateDrawerA11y(){
     for(const name of ['layers','inspector']){
@@ -124,14 +146,33 @@
     button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();toggleDrawer(name,button);});
     return button;
   }
+  function mobileActionButton(name,label,svg,handler){
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='rail-btn v151-mobile-only v155-mobile-action-button';
+    button.dataset.v155Action=name;
+    button.title=`Open ${label}`;
+    button.setAttribute('aria-label',`Open ${label}`);
+    button.setAttribute('aria-pressed','false');
+    button.innerHTML=`<span class="ico">${svg}</span><span class="lbl">${label}</span>`;
+    button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();handler(button);});
+    return button;
+  }
   function installDockButtons(){
     if(rail.querySelector('[data-v151-drawer="layers"]'))return;
     const layers=mobileButton('layers','Layers','<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path><path d="M7 4v4M12 10v4M17 16v4"></path></svg>');
     const inspect=mobileButton('inspector','Inspector','<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"></circle><path d="M15.5 15.5L21 21"></path><path d="M11 8v6M8 11h6"></path></svg>');
+    const gis=mobileActionButton('gis','GIS','<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5.5L9 3l6 2.5L20 3v15.5L15 21l-6-2.5L4 21V5.5z"></path><path d="M9 3v15.5M15 5.5V21"></path></svg>',()=>toggleGisWorkspace());
     rail.insertBefore(layers,rail.firstChild);
     const select=rail.querySelector('[data-rail="select"]');
-    if(select?.nextSibling)rail.insertBefore(inspect,select.nextSibling);else rail.appendChild(inspect);
+    if(select?.nextSibling){
+      rail.insertBefore(inspect,select.nextSibling);
+      rail.insertBefore(gis,inspect.nextSibling);
+    }else{
+      rail.append(inspect,gis);
+    }
   }
+
 
   function safeClick(id){
     const target=$(id);
@@ -209,6 +250,7 @@
         <section class="v151-mobile-menu-section">
           <h3>Tools</h3>
           <div class="v151-mobile-list-actions">
+            <button type="button" id="v155MobileGisProjectAction" data-v151-proxy="gisWorkspaceToggle">Open Advanced GIS</button>
             <button type="button" data-v151-proxy="restoreAutosaveBtn">Restore autosave</button>
             <button type="button" data-v151-proxy="converterOpenBtn">Convert formats</button>
             <button type="button" data-v151-proxy="validatorOpenBtn">Check &amp; fix geometry</button>
@@ -490,6 +532,7 @@
       closeDesktopTopMenu();
     }
     updateMobileContext();
+    syncGisAccess();
     scheduleLayoutRefresh();
   }
 
@@ -556,12 +599,19 @@
     fileObserver.observe(fileList,{childList:true,subtree:true});
   }
   updateBadges();
+  window.addEventListener('editpolygon:gis-changed',()=>requestAnimationFrame(syncGisAccess));
+  const gisToggleObserver=new MutationObserver(syncGisAccess);
+  const observeGisToggle=()=>{const toggle=$('gisWorkspaceToggle');if(toggle){gisToggleObserver.observe(toggle,{attributes:true,attributeFilter:['aria-pressed','class']});syncGisAccess();return true;}return false;};
+  if(!observeGisToggle())setTimeout(observeGisToggle,80);
 
   if(mq?.addEventListener)mq.addEventListener('change',applyMode);else mq?.addListener?.(applyMode);
   window.addEventListener('orientationchange',()=>setTimeout(()=>{
     closeDrawer();closeProjectMenu();closeContextSheet();applyMode();
   },100),{passive:true});
-  window.addEventListener('resize',()=>{if(isMobile()){scheduleLayoutRefresh();scheduleContextRefresh();}},{passive:true});
+  /* A real resize is already delivered to the application. Do not feed it back
+     through scheduleLayoutRefresh(), which would recursively dispatch synthetic
+     resize events on mobile. */
+  window.addEventListener('resize',()=>{if(isMobile())scheduleContextRefresh();},{passive:true});
   window.visualViewport?.addEventListener('resize',()=>{if(isMobile())scheduleLayoutRefresh();},{passive:true});
   applyMode();
 
@@ -570,6 +620,7 @@
     isMobile,
     openLayers:()=>openDrawer('layers',drawerButton('layers')),
     openInspector:()=>openDrawer('inspector',drawerButton('inspector')),
+    toggleGIS:toggleGisWorkspace,
     openProjectMenu,
     closeDrawer,
     closeProjectMenu

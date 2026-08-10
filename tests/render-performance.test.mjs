@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260810-epz-project-container-1554416/);
+  assert.match(html,/editpolygon-app\.js\?v=20260810-mobile-parity-1554417/);
 });
 
 

@@ -48,8 +48,8 @@
   "description": "EditPolygon is a free, user-friendly and powerful online polygon editor. Draw, edit, validate, repair and convert GIS formats in your browser.",
   "applicationCategory": "UtilitiesApplication",
   "applicationSubCategory": "GIS and geospatial editing",
-  "operatingSystem": "Any operating system with a modern desktop web browser",
-  "browserRequirements": "Requires JavaScript and a modern web browser. A desktop computer is recommended.",
+  "operatingSystem": "Any operating system with a modern web browser",
+  "browserRequirements": "Requires JavaScript and a modern web browser.",
   "inLanguage": "en",
   "isAccessibleForFree": true,
   "offers": {
@@ -169,12 +169,12 @@ html.v121-app-ready body{
 
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
 <link crossorigin="" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-<link rel="stylesheet" href="assets/editpolygon.css?v=20260810-epz-project-container-1554416"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260810-epz-project-container-1554416"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260810-epz-project-container-1554416"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260810-epz-project-container-1554416"/>
-<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260810-epz-project-container-1554416"/>
-<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260810-epz-project-container-1554416"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260810-mobile-parity-1554417"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260810-mobile-parity-1554417"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260810-mobile-parity-1554417"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260810-mobile-parity-1554417"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260810-mobile-parity-1554417"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260810-mobile-parity-1554417"/>
 
 
 
@@ -184,7 +184,7 @@ html.v121-app-ready body{
   
   <div class="no-script-message">
     <div class="no-script-title">EditPolygon – Free Online Polygon Editor</div>
-    <p>EditPolygon requires JavaScript to draw, edit, validate, repair and convert polygon files. Use a modern desktop browser and enable JavaScript to open the editor.</p>
+    <p>EditPolygon requires JavaScript to draw, edit, validate, repair and convert polygon files. Use a modern browser and enable JavaScript to open the editor.</p>
     <p>Supported workflows include GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV. Feedback: <a href="mailto:feedback@editpolygon.com">feedback@editpolygon.com</a>.</p>
   </div>
 </noscript>
@@ -670,9 +670,9 @@ html.v121-app-ready body{
       <p>Your imported geometry files are processed locally in your browser. They are not uploaded to or stored by EditPolygon. The application connects to third-party services when it loads map tiles, basemaps or place-search results, and those providers may receive normal web-request information such as your IP address.</p>
     </section>
 
-    <section aria-labelledby="editPolygonDesktopTitle">
-      <h3 id="editPolygonDesktopTitle">Desktop recommended</h3>
-      <p>EditPolygon can be opened on a phone or tablet, but detailed geometry editing works best on a desktop or laptop with a larger screen, mouse or trackpad.</p>
+    <section aria-labelledby="editPolygonDevicesTitle">
+      <h3 id="editPolygonDevicesTitle">Phone, tablet and desktop</h3>
+      <p>EditPolygon exposes the same core GIS, drawing, editing, analysis and export workflows on supported touch devices and desktop browsers. Larger screens provide more working space, while the mobile layout reorganises the same tools into touch-friendly drawers and sheets.</p>
     </section>
 
     <section aria-labelledby="editPolygonFaqTitle">
@@ -696,47 +696,35 @@ html.v121-app-ready body{
   </div>
 </details>
 
-<div class="mobile-desktop-notice" id="mobileDesktopNotice" hidden>
-  <div class="mobile-desktop-card" role="dialog" aria-modal="true" aria-labelledby="mobileDesktopTitle" aria-describedby="mobileDesktopDescription">
-    <img src="icon-192.png" alt="" width="72" height="72"/>
-    <h2 id="mobileDesktopTitle">EditPolygon works best on desktop</h2>
-    <p id="mobileDesktopDescription">The mobile layout is fully functional for opening files, managing layers, selecting, inspecting, drawing and exporting. Detailed geometry editing is still easier on a desktop or laptop.</p>
-    <div class="mobile-desktop-actions">
-      <button class="primary" id="continueOnMobileBtn" type="button">Continue on this device</button>
-      <a href="mailto:feedback@editpolygon.com">Send feedback</a>
-    </div>
-  </div>
-</div>
-
 <footer class="statusbar" aria-label="Application status"><span id="statusText">Ready.</span><span class="status-pill" id="dirtyState">Saved</span><span class="status-pill" id="modeState">Mode: Select</span><span class="status-pill" id="vertexState">No vertex editor</span><span class="status-pill" id="mergeState">0 picked</span><span class="status-pill" id="selectionState">No selection</span><span class="status-pill perf-pill" id="perfState">Performance: normal</span><button class="status-info-link" id="privacyInfoBtn" type="button" title="About local file processing">Files stay in your browser</button></footer>
 </div>
 <script crossorigin="" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.9.0/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js"></script>
-<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260810-epz-project-container-1554416">
-<script src="assets/editpolygon-map-adapter.js?v=20260810-epz-project-container-1554416"></script>
+<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260810-mobile-parity-1554417">
+<script src="assets/editpolygon-map-adapter.js?v=20260810-mobile-parity-1554417"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="assets/editpolygon-project-format.js?v=20260810-epz-project-container-1554416"></script>
+<script src="assets/editpolygon-project-format.js?v=20260810-mobile-parity-1554417"></script>
 <script src="https://unpkg.com/@tmcw/togeojson@6.0.1/dist/togeojson.umd.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
 <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="assets/gis-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-data-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-schema-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-analysis-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-join-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-style-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-crs-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-remote-source.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-geometry-health-core.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/editpolygon-app.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-workspace.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-data-tools.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-ui-integration.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/gis-geometry-health.js?v=20260810-epz-project-container-1554416"></script>
-<script src="assets/editpolygon-mobile.js?v=20260810-epz-project-container-1554416"></script>
+<script src="assets/gis-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-data-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-schema-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-analysis-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-join-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-style-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-crs-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-remote-source.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/editpolygon-app.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-workspace.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-data-tools.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-ui-integration.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/gis-geometry-health.js?v=20260810-mobile-parity-1554417"></script>
+<script src="assets/editpolygon-mobile.js?v=20260810-mobile-parity-1554417"></script>
 
 
 

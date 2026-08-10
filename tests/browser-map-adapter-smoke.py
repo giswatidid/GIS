@@ -57,7 +57,7 @@ with sync_playwright() as p:
       return {engine:runtime.engine,version:runtime.version,persistentSource:runtime.prefersPersistentEditableVectorSource(),focusedOverlay:runtime.supportsFocusedEditableOverlay(),center:runtime.getCenter(),zoom:runtime.getZoom(),pixel:runtime.lonLatToPixel([153,-27]),event:{lonLat:evt.lonLat,pixel:[evt.pixel.x,evt.pixel.y],ctrl:evt.originalEvent.ctrlKey},panDisabled,editable:editable.__editpolygonEditable,featureCount:editable.__editpolygonFeatureCount,hitIds:ids,live,wmsLayers:wms.options.layers,refKind:reference.__editpolygonReferenceKind,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,layerCount:__native.layers.size};
     }''')
     assert result['engine']=='leaflet',result
-    assert result['version']=='1.55.4.16',result
+    assert result['version']=='1.55.4.17',result
     assert result['persistentSource'] is False,result
     assert result['focusedOverlay'] is False,result
     assert result['center']==[151,-33],result

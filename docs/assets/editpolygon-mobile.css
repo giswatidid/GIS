@@ -1,14 +1,14 @@
-/* EditPolygon mobile compatibility layer · v1.51.1
-   The desktop editor remains the primary experience. This layer reorganises the
-   existing interface into a map-first, drawer-based layout on phones and small
-   touch tablets without creating a separate mobile application. */
+/* EditPolygon mobile parity layer · v1.55.4.17
+   Phones, touch tablets and desktop browsers expose the same application
+   capabilities. This stylesheet reorganises the shared interface into a
+   map-first, touch-oriented layout without creating a separate mobile app. */
 
 .v151-mobile-only{display:none!important;}
 
 body.v151-mobile-layout{
-  --v151-topbar-h:46px;
+  --v151-topbar-h:52px;
   --v151-status-h:24px;
-  --v151-dock-h:58px;
+  --v151-dock-h:62px;
   --v151-bottom-safe:env(safe-area-inset-bottom,0px);
   overscroll-behavior:none;
   touch-action:manipulation;
@@ -57,7 +57,7 @@ body.v151-mobile-layout .compact-topbar{
   z-index:4700!important;
 }
 body.v151-mobile-layout .topbar-brand{min-width:0!important;overflow:hidden;}
-body.v151-mobile-layout .topbar-brand .title{font-size:12px!important;max-width:78px;overflow:hidden;text-overflow:ellipsis;}
+body.v151-mobile-layout .topbar-brand .title{font-size:13px!important;max-width:104px;overflow:hidden;text-overflow:ellipsis;}
 body.v151-mobile-layout .topbar-subtitle{display:none!important;}
 body.v151-mobile-layout .topbar-core{
   display:flex!important;
@@ -68,7 +68,7 @@ body.v151-mobile-layout .topbar-core{
   background:transparent!important;
 }
 body.v151-mobile-layout .topbar-core > *:not(#openBtn):not(#fileInput){display:none!important;}
-body.v151-mobile-layout #openBtn{display:inline-flex!important;min-height:34px!important;height:34px!important;padding:0 10px!important;}
+body.v151-mobile-layout #openBtn{display:inline-flex!important;min-height:42px!important;height:42px!important;padding:0 12px!important;}
 body.v151-mobile-layout .topbar-search-wrap{
   order:3;
   display:flex!important;
@@ -89,7 +89,7 @@ body.v151-mobile-layout .topbar-search-wrap #locationSearchBtn{min-width:34px!im
 body.v151-mobile-layout .topbar-search-wrap #clearLocationSearchBtn{display:none!important;}
 body.v151-mobile-layout .topbar-export-compact{display:none!important;}
 body.v151-mobile-layout .topbar-more-wrap{order:4;min-width:0!important;}
-body.v151-mobile-layout .topbar-more-btn{height:34px!important;min-height:34px!important;padding:0 8px!important;}
+body.v151-mobile-layout .topbar-more-btn{height:42px!important;min-height:42px!important;padding:0 12px!important;}
 body.v151-mobile-layout .top-more-menu{
   position:fixed!important;
   top:calc(var(--v151-topbar-h) + 4px)!important;
@@ -147,8 +147,8 @@ body.v151-mobile-layout .rail-btn{
   flex:0 0 58px!important;
   width:58px!important;
   min-width:58px!important;
-  height:50px!important;
-  min-height:50px!important;
+  height:54px!important;
+  min-height:54px!important;
   padding:2px!important;
   scroll-snap-align:start;
   touch-action:manipulation;
@@ -203,7 +203,7 @@ body.v151-mobile-layout .v151-mobile-backdrop{
   left:0;
   right:0;
   bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe));
-  z-index:4800;
+  z-index:5550;
   display:block;
   background:rgba(15,23,42,.42);
   opacity:0;
@@ -234,7 +234,7 @@ body.v151-mobile-layout .v151-mobile-drawer-head{
   color:var(--text,#1f2328);
 }
 body.v151-mobile-layout .v151-mobile-drawer-head strong{font-size:12px;}
-body.v151-mobile-layout .v151-mobile-drawer-close{width:34px!important;min-width:34px!important;height:32px!important;min-height:32px!important;padding:0!important;font-size:19px!important;}
+body.v151-mobile-layout .v151-mobile-drawer-close{width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;font-size:22px!important;}
 body.v151-mobile-layout .sidebar,
 body.v151-mobile-layout #selectedSection{
   position:fixed!important;
@@ -245,7 +245,7 @@ body.v151-mobile-layout #selectedSection{
   min-width:280px!important;
   height:auto!important;
   max-height:none!important;
-  z-index:4900!important;
+  z-index:5600!important;
   display:flex!important;
   flex-direction:column!important;
   padding:0!important;
@@ -438,8 +438,6 @@ body.v151-mobile-layout .command-palette{width:100%!important;height:100dvh!impo
 body.v151-mobile-layout .command-list{flex:1;max-height:none!important;}
 body.v151-mobile-layout .reference-overlay-modal{width:100%!important;max-height:100dvh!important;height:100dvh!important;border:0!important;}
 body.v151-mobile-layout .seo-info-drawer{bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 5px)!important;right:5px!important;}
-body.v151-mobile-layout .mobile-desktop-notice{padding:max(10px,env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) max(10px,env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px))!important;}
-body.v151-mobile-layout .mobile-desktop-card{max-height:calc(100dvh - 20px);overflow:auto;padding:18px!important;}
 
 /* GIS workspace and data tools are loaded after the main stylesheet, so the
    mobile layer explicitly owns their small-screen geometry. */
@@ -492,12 +490,12 @@ body.v151-mobile-layout .gis-spatial-select-banner{top:6px!important;left:6px!im
 /* Landscape phones need every vertical pixel. */
 @media(max-height:500px){
   body.v151-mobile-layout{
-    --v151-topbar-h:42px;
+    --v151-topbar-h:44px;
     --v151-status-h:20px;
-    --v151-dock-h:50px;
+    --v151-dock-h:54px;
   }
   body.v151-mobile-layout .compact-topbar{padding-top:3px!important;padding-bottom:3px!important;}
-  body.v151-mobile-layout .rail-btn{height:43px!important;min-height:43px!important;flex-basis:54px!important;width:54px!important;min-width:54px!important;}
+  body.v151-mobile-layout .rail-btn{height:48px!important;min-height:48px!important;flex-basis:54px!important;width:54px!important;min-width:54px!important;}
   body.v151-mobile-layout .rail-btn .lbl{font-size:8px!important;}
   body.v151-mobile-layout #projectSection{flex-basis:42%!important;max-height:48%!important;}
   body.v151-mobile-layout .rail-flyout{max-height:65dvh!important;}
@@ -658,8 +656,8 @@ body.v151-mobile-layout .v151-mobile-list-actions a,
 body.v151-mobile-layout .v151-mobile-wide-action{
   width:100%;
   min-width:0;
-  min-height:42px!important;
-  padding:0 10px!important;
+  min-height:46px!important;
+  padding:0 11px!important;
   justify-content:flex-start!important;
   border:1px solid #d5d9df!important;
   background:var(--panel,#fff)!important;
@@ -694,7 +692,7 @@ body.v151-mobile-layout .v151-mobile-menu-section select,
 body.v151-mobile-layout .v151-mobile-menu-section input{
   width:100%!important;
   min-width:0!important;
-  height:42px!important;
+  height:44px!important;
 }
 body.v151-mobile-layout .v151-mobile-location{
   display:grid;
@@ -931,3 +929,362 @@ body.night-mode.v151-mobile-layout .v151-mobile-list-actions a{
    than compressed children, becomes the touch-scroll container. */
 body.v151-mobile-layout #selectedPanel > *{flex:0 0 auto!important;}
 body.v151-mobile-layout #selectedPanel > .empty-inspector{min-height:180px;}
+
+/* -------------------------------------------------------------------------
+   v1.55.4.17 mobile parity and touch-target refinement
+   Keep the phone surface dense enough for GIS work without retaining desktop-
+   sized controls. Full application capabilities remain available; only their
+   layout changes on narrow/coarse-pointer screens.
+   ------------------------------------------------------------------------- */
+
+body.v151-mobile-layout .v155-mobile-action-button.active,
+body.v151-mobile-layout .v155-mobile-action-button[aria-pressed="true"]{
+  background:var(--accentSoft2,#f4e8ea)!important;
+  color:#9e2027!important;
+  border-color:var(--accentBorder,#e5a7ad)!important;
+  box-shadow:inset 0 -3px 0 var(--accent,#d92c32)!important;
+}
+body.night-mode.v151-mobile-layout .v155-mobile-action-button.active,
+body.night-mode.v151-mobile-layout .v155-mobile-action-button[aria-pressed="true"]{
+  background:#2f2226!important;
+  border-color:#6a3b42!important;
+  color:#ff6b72!important;
+  box-shadow:inset 0 -3px 0 #ff6b72!important;
+}
+
+/* Consistent close/action targets across drawers, sheets and full-screen tools. */
+body.v151-mobile-layout .v151-mobile-sheet-close{
+  flex-basis:44px!important;
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+}
+body.v151-mobile-layout .modal-head>button:last-child,
+body.v151-mobile-layout .gis-panel-head>button,
+body.v151-mobile-layout .gis-data-shell>header>button:last-child{
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  padding:0!important;
+}
+
+/* Layers drawer: the desktop list is preserved, but its interaction surfaces
+   are resized/reflowed for touch instead of being a miniature desktop panel. */
+body.v151-mobile-layout #projectSection{padding:10px!important;}
+body.v151-mobile-layout #projectSection .dropzone{padding:10px!important;}
+body.v151-mobile-layout #filesSection{padding:10px!important;}
+body.v151-mobile-layout #filesSection>.section-title{
+  min-height:42px!important;
+  gap:7px!important;
+  margin-bottom:8px!important;
+}
+body.v151-mobile-layout #filesSection>.section-title .v135-new-group-button,
+body.v151-mobile-layout #filesSection>.section-title .v133-layer-sort-button,
+body.v151-mobile-layout #filesSection>.section-title .v120-sidebar-toggle{
+  min-height:38px!important;
+  height:38px!important;
+  padding-left:10px!important;
+  padding-right:10px!important;
+}
+body.v151-mobile-layout #filesSection .v54-layer-search-row{gap:7px!important;padding-bottom:8px!important;}
+body.v151-mobile-layout #filesSection .v54-layer-search-row input{
+  height:42px!important;
+  min-height:42px!important;
+  padding:0 11px!important;
+  font-size:13px!important;
+}
+body.v151-mobile-layout #filesSection .v54-layer-search-row button{
+  width:42px!important;
+  min-width:42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  font-size:18px!important;
+}
+body.v151-mobile-layout #filesSection .v54-filter-row{
+  gap:6px!important;
+  padding:0 0 8px!important;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+}
+body.v151-mobile-layout #filesSection .v54-filter-row::-webkit-scrollbar{display:none;}
+body.v151-mobile-layout #filesSection .v54-filter-row>button,
+body.v151-mobile-layout #filesSection .v149-filter-more>summary{
+  flex:0 0 auto!important;
+  min-height:36px!important;
+  height:36px!important;
+  padding:0 10px!important;
+  font-size:11px!important;
+  line-height:34px!important;
+}
+body.v151-mobile-layout #filesSection .v149-filter-more{margin-left:0!important;}
+body.v151-mobile-layout .v149-filter-menu{
+  position:fixed!important;
+  top:auto!important;
+  left:8px!important;
+  right:8px!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 8px)!important;
+  min-width:0!important;
+  max-height:55dvh!important;
+  overflow:auto!important;
+  z-index:5900!important;
+}
+body.v151-mobile-layout .v149-filter-menu button{min-height:42px!important;font-size:12px!important;}
+body.v151-mobile-layout #filesSection .v54-bulk-bar{padding:9px!important;margin-bottom:8px!important;}
+body.v151-mobile-layout .v149-bulk-head,
+body.v151-mobile-layout .v149-bulk-actions{gap:7px!important;}
+body.v151-mobile-layout .v149-bulk-head button,
+body.v151-mobile-layout .v149-bulk-actions button,
+body.v151-mobile-layout .v149-bulk-more>summary{
+  min-height:38px!important;
+  height:38px!important;
+  padding:0 10px!important;
+  font-size:11px!important;
+  line-height:36px!important;
+}
+body.v151-mobile-layout .v149-bulk-menu{
+  position:fixed!important;
+  top:auto!important;
+  left:8px!important;
+  right:8px!important;
+  bottom:calc(var(--v151-status-h) + var(--v151-dock-h) + var(--v151-bottom-safe) + 8px)!important;
+  min-width:0!important;
+  max-height:60dvh!important;
+  overflow:auto!important;
+  z-index:5900!important;
+}
+body.v151-mobile-layout .v149-bulk-menu button{min-height:42px!important;font-size:12px!important;}
+body.v151-mobile-layout #filesSection .file-head,
+body.v151-mobile-layout #filesSection .feature-row,
+body.v151-mobile-layout #filesSection .image-overlay-row,
+body.v151-mobile-layout #filesSection .measure-layer-row{
+  min-height:48px!important;
+  gap:6px!important;
+  padding-top:7px!important;
+  padding-bottom:7px!important;
+}
+body.v151-mobile-layout #filesSection .file-main,
+body.v151-mobile-layout #filesSection .feature-main{min-width:72px!important;}
+body.v151-mobile-layout #filesSection .file-name,
+body.v151-mobile-layout #filesSection .feature-name{font-size:12px!important;line-height:1.2!important;}
+body.v151-mobile-layout #filesSection .file-meta,
+body.v151-mobile-layout #filesSection .feature-meta{font-size:10px!important;line-height:1.2!important;}
+body.v151-mobile-layout #filesSection .file-actions,
+body.v151-mobile-layout #filesSection .feature-actions,
+body.v151-mobile-layout #filesSection .v54-layer-quick,
+body.v151-mobile-layout #filesSection .v74-layer-quick,
+body.v151-mobile-layout #filesSection .v75-layer-controls,
+body.v151-mobile-layout #filesSection .v76-layer-controls{
+  gap:4px!important;
+  flex-wrap:wrap!important;
+  justify-content:flex-end!important;
+}
+body.v151-mobile-layout #filesSection .v54-icon-btn,
+body.v151-mobile-layout #filesSection .v54-icon-btn.v61-layer-btn,
+body.v151-mobile-layout #filesSection .v61-layer-btn,
+body.v151-mobile-layout #filesSection .v75-layer-btn,
+body.v151-mobile-layout #filesSection .v76-layer-btn,
+body.v151-mobile-layout #filesSection .layer-kebab,
+body.v151-mobile-layout #filesSection .collapse-btn,
+body.v151-mobile-layout #filesSection .icon-btn,
+body.v151-mobile-layout #filesSection .layer-mini,
+body.v151-mobile-layout #filesSection .v135-target-button{
+  width:34px!important;
+  min-width:34px!important;
+  height:34px!important;
+  min-height:34px!important;
+  padding:0!important;
+}
+body.v151-mobile-layout #filesSection .v54-icon-btn svg,
+body.v151-mobile-layout #filesSection .v61-layer-btn svg,
+body.v151-mobile-layout #filesSection .v75-layer-btn svg,
+body.v151-mobile-layout #filesSection .v76-layer-btn svg{width:16px!important;height:16px!important;}
+body.v151-mobile-layout .layer-menu{
+  width:calc(100vw - 16px)!important;
+  max-width:calc(100vw - 16px)!important;
+  max-height:calc(100dvh - var(--v151-topbar-h) - var(--v151-status-h) - var(--v151-dock-h) - var(--v151-bottom-safe) - 20px)!important;
+}
+body.v151-mobile-layout .layer-menu button{min-height:42px!important;font-size:12px!important;}
+body.v151-mobile-layout .layer-menu .layer-menu-row{min-height:42px!important;padding-top:7px!important;padding-bottom:7px!important;}
+body.v151-mobile-layout .layer-menu select,
+body.v151-mobile-layout .layer-menu input:not([type="range"]):not([type="checkbox"]){min-height:40px!important;}
+
+/* Advanced GIS is a first-class mobile surface. It stays full screen above the
+   map, while Layers/Inspector/project sheets may still be opened above it. */
+body.v151-mobile-layout .gis-workspace-panel{overflow:hidden!important;}
+body.v151-mobile-layout .gis-panel-head{
+  min-height:56px!important;
+  padding:6px 8px 6px 12px!important;
+}
+body.v151-mobile-layout .gis-panel-title{font-size:15px!important;}
+body.v151-mobile-layout .gis-panel-subtitle{font-size:10px!important;line-height:1.25!important;}
+body.v151-mobile-layout .gis-tabs{min-height:46px!important;}
+body.v151-mobile-layout .gis-tabs button{
+  min-width:82px!important;
+  min-height:46px!important;
+  height:46px!important;
+  padding:0 10px!important;
+  font-size:12px!important;
+}
+body.v151-mobile-layout .gis-panel-body{
+  padding:10px!important;
+  overscroll-behavior:contain!important;
+  -webkit-overflow-scrolling:touch;
+}
+body.v151-mobile-layout .gis-section-head{min-height:44px!important;padding:8px 10px!important;}
+body.v151-mobile-layout .gis-section-head h3{font-size:13px!important;}
+body.v151-mobile-layout .gis-layer-row{padding:10px!important;}
+body.v151-mobile-layout .gis-layer-primary{gap:8px!important;align-items:center!important;}
+body.v151-mobile-layout .gis-eye,
+body.v151-mobile-layout .gis-mini{
+  width:38px!important;
+  min-width:38px!important;
+  height:38px!important;
+  min-height:38px!important;
+  padding:0!important;
+}
+body.v151-mobile-layout .gis-layer-name{font-size:12px!important;}
+body.v151-mobile-layout .gis-layer-secondary{
+  margin:9px 0 0!important;
+  gap:8px!important;
+  align-items:stretch!important;
+}
+body.v151-mobile-layout .gis-opacity{
+  flex:1 1 190px!important;
+  grid-template-columns:auto minmax(80px,1fr) 40px!important;
+}
+body.v151-mobile-layout .gis-opacity input{width:100%!important;min-height:32px!important;}
+body.v151-mobile-layout .gis-layer-order button{width:38px!important;min-width:38px!important;height:38px!important;min-height:38px!important;padding:0!important;}
+body.v151-mobile-layout .gis-group-select{
+  width:100%!important;
+  margin-left:0!important;
+  justify-content:space-between!important;
+}
+body.v151-mobile-layout .gis-group-select select{
+  flex:1 1 auto!important;
+  max-width:none!important;
+  height:42px!important;
+  min-height:42px!important;
+  font-size:12px!important;
+}
+body.v151-mobile-layout .gis-form-grid label{font-size:12px!important;gap:6px!important;}
+body.v151-mobile-layout .gis-form-grid input:not([type="checkbox"]):not([type="range"]),
+body.v151-mobile-layout .gis-form-grid select,
+body.v151-mobile-layout .gis-form-grid input[type="color"],
+body.v151-mobile-layout .gis-remote-choice select{
+  height:44px!important;
+  min-height:44px!important;
+  font-size:13px!important;
+}
+body.v151-mobile-layout .gis-form-grid input[type="checkbox"],
+body.v151-mobile-layout .gis-remote-layer-option input[type="checkbox"]{
+  width:20px!important;
+  height:20px!important;
+  min-width:20px!important;
+}
+body.v151-mobile-layout .gis-form-actions,
+body.v151-mobile-layout .gis-quick-actions,
+body.v151-mobile-layout .gis-remote-actions,
+body.v151-mobile-layout .gis-remote-layer-select-actions,
+body.v151-mobile-layout .gis-basemap-actions{gap:7px!important;}
+body.v151-mobile-layout .gis-form-actions button,
+body.v151-mobile-layout .gis-quick-actions button,
+body.v151-mobile-layout .gis-remote-actions button,
+body.v151-mobile-layout .gis-remote-layer-select-actions button,
+body.v151-mobile-layout .gis-basemap-actions button{
+  min-height:42px!important;
+  padding:0 11px!important;
+  font-size:12px!important;
+}
+body.v151-mobile-layout .gis-remote-layer-option{
+  min-height:46px!important;
+  gap:9px!important;
+  padding:8px!important;
+}
+body.v151-mobile-layout .gis-remote-layer-option strong{font-size:12px!important;}
+body.v151-mobile-layout .gis-remote-layer-option small{font-size:10px!important;}
+body.v151-mobile-layout .gis-project-metrics{grid-template-columns:1fr 1fr!important;}
+
+/* Data-table/statistics/join tools keep their full feature set while becoming
+   comfortable to operate with touch. Wide tables remain horizontally scrollable. */
+body.v151-mobile-layout .gis-data-shell>header{grid-template-columns:minmax(0,1fr) 44px!important;min-height:56px!important;}
+body.v151-mobile-layout .gis-data-shell nav button{min-height:44px!important;height:44px!important;padding:0 10px!important;}
+body.v151-mobile-layout .gis-data-shell>main{overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;}
+body.v151-mobile-layout .gis-data-toolbar button,
+body.v151-mobile-layout .gis-tool-card button,
+body.v151-mobile-layout .gis-filter-state button,
+body.v151-mobile-layout .gis-table-filter-state button,
+body.v151-mobile-layout .gis-join-mode-tabs button{
+  min-height:42px!important;
+  padding-top:0!important;
+  padding-bottom:0!important;
+}
+body.v151-mobile-layout .gis-data-toolbar input,
+body.v151-mobile-layout .gis-data-toolbar select,
+body.v151-mobile-layout .gis-tool-card input:not([type="checkbox"]):not([type="range"]),
+body.v151-mobile-layout .gis-tool-card select,
+body.v151-mobile-layout .gis-join-grid input,
+body.v151-mobile-layout .gis-join-grid select{
+  min-height:42px!important;
+}
+body.v151-mobile-layout .gis-table-wrap,
+body.v151-mobile-layout .gis-join-sample{max-width:100%!important;overflow:auto!important;-webkit-overflow-scrolling:touch;}
+
+/* OpenLayers controls inherit desktop defaults after this stylesheet in the
+   document, so use a more specific mobile rule to guarantee usable targets. */
+body.v151-mobile-layout[data-map-engine="openlayers"] .ol-control button{
+  width:42px!important;
+  min-width:42px!important;
+  height:42px!important;
+  min-height:42px!important;
+  padding:0!important;
+  font-size:20px!important;
+  touch-action:manipulation!important;
+}
+body.v151-mobile-layout[data-map-engine="openlayers"] .ol-zoom{top:8px!important;left:8px!important;}
+body.v151-mobile-layout[data-map-engine="openlayers"] .ol-attribution{
+  max-width:82vw!important;
+  right:4px!important;
+  bottom:4px!important;
+  font-size:8px!important;
+}
+
+/* On phones there is no useful reason to leave a narrow, untouchable map strip
+   beside a drawer. Tablets keep the capped desktop-like drawer width. */
+@media(max-width:600px){
+  body.v151-mobile-layout .sidebar,
+  body.v151-mobile-layout #selectedSection{
+    left:0!important;
+    right:0!important;
+    width:100vw!important;
+    max-width:none!important;
+    min-width:0!important;
+  }
+  body.v151-mobile-layout .v151-mobile-drawer-title small{max-width:calc(100vw - 86px)!important;}
+  body.v151-mobile-layout .v151-mobile-backdrop{background:transparent!important;}
+  body.v151-mobile-layout #filesSection .file-head,
+  body.v151-mobile-layout #filesSection .feature-row{
+    flex-wrap:wrap!important;
+  }
+  body.v151-mobile-layout #filesSection .file-main,
+  body.v151-mobile-layout #filesSection .feature-main{flex:1 1 150px!important;}
+  body.v151-mobile-layout #filesSection .file-actions,
+  body.v151-mobile-layout #filesSection .feature-actions,
+  body.v151-mobile-layout #filesSection .v54-layer-quick,
+  body.v151-mobile-layout #filesSection .v74-layer-quick,
+  body.v151-mobile-layout #filesSection .v75-layer-controls,
+  body.v151-mobile-layout #filesSection .v76-layer-controls{margin-left:auto!important;}
+}
+
+@media(max-width:380px){
+  body.v151-mobile-layout{--v151-topbar-h:50px;}
+  body.v151-mobile-layout .compact-topbar{grid-template-columns:minmax(0,1fr) auto auto!important;}
+  body.v151-mobile-layout .topbar-brand .title{max-width:none!important;font-size:12px!important;}
+  body.v151-mobile-layout #openBtn,
+  body.v151-mobile-layout .topbar-more-btn{height:40px!important;min-height:40px!important;padding:0 10px!important;}
+  body.v151-mobile-layout .v151-mobile-action-grid{grid-template-columns:1fr 1fr;}
+  body.v151-mobile-layout .gis-project-metrics{grid-template-columns:1fr!important;}
+}
