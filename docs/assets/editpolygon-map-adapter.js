@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.4.11';
+  const VERSION='1.55.4.12';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function htmlEscape(value){return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#039;');}
@@ -298,7 +298,8 @@
       for(const item of items||[]){if(!item?.geometry)continue;const st=item.style||{};try{const geo=L.geoJSON({type:'Feature',properties:item.properties||{},geometry:item.geometry},{interactive:item.interactive===true,style:()=>st,pointToLayer:(feature,ll)=>L.circleMarker(ll,{radius:Math.max(1,Number(st.radius??6)),color:st.color||'#1664d6',fillColor:st.fillColor||st.color||'#1664d6',fillOpacity:st.fillOpacity??.9,opacity:st.opacity??1,weight:st.weight??2,dashArray:st.dashArray||null,interactive:item.interactive===true})});geo.eachLayer(child=>{child.__editpolygonOverlayId=item.id||null;if(item.onClick)child.on?.('click',event=>item.onClick({id:item.id,item,originalEvent:event?.originalEvent||null,latLng:event?.latlng||null}));});layer.addLayer(geo);}catch(_){ }}return true;
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:getContainer(),lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
-    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel});
+    function prefersPersistentEditableVectorSource(){return false;}
+    return Object.freeze({version:VERSION,engine:'leaflet',requestedEngine:'leaflet',getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource});
   }
 
   function createOpenLayersRuntime(options={}){
@@ -453,7 +454,21 @@
       layer.__editpolygonEngine='openlayers';layer.__editpolygonReference=true;layer.__editpolygonReferenceKind='image';layer.__editpolygonImageExtent=imageExtent;return layer;
     }
     function setDisplayLayerOpacity(layer,value){try{layer?.setOpacity?.(Math.max(0,Math.min(1,finite(value,1))));nativeMap.render?.();return true;}catch(_){return false;}}
-    function setDisplayLayerVisible(layer,visible){try{layer?.setVisible?.(!!visible);nativeMap.render?.();return true;}catch(_){return false;}}
+    function setDisplayLayerVisible(layer,visible){
+      try{
+        if(!layer)return false;
+        const show=!!visible;
+        layer.setVisible?.(show);
+        // Match the Leaflet runtime contract: visibility owns map membership.
+        // This is especially important for GIS service layers, which are created
+        // off-map and first become displayable through this method.
+        if(show){
+          if(!hasDisplayLayer(layer))addDisplayLayer(layer);
+        }else if(hasDisplayLayer(layer))removeDisplayLayer(layer);
+        nativeMap.render?.();
+        return true;
+      }catch(_){return false;}
+    }
     function setDisplayLayerZIndex(layer,value){try{layer?.setZIndex?.(finite(value,0));nativeMap.render?.();return true;}catch(_){return false;}}
     function setGeoJsonLayerStyle(layer,spec={}){
       if(!layer?.__editpolygonReference||layer.__editpolygonReferenceKind!=='geojson')return false;
@@ -470,7 +485,14 @@
         if(item.label?.coordinate&&item.label?.text!=null){hasDeclutterContent=true;try{const lf=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.label.coordinate[0]),item.label.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'label'});lf.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.label.text));olFeatures.push(lf);}catch(_){ }}
         if(item.annotation?.coordinate&&item.annotation?.text){hasDeclutterContent=true;try{const af=new ol.Feature({geometry:new ol.geom.Point(ol.proj.fromLonLat([canonicalLongitude(item.annotation.coordinate[0]),item.annotation.coordinate[1]])),__editpolygonId:item.id,__editpolygonKind:'annotation'});af.setStyle(styleFromDescriptor({color:'transparent',fillColor:'transparent',weight:0,radius:0},item.annotation.text));olFeatures.push(af);}catch(_){ }}
       }
-      source.addFeatures(olFeatures);const layer=new ol.layer.Vector({source,declutter:hasDeclutterContent,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1,renderBuffer:spec.renderBuffer??100,updateWhileAnimating:false,updateWhileInteracting:false});layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;layer.__editpolygonStyleCacheSize=styleCache.size;layer.__editpolygonDeclutter=hasDeclutterContent;return layer;
+      source.addFeatures(olFeatures);
+      const wantsImage=spec.renderMode==='image'||spec.interactionOptimized===true;
+      const canImage=wantsImage&&typeof ol.layer?.VectorImage==='function';
+      const common={source,declutter:hasDeclutterContent,zIndex:spec.zIndex??100,visible:spec.visible!==false,opacity:spec.opacity??1,renderBuffer:spec.renderBuffer??(hasDeclutterContent?64:32)};
+      const layer=canImage
+        ?new ol.layer.VectorImage({...common,imageRatio:spec.imageRatio??1.2,renderOrder:null})
+        :new ol.layer.Vector({...common,updateWhileAnimating:false,updateWhileInteracting:false,renderOrder:null});
+      layer.__editpolygonEngine='openlayers';layer.__editpolygonEditable=true;layer.__editpolygonLayerKey=spec.layerKey??null;layer.__editpolygonFeatureCount=(spec.features||[]).length;layer.__editpolygonGeometryFeatures=geometryFeatures;layer.__editpolygonGeometrySignatures=geometrySignatures;layer.__editpolygonStyleCacheSize=styleCache.size;layer.__editpolygonDeclutter=hasDeclutterContent;layer.__editpolygonRenderMode=canImage?'vector-image':'vector';return layer;
     }
     function updateEditableFeatureGeometry(layer,featureId,geometry){
       if(!layer||!featureId||!geometry)return false;
@@ -504,8 +526,13 @@
       source.addFeatures?.(features);source.changed?.();nativeMap.render?.();return true;
     }
     function createDomOverlay(spec={}){return createDomOverlayController({...spec,container:domOverlayPane,lonLatToPixel,pixelToLonLat,onMap:(type,fn)=>on(type,fn),setPanEnabled,isPanEnabled});}
+    // OpenLayers VectorSource already owns an R-tree spatial index and wrapX.
+    // Keeping a heavy editable source intact lets its renderer cull features
+    // natively instead of making the application rebuild projected geometry
+    // whenever the viewport crosses an application-side culling boundary.
+    function prefersPersistentEditableVectorSource(){return true;}
 
-    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel});
+    return Object.freeze({version:VERSION,engine:'openlayers',requestedEngine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getNativeMap:()=>nativeMap,getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,nativePanLooksActive,recoverNativePan,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,ensureDisplayPane,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,prefersPersistentEditableVectorSource});
   }
 
   function createRuntime(options={}){

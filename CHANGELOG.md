@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.4.12 — Persistent large-vector rendering and WMS map-membership parity
+
+- Fixed the remaining OpenLayers WMS blank-layer defect. Remote service instances are created off-map and first displayed through `setDisplayLayerVisible()`; the OpenLayers implementation previously toggled only `visible` and never added a newly created WMS layer to the map. Visibility now owns add/remove map membership on both engines.
+- Added an adapter-level persistent editable-source capability. Performance-managed OpenLayers datasets retain one full indexed `VectorSource` so native spatial indexing/wrap can cull features without EditPolygon rebuilding projected geometry whenever an application viewport query crosses a feature boundary. Leaflet keeps the existing viewport-culling path.
+- Added adaptive OpenLayers `VectorImageLayer` rendering for heavy inactive editable datasets. This preserves all source geometry and attributes while making pan/zoom interaction image-backed; entering point/circle/polygon/whole-feature editing switches the layer back to the precise normal vector renderer.
+- Reduced interaction overhead for selected complex polygons. The floating polygon toolbar now uses cached feature bounds, is hidden while map/zoom interaction is active, and is positioned once after movement settles instead of performing DOM measurement/style writes in the hot pan loop.
+- Tightened heavy-layer display costs further: the expanded Layers tree now materialises at most 80 feature rows at once, unlabeled heavy vectors use a 16-pixel render buffer, and the interaction image ratio is 1 so the renderer does not draw a larger-than-viewport image unless required.
+- Removed a historical duplicate map-pointer coordinate listener: the enhanced readout now replaces the core listener instead of stacking a second projection/DOM update on every pointer move.
+- Added/expanded regressions for WMS map membership, persistent-source policy, adaptive VectorImage rendering, precise-edit fallback, large-layer source stability and selected-toolbar pan suppression.
+
 ## v1.55.4.11 — External-source parity and large-vector responsiveness
 
 - Fixed WMS sources being accepted into the project but remaining blank when a provider allows image display without anonymous CORS. Leaflet/OpenLayers WMS creation no longer forces cross-origin mode; `crossOrigin` is opt-in per source.

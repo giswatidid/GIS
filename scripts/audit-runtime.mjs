@@ -7,13 +7,13 @@ const adapter=read('docs/assets/editpolygon-map-adapter.js');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const html=read('docs/index.html');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260809-wms-large-vector-1554411';
+const RELEASE_KEY='20260809-adaptive-vector-image-1554412';
 
-function fail(message){throw new Error(`v1.55.4.11 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.4.12 runtime/repository audit: ${message}`);}
 function requireToken(text,token,where){if(!text.includes(token))fail(`${where} is missing ${token}`);}
 function forbidToken(text,token,where){if(text.includes(token))fail(`${where} still contains obsolete token ${token}`);}
 
-if(pkg.version!=='1.55.4.11')fail(`package version is ${pkg.version}, expected 1.55.4.11`);
+if(pkg.version!=='1.55.4.12')fail(`package version is ${pkg.version}, expected 1.55.4.12`);
 if(!html.includes(RELEASE_KEY))fail(`index does not use release cache key ${RELEASE_KEY}`);
 if(!html.includes('leaflet@1.9.4/dist/leaflet.js'))fail('Leaflet transition/reference engine was removed before the parity gate');
 if(!html.includes('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js'))fail('OpenLayers 10.9.0 is not loaded');
@@ -40,7 +40,7 @@ for(const method of [
   'createGeoJsonLayer','createStaticImageLayer','createEditableVectorLayer',
   'editableFeatureIdsAtPixel','updateEditableFeatureGeometry',
   'setDisplayLayerOpacity','setDisplayLayerVisible','setDisplayLayerZIndex',
-  'createVectorOverlayLayer','createDomOverlay'
+  'createVectorOverlayLayer','createDomOverlay','prefersPersistentEditableVectorSource'
 ]){
   if(!leafRuntime.includes(method)||!olRuntime.includes(method))fail(`map-runtime contract is asymmetric for ${method}`);
 }
@@ -61,6 +61,11 @@ requireToken(olRuntime,"sourceOptions.serverType='geoserver'",'OpenLayers GeoSer
 requireToken(olRuntime,'params.TILED=true','OpenLayers GeoServer tiled WMS hint');
 requireToken(app,'async function gisDiscoverWmsBounds(source)','WMS capabilities discovery');
 requireToken(app,"stored.bounds=info.bounds",'WMS advertised extent persistence');
+const olVisibilityStart=olRuntime.indexOf('function setDisplayLayerVisible(layer,visible)');
+const olVisibilityEnd=olRuntime.indexOf('function setDisplayLayerZIndex',olVisibilityStart);
+const olVisibility=olRuntime.slice(olVisibilityStart,olVisibilityEnd);
+requireToken(olVisibility,'if(!hasDisplayLayer(layer))addDisplayLayer(layer)','OpenLayers visible service membership');
+requireToken(olVisibility,'else if(hasDisplayLayer(layer))removeDisplayLayer(layer)','OpenLayers hidden service membership');
 
 // Application-level OpenLayers calls are prohibited. Remaining direct Leaflet
 // calls are explicit transition debt and are budgeted by audit-bindings.mjs.
@@ -78,13 +83,25 @@ if((app.match(/getNativeMap/g)||[]).length!==0)fail('application code must not e
 const cachedRendererStart=app.indexOf('function renderCandidateFeatures(file)');
 const cachedRendererEnd=app.indexOf('function invalidateRenderCache',cachedRendererStart);
 const cachedRendererBlock=app.slice(cachedRendererStart,cachedRendererEnd);
-requireToken(cachedRendererBlock,'function renderSignature(file,features)','stable candidate-set render signature');
+requireToken(cachedRendererBlock,'function renderSignature(file,features,renderMode=','stable candidate-set render signature');
 if(/renderViewKey|viewKey/.test(cachedRendererBlock))fail('authoritative cached renderer still invalidates on raw viewport coordinates');
+requireToken(app,'function performanceManagedEditableFile(file)','heavy editable-layer classifier');
+requireToken(cachedRendererBlock,'MAP_RUNTIME.prefersPersistentEditableVectorSource?.()','native persistent-source capability');
+requireToken(leafRuntime,'function prefersPersistentEditableVectorSource(){return false;}','Leaflet persistent-source policy');
+requireToken(olRuntime,'function prefersPersistentEditableVectorSource(){return true;}','OpenLayers persistent-source policy');
+requireToken(olRuntime,"new ol.layer.VectorImage",'OpenLayers adaptive VectorImage rendering');
+requireToken(cachedRendererBlock,"if(!heavy||fileHasActivePrecisionEdit(file))return 'vector';",'precise editing render fallback');
+requireToken(cachedRendererBlock,"return 'image';",'heavy interaction render mode');
 requireToken(app,'performanceManaged=models.length>200||coordinateCount>=50000','remote large-layer classification');
 requireToken(app,'file.performanceManaged=true','remote large-layer metadata');
-requireToken(app,'sidebarRowLimit:200','bounded Layers-panel rows');
+requireToken(app,'sidebarRowLimit:80','bounded Layers-panel rows');
 requireToken(adapter,'layer.__editpolygonStyleCacheSize=styleCache.size','OpenLayers shared style cache');
 requireToken(adapter,'layer.__editpolygonDeclutter=hasDeclutterContent','OpenLayers conditional decluttering');
+requireToken(adapter,"layer.__editpolygonRenderMode=canImage?'vector-image':'vector'",'OpenLayers render-mode marker');
+requireToken(app,"MAP_RUNTIME.on('movestart zoomstart',hidePolygonContextToolbar)",'selected-toolbar pan suppression');
+requireToken(app,"MAP_RUNTIME.on('moveend zoomend resize viewreset',updatePolygonContextToolbarSoon)",'selected-toolbar settled update');
+requireToken(app,'const bbox=mapFeatureBBox(r.feature)','selected-toolbar cached bounds');
+requireToken(app,"MAP_RUNTIME.off('mousemove',previous)",'single active mouse-coordinate listener');
 
 // Repeated horizontal world copies are a supported map-view state. Candidate
 // culling must be longitude-periodic and pixel overlays must target the world
@@ -93,7 +110,7 @@ const analysis=read('docs/assets/gis-analysis-core.js');
 requireToken(analysis,'function querySpatialIndexWrapped','GIS analysis core');
 requireToken(analysis,'querySpatialIndexWrapped,applySelectionMode','GIS analysis core API');
 requireToken(app,'function querySpatialIndexWrapped(file,bbox)','application spatial-index bridge');
-requireToken(app,'function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox))','authoritative cached renderer');
+requireToken(app,'const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox))','authoritative cached renderer');
 requireToken(adapter,'function wrapLongitudeNear','map adapter');
 requireToken(adapter,'function projectedToContinuousLonLat','OpenLayers continuous inverse projection');
 requireToken(adapter,'function pixelToLonLat(value){const p=point(value),c=nativeMap.getCoordinateFromPixel([p.x,p.y]);return c?projectedToContinuousLonLat(c):[0,0];}','OpenLayers pixel inverse');
@@ -230,4 +247,4 @@ requireToken(app,'canonicaliseStandalonePointGeometryInPlace(f.geometry);','cano
 requireToken(app,'maxZoom:22,maxNativeZoom:19','OSM native zoom cap');
 requireToken(adapter,'function geometryToCanonicalWorld','OpenLayers canonical-world vector projection');
 requireToken(adapter,'geometry:geometryToCanonicalWorld(item.geometry)','OpenLayers transient overlay canonicalisation');
-console.log('v1.55.4.11 runtime/repository audit passed. WMS construction avoids forced CORS, large editable vectors retain full geometry with bounded UI/render churn, OpenLayers remains adapter-confined and deployment assets are clean.');
+console.log('v1.55.4.12 runtime/repository audit passed. WMS visibility owns map membership, heavy OpenLayers vectors use persistent/adaptive interaction rendering with precise edit fallback, OpenLayers remains adapter-confined and deployment assets are clean.');

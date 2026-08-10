@@ -39,3 +39,14 @@ test('WMS capability discovery is best-effort and persists advertised bounds for
   assert.match(app,/stored\.bounds=info\.bounds/);
   assert.match(app,/MAP_RUNTIME\.fitExtent\(info\.bounds,\{padding:\[40,40\],maxZoom:12\}\)/);
 });
+
+test('OpenLayers service visibility owns map membership just like Leaflet',()=>{
+  const runtimeStart=adapter.indexOf('function createOpenLayersRuntime');
+  const start=adapter.indexOf('function setDisplayLayerVisible(layer,visible)',runtimeStart);
+  const end=adapter.indexOf('function setDisplayLayerZIndex',start);
+  const block=adapter.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/if\(!hasDisplayLayer\(layer\)\)addDisplayLayer\(layer\)/);
+  assert.match(block,/else if\(hasDisplayLayer\(layer\)\)removeDisplayLayer\(layer\)/);
+  assert.match(block,/layer\.setVisible\?\.\(show\)/);
+});

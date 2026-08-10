@@ -9,7 +9,7 @@ const workspace=fs.readFileSync(new URL('../docs/assets/gis-workspace.js',import
  test('remote-source resolver loads before the application and workspace',()=>{
   assert.ok(html.indexOf('gis-remote-source.js')<html.indexOf('editpolygon-app.js'));
   assert.ok(html.indexOf('editpolygon-app.js')<html.indexOf('gis-workspace.js'));
-  assert.match(html,/gis-remote-source\.js\?v=20260809-wms-large-vector-1554411/);
+  assert.match(html,/gis-remote-source\.js\?v=20260809-adaptive-vector-image-1554412/);
 });
 
 test('application exposes discovery and batch ArcGIS import APIs',()=>{

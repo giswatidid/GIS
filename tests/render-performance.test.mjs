@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260809-wms-large-vector-1554411/);
+  assert.match(html,/editpolygon-app\.js\?v=20260809-adaptive-vector-image-1554412/);
 });
 
 
@@ -37,10 +37,10 @@ test('cached editable renderer does not rebuild solely because viewport coordina
   const end=app.indexOf('function invalidateRenderCache',start);
   const block=app.slice(start,end);
   assert.ok(start>=0&&end>start);
-  assert.match(block,/function renderSignature\(file,features\)/);
+  assert.match(block,/function renderSignature\(file,features,renderMode=/);
   assert.doesNotMatch(block,/renderViewKey/);
   assert.doesNotMatch(block,/viewKey/);
-  assert.match(block,/const features=renderCandidateFeatures\(file\),signature=renderSignature\(file,features\)/);
+  assert.match(block,/const features=renderCandidateFeatures\(file\),renderMode=editableRenderMode\(file,features\),signature=renderSignature\(file,features,renderMode\)/);
 });
 
 test('large remote editable layers are performance-managed without simplifying their geometry',()=>{
@@ -50,5 +50,57 @@ test('large remote editable layers are performance-managed without simplifying t
   assert.match(app,/fullGeometry:true/);
   assert.match(app,/sidebarState\.collapsedFiles\.add\(file\.id\)/);
   assert.match(app,/!file\.largeImport&&!file\.performanceManaged&&featureCount<=V96\.sidebarRowLimit/);
-  assert.match(app,/sidebarRowLimit:200/);
+  assert.match(app,/sidebarRowLimit:80/);
+});
+
+
+test('heavy editable layers request interaction-optimised runtime rendering but return to precise vectors while editing',()=>{
+  const start=app.indexOf('function fileHasActivePrecisionEdit(file)');
+  const end=app.indexOf('function cachedEditableGeometryMatchesModel',start);
+  const block=app.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(app,/function performanceManagedEditableFile\(file\)/);
+  assert.match(app,/file\?\.performanceManaged\|\|file\?\.largeImport/);
+  assert.match(app,/coordinateCount\|\|0\)>=50000/);
+  assert.match(block,/project\.mode==='editPoint'/);
+  assert.match(block,/project\.mode==='editCircle'/);
+  assert.match(block,/return 'image'/);
+  assert.match(block,/renderMode:renderMode==='image'\?'image':'vector'/);
+  assert.match(block,/interactionOptimized:renderMode==='image'/);
+  assert.match(block,/imageRatio:1,/);
+  assert.match(block,/renderBuffer:labels\?\.enabled\?64:16/);
+  assert.match(block,/renderMode:\$\{renderMode\}/);
+  assert.doesNotMatch(block,/MAP_RUNTIME\.engine==='openlayers'/);
+});
+
+test('selected polygon toolbar stays out of the hot pan loop and uses cached feature bounds',()=>{
+  const start=app.indexOf('function selectedPolygonToolbarAnchor(r)');
+  const end=app.indexOf('// v37: edge-drag polygon editing.',start);
+  const block=app.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/const bbox=mapFeatureBBox\(r\.feature\)/);
+  assert.doesNotMatch(block,/turf\.bbox\(mapFeatureJSON\(r\.feature\)\)/);
+  assert.match(block,/let polygonContextToolbarRaf=0/);
+  assert.match(block,/if\(polygonContextToolbarRaf\)return/);
+  assert.match(block,/MAP_RUNTIME\.on\('movestart zoomstart',hidePolygonContextToolbar\)/);
+  assert.match(block,/MAP_RUNTIME\.on\('moveend zoomend resize viewreset',updatePolygonContextToolbarSoon\)/);
+  assert.doesNotMatch(block,/MAP_RUNTIME\.on\('move zoom/);
+});
+
+test('heavy indexed runtimes can retain the full editable source instead of rebuilding on viewport membership changes',()=>{
+  const start=app.indexOf('function performanceManagedEditableFile(file)');
+  const end=app.indexOf('function fileHasActivePrecisionEdit(file)',start);
+  const block=app.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  assert.match(block,/MAP_RUNTIME\.prefersPersistentEditableVectorSource\?\.\(\)/);
+  assert.match(block,/return all/);
+  assert.match(block,/querySpatialIndexWrapped\(file,bbox\)/);
+});
+
+test('enhanced mouse coordinate readout replaces rather than stacks the core pointermove handler',()=>{
+  assert.match(app,/const CORE_MOUSE_COORD_HANDLER=e=>/);
+  assert.match(app,/window\.__editpolygonMouseCoordHandler=CORE_MOUSE_COORD_HANDLER/);
+  assert.match(app,/const previous=window\.__editpolygonMouseCoordHandler/);
+  assert.match(app,/MAP_RUNTIME\.off\('mousemove',previous\)/);
+  assert.match(app,/window\.__editpolygonMouseCoordHandler=handler/);
 });

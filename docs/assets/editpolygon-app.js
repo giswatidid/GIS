@@ -3613,11 +3613,13 @@ MAP_RUNTIME.on('zoomend',()=>{
 });
 MAP_RUNTIME.on('moveend resize',()=>{scheduleOverlayRender();scheduleMapRender();});
 
-MAP_RUNTIME.on('mousemove',e=>{
+const CORE_MOUSE_COORD_HANDLER=e=>{
   if(!e.latLng)return;
   const p=displayLatLng(e.latLng);
   $('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}`;
-});
+};
+MAP_RUNTIME.on('mousemove',CORE_MOUSE_COORD_HANDLER);
+window.__editpolygonMouseCoordHandler=CORE_MOUSE_COORD_HANDLER;
 MAP_RUNTIME.on('mouseout',()=>{
   $('mouseCoords').textContent='Lat: — · Lng: —';
 });
@@ -7849,7 +7851,11 @@ function hidePolygonContextToolbar(){
 }
 function selectedPolygonToolbarAnchor(r){
   try{
-    const bbox=turf.bbox(mapFeatureJSON(r.feature));
+    // The selected-feature toolbar follows the map on every pan frame. Reusing
+    // the feature's cached bbox avoids cloning and scanning a dense geometry
+    // through turf.bbox() hundreds of times while the user drags the map.
+    const bbox=mapFeatureBBox(r.feature);
+    if(!bbox)return null;
     const corners=[
       MAP_RUNTIME.latLngToPixel([bbox[1],bbox[0]]),
       MAP_RUNTIME.latLngToPixel([bbox[1],bbox[2]]),
@@ -7885,7 +7891,14 @@ function updatePolygonContextToolbar(){
   tb.style.left=left+'px';
   tb.style.top=Math.max(rect.top+pad,Math.min(rect.bottom-pad-toolbarH,top))+'px';
 }
-function updatePolygonContextToolbarSoon(){requestAnimationFrame(updatePolygonContextToolbar);}
+let polygonContextToolbarRaf=0;
+function updatePolygonContextToolbarSoon(){
+  if(polygonContextToolbarRaf)return;
+  polygonContextToolbarRaf=requestAnimationFrame(()=>{
+    polygonContextToolbarRaf=0;
+    updatePolygonContextToolbar();
+  });
+}
 
 function geometryScaledFromCenter(geom,factor){
   const g=clone(geom);
@@ -7935,7 +7948,13 @@ function initPolygonScaleControls(){
 }
 const renderAllBeforePolygonContextToolbar=renderAll;
 renderAll=function(){renderAllBeforePolygonContextToolbar();updatePolygonContextToolbarSoon();};
-MAP_RUNTIME.on('move zoom resize zoomend moveend viewreset',updatePolygonContextToolbarSoon);
+// The context toolbar is application chrome, not map geometry. Keeping it
+// attached to a dense selected polygon on every native move frame forces DOM
+// measurement/style work (and downstream MutationObserver work) during the
+// hottest part of a pan. Hide it while the view is moving and position it once
+// after the interaction settles.
+MAP_RUNTIME.on('movestart zoomstart',hidePolygonContextToolbar);
+MAP_RUNTIME.on('moveend zoomend resize viewreset',updatePolygonContextToolbarSoon);
 window.addEventListener('resize',updatePolygonContextToolbarSoon);
 initPolygonScaleControls();
 
@@ -11340,7 +11359,7 @@ if($('geometryOpPreviewBtn'))$('geometryOpPreviewBtn').onclick=updateGeometryPre
     kmlTextThreshold:18_000_000,
     coordThreshold:150_000,
     placemarkThreshold:1200,
-    sidebarRowLimit:200,
+    sidebarRowLimit:80,
     referenceRowLimit:240,
     yieldEvery:80
   };
@@ -14909,7 +14928,14 @@ showAutosaveRecoveryIfAvailable();
     return '';
   }
   function patchCursorReadout(){
-    MAP_RUNTIME.on('mousemove',e=>{if(!e.latLng)return;const p=displayLatLng(e.latLng); const snap=(SNAP&&SNAP.last)?' · snap':''; byId('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${drawMetricText(e.latLng)}${snap}`;});
+    // Replace the core coordinate listener instead of stacking a second
+    // pointermove handler. Dense-map interaction should perform one coordinate
+    // projection/readout update per pointer event, not two historical versions.
+    const previous=window.__editpolygonMouseCoordHandler;
+    if(previous)try{MAP_RUNTIME.off('mousemove',previous);}catch(_){ }
+    const handler=e=>{if(!e.latLng)return;const p=displayLatLng(e.latLng); const snap=(SNAP&&SNAP.last)?' · snap':''; byId('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${drawMetricText(e.latLng)}${snap}`;};
+    window.__editpolygonMouseCoordHandler=handler;
+    MAP_RUNTIME.on('mousemove',handler);
   }
   function wrapRenderHooks(){
     const origAll=renderAll; renderAll=function(){const res=origAll.apply(this,arguments); setTimeout(updateCoordPanel,0); return res;};
@@ -21644,14 +21670,41 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     else if(MAP_SELECT.kind==='polygon'&&(event.key==='Backspace'||event.key==='Delete')){event.preventDefault();undoMapSelectionPoint();}
   });
 
-  function renderCandidateFeatures(file){const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));return (file.features||[]).filter(feature=>ids.has(feature.id)&&!isFeatureSleeping(file,feature));}
-  function renderSignature(file,features){
+  function performanceManagedEditableFile(file){
+    const stats=file?.performanceManagedStats||file?.largeImportStats||{};
+    return !!(file?.performanceManaged||file?.largeImport||Number(stats.coordinateCount||0)>=50000||(file?.features||[]).length>=500);
+  }
+  function renderCandidateFeatures(file){
+    const all=(file.features||[]).filter(feature=>!isFeatureSleeping(file,feature));
+    // A native indexed vector source can cull a heavy dataset more cheaply than
+    // rebuilding the whole projected runtime layer every time our viewport query
+    // crosses a feature boundary. Leaflet reports false and keeps the legacy
+    // application-side viewport culling path.
+    if(performanceManagedEditableFile(file)&&MAP_RUNTIME.prefersPersistentEditableVectorSource?.())return all;
+    const bbox=MAP_RUNTIME.getExtent(.35),ids=new Set(querySpatialIndexWrapped(file,bbox));
+    return all.filter(feature=>ids.has(feature.id));
+  }
+  function fileHasActivePrecisionEdit(file){
+    const activeId=project.selectedFeatureId;
+    if(!activeId||!(file.features||[]).some(feature=>feature.id===activeId))return false;
+    return !!(V.active||MOVE.active||project.mode==='editPoint'||project.mode==='editCircle'||(typeof CIRCLE_EDIT!=='undefined'&&CIRCLE_EDIT.active));
+  }
+  function editableRenderMode(file,features){
+    // Ask the runtime for interaction-optimised display on heavy inactive
+    // layers. Leaflet simply ignores this hint; OpenLayers can fulfil it with
+    // its adapter-owned VectorImage primitive without leaking engine branches
+    // into application code.
+    const heavy=performanceManagedEditableFile(file);
+    if(!heavy||fileHasActivePrecisionEdit(file))return 'vector';
+    return 'image';
+  }
+  function renderSignature(file,features,renderMode=editableRenderMode(file,features)){
     gisEnsureStyleModel(file);const effective=typeof gisEffectiveStyle==='function'?gisEffectiveStyle(file):file.gisStyle,styleField=effective?.field||'',labelField=file.gisLabels?.enabled?file.gisLabels.field:'';
     const featureIds=new Set(features.map(feature=>feature.id)),activeSelection=featureIds.has(project.selectedFeatureId)?project.selectedFeatureId:'',pickedSelection=(project.mergeIds||[]).filter(id=>featureIds.has(id)).sort().join(',');
     const featureState=features.map(feature=>[feature.id,feature._gisGeometryRevision||0,renderGeometryFingerprint(feature),feature._gisStyleRevision||0,feature.visible===false?0:1,feature._gisFiltered?1:0,JSON.stringify(feature.styleOverride||null),styleField?feature.properties?.[styleField]:'',labelField?feature.properties?.[labelField]:'']).join(';');
-    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
+    return `generation:${ANALYSIS_RUNTIME.renderGeneration}|history:${HISTORY_RENDER_EPOCH}|renderMode:${renderMode}|selection:${activeSelection}|picked:${pickedSelection}|${file.visible===false?0:1}|${file.opacity??1}|${file._gisStyleRevision||0}|${file.styleMode||'simple'}|${JSON.stringify(file.simpleStyle||{})}|${JSON.stringify(effective||{})}|${JSON.stringify(file.gisLabels||{})}|${featureState}`;
   }
-  function buildRuntimeCachedLayer(file,features){
+  function buildRuntimeCachedLayer(file,features,renderMode=editableRenderMode(file,features)){
     const labels=file.gisLabels;
     const descriptors=features.map(feature=>{
       const raw=mapFeatureJSON(feature),descriptor={id:feature.id,geometry:raw.geometry,style:styleWithOpacity(feature,file)};
@@ -21659,7 +21712,18 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
       if(feature.properties?.annotation&&getDisplayGeometry(feature)?.type==='Point'){descriptor.annotation={text:feature.name||'Annotation',coordinate:getDisplayGeometry(feature).coordinates,style:{...(feature.annotationStyle||{}),annotation:true}};}
       return descriptor;
     });
-    return MAP_RUNTIME.createEditableVectorLayer({layerKey:file.id,features:descriptors,zIndex:100+Math.max(0,project.files.indexOf(file)),visible:file.visible!==false,opacity:1,smoothFactor:V.active?2.5:1.2});
+    return MAP_RUNTIME.createEditableVectorLayer({
+      layerKey:file.id,
+      features:descriptors,
+      zIndex:100+Math.max(0,project.files.indexOf(file)),
+      visible:file.visible!==false,
+      opacity:1,
+      smoothFactor:V.active?2.5:1.2,
+      renderMode:renderMode==='image'?'image':'vector',
+      interactionOptimized:renderMode==='image',
+      imageRatio:1,
+      renderBuffer:labels?.enabled?64:16
+    });
   }
   function cachedLayerPresent(layer){return MAP_RUNTIME.hasDisplayLayer(layer);}
   function addCachedLayer(layer){return MAP_RUNTIME.addDisplayLayer(layer);}
@@ -21689,9 +21753,9 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function cachedRenderMap(){
     const live=new Set();if(!ANALYSIS_RUNTIME.renderInitialised){if(featureGroup){featureGroup.clearLayers();MAP_RUNTIME.removeDisplayLayer(featureGroup);}ANALYSIS_RUNTIME.vectorCache.clear();ANALYSIS_RUNTIME.renderInitialised=true;}
     for(const file of project.files||[]){
-      if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),signature=renderSignature(file,features),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
+      if(file.tableOnly||isFileSleeping(file))continue;live.add(file.id);const features=renderCandidateFeatures(file),renderMode=editableRenderMode(file,features),signature=renderSignature(file,features,renderMode),cached=ANALYSIS_RUNTIME.vectorCache.get(file.id);
       if(cached?.signature===signature&&cachedEditableGeometryMatchesModel(cached.group,features)){if(!cachedLayerPresent(cached.group))addCachedLayer(cached.group);continue;}
-      const group=buildRuntimeCachedLayer(file,features);
+      const group=buildRuntimeCachedLayer(file,features,renderMode);
       // Both engines now use the same adapter-owned editable-vector primitive.
       // Install the replacement before retiring the previous layer so a renderer
       // never observes an empty intermediate frame during a viewport/cache swap.
