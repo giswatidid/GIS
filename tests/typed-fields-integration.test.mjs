@@ -10,7 +10,7 @@ const ui=fs.readFileSync(new URL('../docs/assets/gis-ui-integration.js',import.m
 test('typed schema core loads before the application',()=>{
   assert.ok(html.indexOf('gis-schema-core.js')>html.indexOf('gis-data-core.js'));
   assert.ok(html.indexOf('gis-schema-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-schema-core\.js\?v=20260811-v15601-processing-selection-fix/);
+  assert.match(html,/gis-schema-core\.js\?v=20260812-v15602-processing-tool-list-ui/);
 });
 
 test('application exposes schema, saved-filter, type-safe calculator and scoped export APIs',()=>{

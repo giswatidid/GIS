@@ -1,5 +1,12 @@
 # EditPolygon changelog
 
+## v1.56.0.2 — Processing Toolbox tool-list UI hotfix
+
+- Fixed the Processing Toolbox browser list so tool titles and descriptions are top-aligned inside each tool row instead of being displaced by inherited global button white-space/layout rules.
+- Tool rows now explicitly allow wrapping, constrain their grid contents to the available width and remove the unnecessary horizontal scrollbar caused by long descriptions.
+- Added desktop and phone-width browser regression checks for left-aligned titles, wrapped descriptions, bounded row widths and zero horizontal overflow.
+- Processing execution, scope semantics and the v1.56.0.1 selection-scope fix are otherwise unchanged.
+
 ## v1.56.0.1 — Processing selection-scope hotfix
 
 - Fixes a startup/runtime wiring error in the new Processing Toolbox where the application bridge referenced a private `selectedIds()` helper outside its lexical scope.

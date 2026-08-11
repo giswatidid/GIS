@@ -72,7 +72,7 @@ test('aggregate processing fails atomically instead of returning an incomplete d
   assert.throws(()=>core.executeWithTurf({toolId:'dissolve',features},{turf}),/Could not combine overlay polygon 2: topology failure/);
 });
 
-test('all eight v1.56.0.1 tools execute through the shared Turf contract',()=>{
+test('all eight v1.56.0.2 tools execute through the shared Turf contract',()=>{
   const {core}=load();
   const polygon=(id,x=0)=>({id,type:'Feature',properties:{name:id},geometry:{type:'Polygon',coordinates:[[[x,0],[x+1,0],[x+1,1],[x,1],[x,0]]]}});
   const turf={

@@ -57,6 +57,26 @@ with sync_playwright() as p:
 
     assert page.locator('[data-processing-tool]').count()==8
     assert page.locator('[data-processing-tool="buffer"]').get_attribute('class').find('active')>=0
+    # Tool rows must resist the application's global nowrap/inline-flex button defaults.
+    desktop_tools=page.evaluate('''()=>{
+      const list=document.querySelector('.gis-processing-tools');
+      const button=document.querySelector('[data-processing-tool="buffer"]');
+      const title=button.querySelector('strong');
+      const description=button.querySelector('span');
+      const lr=list.getBoundingClientRect(),br=button.getBoundingClientRect();
+      const bs=getComputedStyle(button),ts=getComputedStyle(title),ds=getComputedStyle(description);
+      return {
+        listScroll:list.scrollWidth,listClient:list.clientWidth,
+        contained:br.left>=lr.left-1&&br.right<=lr.right+1,
+        buttonWhiteSpace:bs.whiteSpace,titleAlign:ts.textAlign,descriptionAlign:ds.textAlign,
+        titleLeft:title.getBoundingClientRect().left,descriptionLeft:description.getBoundingClientRect().left
+      };
+    }''')
+    assert desktop_tools['listScroll']<=desktop_tools['listClient']+1,desktop_tools
+    assert desktop_tools['contained'],desktop_tools
+    assert desktop_tools['buttonWhiteSpace']=='normal',desktop_tools
+    assert desktop_tools['titleAlign']=='left' and desktop_tools['descriptionAlign']=='left',desktop_tools
+    assert abs(desktop_tools['titleLeft']-desktop_tools['descriptionLeft'])<=1,desktop_tools
     options=page.locator('#gisProcessingSourceScope option').all_inner_texts()
     assert 'All features (3)' in options,options
     assert 'Filtered features (2)' in options,options
@@ -97,11 +117,16 @@ with sync_playwright() as p:
       scroll:document.documentElement.scrollWidth,client:document.documentElement.clientWidth,
       runHeight:document.querySelector('[data-processing-action="run"]').getBoundingClientRect().height,
       searchWidth:document.getElementById('gisProcessingSearch').getBoundingClientRect().width,
-      hostWidth:document.getElementById('host').getBoundingClientRect().width
+      hostWidth:document.getElementById('host').getBoundingClientRect().width,
+      toolListScroll:document.querySelector('.gis-processing-tools').scrollWidth,
+      toolListClient:document.querySelector('.gis-processing-tools').clientWidth,
+      toolWidth:document.querySelector('[data-processing-tool="buffer"]').getBoundingClientRect().width
     })''')
     assert mobile['scroll']<=mobile['client']+1,mobile
     assert mobile['runHeight']>=44,mobile
     assert mobile['searchWidth']<=mobile['hostWidth'],mobile
+    assert mobile['toolListScroll']<=mobile['toolListClient']+1,mobile
+    assert mobile['toolWidth']<=mobile['toolListClient']+1,mobile
 
     assert not errors,errors
     browser.close()

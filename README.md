@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.56.0.1
+**Current application baseline:** v1.56.0.2
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-runtime migration is complete and **v1.56.0 introduced the Processing Toolbox roadmap on the stable v1.55.7.4 OpenLayers foundation; v1.56.0.1 is the selection-scope hotfix baseline**. OpenLayers remains the sole native map runtime behind `EditPolygonMap`; the drawing/navigation, repeated-world, mobile, large-vector and `.epz` parity work is unchanged. v1.56.0.1 replaces scattered layer-processing controls with one declarative browser-local Processing Toolbox, one validated request model and one cancellable worker lifecycle. Application code remains map-library-neutral; native OpenLayers implementation details stay isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-runtime migration is complete and **v1.56.0 introduced the Processing Toolbox roadmap on the stable v1.55.7.4 OpenLayers foundation; v1.56.0.2 is the selection-scope hotfix baseline**. OpenLayers remains the sole native map runtime behind `EditPolygonMap`; the drawing/navigation, repeated-world, mobile, large-vector and `.epz` parity work is unchanged. v1.56.0.2 replaces scattered layer-processing controls with one declarative browser-local Processing Toolbox, one validated request model and one cancellable worker lifecycle. Application code remains map-library-neutral; native OpenLayers implementation details stay isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -171,7 +171,7 @@ Individual features can also receive a deliberate style override and later retur
 
 **GIS → Processing** opens the v1.56 browser-local Processing Toolbox. The layer used to open the toolbox is preselected, but the input can be changed before running.
 
-The v1.56.0.1 foundation ships with:
+The v1.56.0.2 foundation ships with:
 
 - Buffer
 - Centroids
@@ -186,7 +186,7 @@ Each job uses an explicit input scope: **All features**, **Filtered features** o
 
 The Toolbox validates geometry and parameters before running, executes expensive work in a cancellable browser Worker, reports meaningful stages/failures, and only mutates the project after a complete result has returned. Successful runs create a normal editable output layer as a single undoable history transaction. Cancellation, worker failure or an empty output leave the project unchanged. Output layers preserve processing provenance inside `.epz`; per-feature/overlay tools also preserve compatible source schema and styling.
 
-The v1.56.0.1 overlay implementation deliberately migrates the existing Turf behaviour into the new framework. **v1.56.1** is the robust topology phase: GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid.
+The v1.56.0.2 overlay implementation deliberately migrates the existing Turf behaviour into the new framework. **v1.56.1** is the robust topology phase: GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid.
 
 ### Geometry Health validation and repair
 
@@ -404,7 +404,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.56.0.1 single-runtime/Processing-Toolbox audit, the binding/architecture no-growth audit and the JavaScript test suite.
+This runs repository integration checks, the v1.56.0.2 single-runtime/Processing-Toolbox audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -432,9 +432,9 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-The map-runtime migration and its single-runtime cleanup are complete. **v1.56.0.1 is the Processing Toolbox foundation release**, built on the stable v1.55.7.4 map/drawing baseline.
+The map-runtime migration and its single-runtime cleanup are complete. **v1.56.0.2 is the Processing Toolbox foundation release**, built on the stable v1.55.7.4 map/drawing baseline.
 
-1. **v1.56 — Processing Toolbox:** v1.56.0.1 establishes the registry/core/worker/UI and first eight tools; v1.56.1–v1.56.3 add robust GEOS topology, conversion/maintenance and spatial-analysis tools.
+1. **v1.56 — Processing Toolbox:** v1.56.0.2 establishes the registry/core/worker/UI and first eight tools; v1.56.1–v1.56.3 add robust GEOS topology, conversion/maintenance and spatial-analysis tools.
 2. **v1.57 — Large-data performance:** virtualised tables/lists, worker-based data operations, spatial indexing and larger-dataset architecture.
 3. **v1.58 — Professional styling and labels:** rule/expression styling, scale-dependent symbology and stronger cartographic label placement.
 4. **v1.59 — Advanced formats:** GeoPackage, FlatGeobuf, GeoParquet and GPX, plus format hardening.

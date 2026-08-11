@@ -15,16 +15,16 @@ const processingCore=read('docs/assets/gis-processing-core.js');
 const processingUi=read('docs/assets/gis-processing.js');
 const processingWorker=read('docs/assets/gis-processing-worker.js');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260811-v15601-processing-selection-fix';
+const RELEASE_KEY='20260812-v15602-processing-tool-list-ui';
 const retiredWord=['lea','flet'].join('');
 const retiredWordRe=new RegExp(retiredWord,'i');
 const retiredFactory=['create','Lea','fletRuntime'].join('');
 
-function fail(message){throw new Error(`v1.56.0.1 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.56.0.2 runtime/repository audit: ${message}`);}
 function requireToken(source,token,label){if(!source.includes(token))fail(`${label} is missing ${JSON.stringify(token)}`);}
 function forbidToken(source,token,label){if(source.includes(token))fail(`${label} still contains ${JSON.stringify(token)}`);}
 
-if(pkg.version!=='1.56.0.1')fail(`package version is ${pkg.version}, expected 1.56.0.1`);
+if(pkg.version!=='1.56.0.2')fail(`package version is ${pkg.version}, expected 1.56.0.2`);
 requireToken(html,'ol@v10.9.0/dist/ol.js','OpenLayers dependency');
 requireToken(html,'ol@v10.9.0/ol.css','OpenLayers stylesheet');
 if(retiredWordRe.test(html))fail('retired map dependency remains in deployment HTML');
@@ -40,7 +40,7 @@ for(const match of html.matchAll(/(?:src|href)=["']([^"']*assets\/[^"'?]+)(?:\?v
 // The map adapter now exposes one public factory only. OpenLayers remains an
 // implementation detail; transition-era capability shims and native escapes
 // must not reappear.
-requireToken(adapter,"const VERSION='1.56.0.1';",'map adapter version');
+requireToken(adapter,"const VERSION='1.56.0.2';",'map adapter version');
 requireToken(adapter,'function createRuntime(options={})','sole runtime factory');
 requireToken(adapter,'global.EditPolygonMapAdapter=Object.freeze({version:VERSION','adapter export');
 requireToken(adapter,'mercatorWorldPixel,createRuntime});','single runtime export');
@@ -65,7 +65,7 @@ for(const token of [
 ])requireToken(adapter,token,'OpenLayers cleanup invariant');
 forbidToken(adapter,'onMap=spec.onMap','per-overlay map subscription');
 
-requireToken(app,'// v1.56.0.1: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
+requireToken(app,'// v1.56.0.2: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
 requireToken(app,"const MAP_RUNTIME=MAP_ADAPTER.createRuntime({",'application runtime creation');
 requireToken(app,'ol:window.ol','application OpenLayers dependency injection');
 for(const stale of ['requestedEngine','fallbackReason','L:window.L','MAP_PAN_GUARD','mapPanLooksActive','hardResetMapPan','scheduleMapPanReleaseCheck','customPointerDragActive','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','document.body.dataset.mapEngine'])forbidToken(app,stale,'application runtime');
@@ -108,12 +108,12 @@ forbidToken(app,'VStop=(function(base)','history source-order guard');
 for(const token of ['function geometryFingerprint(geometry)','function editableLayerMatchesGeometry(layer,featureId,geometry)','function clearEditableVectorLayers(layerKey=null)','function geometryToCanonicalWorld','geometry:geometryToCanonicalWorld(item.geometry)'])requireToken(adapter,token,'OpenLayers runtime invariant');
 
 // Runtime authority remains final in source order.
-const authority='/* v1.56.0.1 — runtime authority boundary.';
+const authority='/* v1.56.0.2 — runtime authority boundary.';
 const authorityIndex=app.indexOf(authority);
 if(authorityIndex<0)fail('runtime authority boundary is missing');
 const authorityTail=app.slice(authorityIndex);
 requireToken(authorityTail,'renderAll();','runtime authority handoff');
-requireToken(authorityTail,"version:'1.56.0.1'",'runtime authority snapshot');
+requireToken(authorityTail,"version:'1.56.0.2'",'runtime authority snapshot');
 requireToken(authorityTail,'window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY','runtime authority publication');
 const afterPublish=app.slice(app.indexOf('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY',authorityIndex));
 if(/\bfunction\s+[A-Za-z_$]|(?<![\w$.])[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?function\s*\(/.test(afterPublish))fail('function patch appears after runtime authority boundary');
@@ -128,7 +128,7 @@ requireToken(olCss,'.editpolygon-dom-overlays','OpenLayers DOM overlay styling')
 requireToken(mobileCss,'.ol-zoom button','mobile CSS OpenLayers controls');
 forbidToken(olCss,'data-map-engine','OpenLayers CSS');
 forbidToken(mobileCss,'data-map-engine="openlayers"','mobile CSS');
-requireToken(mobile,"const VERSION='1.56.0.1';",'mobile controller version');
+requireToken(mobile,"const VERSION='1.56.0.2';",'mobile controller version');
 
 // Drawing/navigation contract: unfinished click-based geometry must leave the
 // native map interaction surface exposed. Freehand alone owns press-and-drag.
@@ -153,22 +153,22 @@ const freePolygonIndex=html.indexOf('data-draw-tool="polygon"');
 const pointIndex=html.indexOf('data-draw-tool="point"');
 if(freePolygonIndex<0||pointIndex<0||freePolygonIndex>pointIndex)fail('Free polygon is not the first static Draw flyout option');
 
-// v1.56.0.1 Processing Toolbox invariants: one declarative registry, one shared
+// v1.56.0.2 Processing Toolbox invariants: one declarative registry, one shared
 // execution core, one worker, explicit scope semantics and commit-after-result.
 for(const token of ["id:'buffer'","id:'centroid'","id:'point-on-feature'","id:'convex-hull'","id:'bbox'","id:'clip'","id:'intersection'","id:'dissolve'"])requireToken(processingRegistry,token,'processing registry');
 for(const token of ['const SCOPES=Object.freeze([\'all\',\'filtered\',\'selected\'])','function preflight(','function createProvenance(','function executeWithTurf('])requireToken(processingCore,token,'processing core');
 for(const token of ["normal==='selected'?selected.has(feature.id)","normal==='filtered'?!feature.filtered:true"])requireToken(processingCore,token,'processing scope semantics');
 forbidToken(processingCore,'feature.visible','processing membership must ignore presentation visibility');
 for(const token of ['Find a tool','Input scope','Layer visibility does not change processing membership.','Run and create layer','Processing completed'])requireToken(processingUi,token,'Processing Toolbox UI');
-for(const token of ['EditPolygonGISProcessingCore.executeWithTurf','gis-processing-registry.js?v=20260811-v15601-processing-selection-fix','gis-processing-core.js?v=20260811-v15601-processing-selection-fix'])requireToken(processingWorker,token,'shared processing worker execution');
-requireToken(app,"new Worker('assets/gis-processing-worker.js?v=20260811-v15601-processing-selection-fix')",'processing worker cache key');
+for(const token of ['EditPolygonGISProcessingCore.executeWithTurf','gis-processing-registry.js?v=20260812-v15602-processing-tool-list-ui','gis-processing-core.js?v=20260812-v15602-processing-tool-list-ui'])requireToken(processingWorker,token,'shared processing worker execution');
+requireToken(app,"new Worker('assets/gis-processing-worker.js?v=20260812-v15602-processing-tool-list-ui')",'processing worker cache key');
 for(const token of ['previewProcessingRequest','runProcessingRequest','cancelProcessing','createProcessingOutput'])requireToken(app,token,'processing application bridge');
 forbidToken(app,'gis-analysis-worker.js','retired processing worker');
 if(fs.existsSync('docs/assets/gis-analysis-worker.js'))fail('retired gis-analysis-worker.js is still packaged');
-requireToken(html,'gis-processing-registry.js?v=20260811-v15601-processing-selection-fix','processing registry deployment');
-requireToken(html,'gis-processing-core.js?v=20260811-v15601-processing-selection-fix','processing core deployment');
-requireToken(html,'gis-processing.js?v=20260811-v15601-processing-selection-fix','processing UI deployment');
-requireToken(html,'gis-processing.css?v=20260811-v15601-processing-selection-fix','processing CSS deployment');
+requireToken(html,'gis-processing-registry.js?v=20260812-v15602-processing-tool-list-ui','processing registry deployment');
+requireToken(html,'gis-processing-core.js?v=20260812-v15602-processing-tool-list-ui','processing core deployment');
+requireToken(html,'gis-processing.js?v=20260812-v15602-processing-tool-list-ui','processing UI deployment');
+requireToken(html,'gis-processing.css?v=20260812-v15602-processing-tool-list-ui','processing CSS deployment');
 
 // Lossless project persistence is independent of map implementation.
 for(const token of ["const FORMAT_VERSION=1;","const MANIFEST_FILE='manifest.json';","const PROJECT_FILE='project.json';",'async function sha256(text)','async function createArchive(payload','async function readArchive(file'])requireToken(projectFormat,token,'EPZ project format');
@@ -176,7 +176,7 @@ requireToken(app,'function syncDrawCursorToCurrentView(renderRuntime=false)','dr
 requireToken(app,'rememberDrawPointerScreenState(e);DRAW_NAVIGATION_GESTURE.dragged=true','draw drag screen-pixel tracking');
 if(/\$\(['"]draw(?:Fill|Line|Preview)Path['"]\)\.setAttribute\(['"]d['"]/.test(app))fail('DOM/SVG drawing overlay writes live sketch geometry; OpenLayers transient vector layer must be the sole sketch geometry authority');
 requireToken(app,"MAP_RUNTIME.on('move resize',()=>{\n  if(D.active)syncDrawCursorToCurrentView(true);",'draw cursor synchronous move refresh');
-requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.1'})",'EPZ save version');
+requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.2'})",'EPZ save version');
 requireToken(app,'EditPolygonProjectFormat.readArchive(file,{onProgress})','EPZ load path');
 requireToken(app,"referenceOverlays:Array.isArray(d.referenceOverlays)?clone(d.referenceOverlays):[]",'reference overlay persistence');
 requireToken(app,"gisWorkspace:d.gisWorkspace&&typeof d.gisWorkspace==='object'?clone(d.gisWorkspace):null",'GIS workspace persistence');
@@ -219,4 +219,4 @@ for(const name of fs.readdirSync('docs',{recursive:true}).filter(name=>name.ends
 }
 for(const name of fs.readdirSync('.', {recursive:true}))if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 
-console.log('v1.56.0.1 runtime/repository audit passed. OpenLayers authority remains intact and the declarative browser-local Processing Toolbox is wired through one validated worker lifecycle.');
+console.log('v1.56.0.2 runtime/repository audit passed. OpenLayers authority remains intact and the declarative browser-local Processing Toolbox is wired through one validated worker lifecycle.');

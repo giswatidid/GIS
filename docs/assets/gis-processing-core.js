@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 
-const VERSION='1.56.0.1';
+const VERSION='1.56.0.2';
 const SCOPES=Object.freeze(['all','filtered','selected']);
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const registry=()=>global.EditPolygonGISProcessingRegistry;
@@ -57,9 +57,9 @@ function preflight(requestValue,{layers=[],selectionIds=[]}={}){
   for(const definition of tool?.parameters||[]){const error=validateParameter(definition,request.parameters[definition.id]);if(error)errors.push(error);}
   if(request.inputs.source.scope==='filtered'&&source&&scopeCount(source,'filtered',selectionIds)<scopeCount(source,'all',selectionIds))warnings.push(`Only the ${sourceFeatures.length.toLocaleString()} feature${sourceFeatures.length===1?'':'s'} passing the current filter will be processed.`);
   if(request.inputs.source.scope==='selected'&&sourceFeatures.length)warnings.push(`Only ${sourceFeatures.length.toLocaleString()} selected feature${sourceFeatures.length===1?'':'s'} from the input layer will be processed.`);
-  if(tool?.crsPolicy==='canonical'&&sourceFamilies.includes('polygon')&&sourceFeatures.length>5000)warnings.push('This is a large topology job. v1.56.0.1 uses the browser geometry engine in canonical WGS 84 coordinates; robust GEOS-backed projected overlay arrives in v1.56.1.');
-  if(tool?.id==='intersection')warnings.push('v1.56.0.1 Intersection retains source attributes only. Overlay attribute combination is planned for v1.56.1.');
-  if(tool?.id==='dissolve')warnings.push('v1.56.0.1 Dissolve combines all scoped polygons into one geometry. Dissolve by attribute is planned for v1.56.1.');
+  if(tool?.crsPolicy==='canonical'&&sourceFamilies.includes('polygon')&&sourceFeatures.length>5000)warnings.push('This is a large topology job. v1.56.0.2 uses the browser geometry engine in canonical WGS 84 coordinates; robust GEOS-backed projected overlay arrives in v1.56.1.');
+  if(tool?.id==='intersection')warnings.push('v1.56.0.2 Intersection retains source attributes only. Overlay attribute combination is planned for v1.56.1.');
+  if(tool?.id==='dissolve')warnings.push('v1.56.0.2 Dissolve combines all scoped polygons into one geometry. Dissolve by attribute is planned for v1.56.1.');
   if(!request.output.name&&tool&&source)request.output.name=defaultOutputName(tool,source);
   return {valid:errors.length===0,errors,warnings,request,tool,source,overlay,counts:{source:sourceFeatures.length,overlay:overlayFeatures.length},geometryFamilies:{source:sourceFamilies,overlay:overlayFamilies}};
 }

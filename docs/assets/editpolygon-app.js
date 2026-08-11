@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.56.0.1: OpenLayers is the sole map runtime. Application code talks only
+// v1.56.0.2: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -7227,7 +7227,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.1'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.2'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8817,7 +8817,7 @@ function renderDrawOverlay(){
   if(!D.active)return;
   const ov=overlay();
   const pts=D.points.slice();
-  // v1.56.0.1: OpenLayers' transient vector overlay is the sole authority for
+  // v1.56.0.2: OpenLayers' transient vector overlay is the sole authority for
   // live sketch linework/fill. The historical SVG paths remain in the DOM for
   // compatibility with the vertex/lasso overlay, but are deliberately kept
   // empty while drawing. Rendering the same cursor-linked geometry in both
@@ -8940,7 +8940,7 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
-// v1.56.0.1: cursor-linked draw preview state is screen-pixel anchored across view movement.
+// v1.56.0.2: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
@@ -22409,13 +22409,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 
 
 
-/* v1.56.0.1 — Processing Toolbox application bridge.
+/* v1.56.0.2 — Processing Toolbox application bridge.
    Processing requests are declarative and validated by gis-processing-core.js.
    Expensive geometry work runs in one cancellable worker and project mutation
    occurs only after a complete result has returned. */
 (function(){
   'use strict';
-  const PROCESSING_VERSION='1.56.0.1';
+  const PROCESSING_VERSION='1.56.0.2';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;
@@ -22479,7 +22479,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function processingWorker(task,onProgress=()=>{}){
     const core=processingCore();
     if(typeof Worker==='undefined')return Promise.resolve().then(()=>core.executeWithTurf(task,{turf,onProgress})).then(result=>({result,worker:false}));
-    cancelProcessing();const worker=new Worker('assets/gis-processing-worker.js?v=20260811-v15601-processing-selection-fix');PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;
+    cancelProcessing();const worker=new Worker('assets/gis-processing-worker.js?v=20260812-v15602-processing-tool-list-ui');PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;
     return new Promise((resolve,reject)=>{
       PROCESSING_RUNTIME.job={id,reject};
       worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){try{onProgress({stage:message.stage||'Processing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(90,Math.round((Number(message.percent)||0)*.9)))});}catch(_){ }return;}try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}resolve({result:message.result||{features:[],failures:[]},worker:true});};
@@ -22499,7 +22499,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing};
 })();
 
-/* v1.56.0.1 — runtime authority boundary.
+/* v1.56.0.2 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22509,7 +22509,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.56.0.1',
+  version:'1.56.0.2',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

@@ -1,6 +1,6 @@
-# EditPolygon v1.56.0.1 release manifest
+# EditPolygon v1.56.0.2 release manifest
 
-v1.56.0.1 is the first **Processing Toolbox hotfix** on top of v1.56.0. It preserves the new toolbox architecture and fixes the selection-scope wiring defect discovered in live testing: the Processing application bridge now resolves selection through the public `EditPolygonGIS.getSelection()` API instead of referencing a private helper outside its lexical scope.
+v1.56.0.2 is a focused **Processing Toolbox UI hotfix** on top of v1.56.0.1. It preserves the processing architecture and selection-scope fix while correcting the tool browser layout discovered in live testing: inherited application-wide button `white-space` rules could force long tool descriptions wider than the browser column, displacing the title/description and creating horizontal overflow. Tool rows now explicitly own their one-column wrapping/alignment contract on desktop and mobile.
 
 ## Toolbox architecture
 
@@ -18,7 +18,7 @@ Retired file:
 
 The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
 
-## v1.56.0.1 tools
+## v1.56.0.2 tools
 
 - Buffer
 - Centroids
@@ -42,9 +42,9 @@ The overlay set in this release deliberately preserves the existing Turf behavio
 - Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
 - Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
 - Output layers store `.epz`-persistent `gisProcessing` provenance.
-- v1.56.0.1 records its actual processing CRS as `EPSG:4326`.
+- v1.56.0.2 records its actual processing CRS as `EPSG:4326`.
 
-All local deployment assets use the `20260811-v15601-processing-selection-fix` cache key, including the worker's local registry/core imports.
+All local deployment assets use the `20260812-v15602-processing-tool-list-ui` cache key, including the worker's local registry/core imports.
 
 ## Automated gate
 
@@ -59,7 +59,7 @@ Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites
 
 ## Targeted live validation
 
-1. Open **GIS → Processing** on a polygon layer. Confirm the layer is preselected and all eight tools are searchable.
+1. Open **GIS → Processing** on a polygon layer. Confirm the layer is preselected, all eight tools are searchable, and every left-menu tool title/description is left-aligned inside its own row with no horizontal scrollbar.
 2. Hide one feature and verify **All features** still counts it; apply a filter and verify **Filtered features** changes independently.
 3. Select a subset and run **Centroids** or **Buffer** with Selected features. Confirm only the selected records produce output and the source layer is unchanged.
 4. Undo once: the complete processing output layer should disappear. Redo once: it should return.

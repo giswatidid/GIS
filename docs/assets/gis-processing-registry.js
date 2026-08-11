@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 
-const VERSION='1.56.0.1';
+const VERSION='1.56.0.2';
 const categories=Object.freeze([
   Object.freeze({id:'geometry',title:'Vector geometry',description:'Create derived geometry from one input layer.'}),
   Object.freeze({id:'overlay',title:'Overlay',description:'Compare or trim one layer using polygon geometry from another layer.'}),
@@ -40,7 +40,7 @@ const tools=Object.freeze([
   }),
   Object.freeze({
     id:'intersection',title:'Intersection',category:'overlay',keywords:['overlap','intersect','common','overlay'],
-    description:'Create source geometry where it overlaps the polygon overlay. v1.56.0.1 retains source attributes; full two-layer attribute overlay is planned for v1.56.1.',sourceFamilies:['point','line','polygon'],overlayFamilies:['polygon'],outputGeometry:'Same as input',execution:'overlay',crsPolicy:'canonical',stylePolicy:'inherit',parameters:Object.freeze([])
+    description:'Create source geometry where it overlaps the polygon overlay. v1.56.0.2 retains source attributes; full two-layer attribute overlay is planned for v1.56.1.',sourceFamilies:['point','line','polygon'],overlayFamilies:['polygon'],outputGeometry:'Same as input',execution:'overlay',crsPolicy:'canonical',stylePolicy:'inherit',parameters:Object.freeze([])
   }),
   Object.freeze({
     id:'dissolve',title:'Dissolve',category:'aggregation',keywords:['merge','combine','boundaries','internal boundaries'],

@@ -1,7 +1,7 @@
 (function(global){
 'use strict';
 
-const VERSION='1.56.0.1';
+const VERSION='1.56.0.2';
 const registry=()=>global.EditPolygonGISProcessingRegistry;
 const core=()=>global.EditPolygonGISProcessingCore;
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));

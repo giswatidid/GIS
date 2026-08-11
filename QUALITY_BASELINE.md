@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.56.0.1.** OpenLayers remains the sole map runtime. The accepted v1.55.7.4 drawing/rendering baseline is unchanged; v1.56.0.1 adds the first declarative Processing Toolbox architecture and migrates the existing browser-local processing set into one validated/cancellable lifecycle.
+**Current baseline: v1.56.0.2.** OpenLayers remains the sole map runtime. The accepted v1.55.7.4 drawing/rendering baseline is unchanged; v1.56.0.2 adds the first declarative Processing Toolbox architecture and migrates the existing browser-local processing set into one validated/cancellable lifecycle.
 
 ## Current automated gate
 
@@ -11,7 +11,7 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.56.0.1 currently expects:
+v1.56.0.2 currently expects:
 
 - **290/290 Node tests**;
 - **9/9 browser smoke suites**;
@@ -69,7 +69,7 @@ A live drag may mutate the focused native feature for pointer responsiveness, bu
 - Successful processing output is committed as one history transaction and is therefore undone/redone as one layer-level action.
 - Per-feature failures are reported with feature identity/message rather than silently discarded. Aggregate operations fail atomically when a partial aggregate would be misleading.
 - Provenance records tool, source/overlay, scopes, parameters, real processing CRS and result/failure metadata and survives `.epz`.
-- v1.56.0.1 executes Toolbox geometry in canonical WGS 84/Turf; robust GEOS-backed projected topology is deliberately deferred to v1.56.1.
+- v1.56.0.2 executes Toolbox geometry in canonical WGS 84/Turf; robust GEOS-backed projected topology is deliberately deferred to v1.56.1.
 
 ### Large-data interaction
 
@@ -116,14 +116,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.56.0.1 no-growth ceilings are:
+The v1.56.0.2 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
 The current audit sees **1,705 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.56.0.1
+## Live parity evidence carried into v1.56.0.2
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -148,4 +148,4 @@ v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implem
 
 ## Next gate
 
-Live-test v1.56.0.1 Toolbox behaviour, then proceed to **v1.56.1 robust topology**: extend the existing GEOS-WASM adapter for Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid without duplicating the Toolbox lifecycle.
+Live-test v1.56.0.2 Toolbox behaviour, then proceed to **v1.56.1 robust topology**: extend the existing GEOS-WASM adapter for Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid without duplicating the Toolbox lifecycle.
