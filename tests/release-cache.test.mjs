@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-const RELEASE_KEY='20260812-v15602-processing-tool-list-ui';
+const RELEASE_KEY='20260812-v15603-processing-tool-list-ui';
 
-test('all local runtime assets use the v1.56.0.2 release cache key',()=>{
+test('all local runtime assets use the v1.56.0.3 release cache key',()=>{
   const refs=[...html.matchAll(/(?:href|src)="(assets\/[^"]+\.(?:css|js))\?v=([^"]+)"/g)];
   assert.ok(refs.length>=15,`Expected the complete local asset set, found ${refs.length}.`);
   const stale=refs.filter(([,asset,key])=>key!==RELEASE_KEY).map(([,asset,key])=>`${asset}: ${key}`);

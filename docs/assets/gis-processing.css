@@ -1,4 +1,4 @@
-/* EditPolygon Processing Toolbox · v1.56.0.2 */
+/* EditPolygon Processing Toolbox · v1.56.0.3 */
 .gis-processing-layout{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:12px;max-width:1180px;margin:0 auto;align-items:start}
 .gis-processing-browser,.gis-processing-config{border:1px solid var(--line);background:var(--panel)}
 .gis-processing-browser{position:sticky;top:0;max-height:calc(100vh - 190px);display:flex;flex-direction:column;min-height:480px}

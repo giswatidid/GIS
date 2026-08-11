@@ -1,6 +1,6 @@
-# EditPolygon v1.56.0.2 release manifest
+# EditPolygon v1.56.0.3 release manifest
 
-v1.56.0.2 is a focused **Processing Toolbox UI hotfix** on top of v1.56.0.1. It preserves the processing architecture and selection-scope fix while correcting the tool browser layout discovered in live testing: inherited application-wide button `white-space` rules could force long tool descriptions wider than the browser column, displacing the title/description and creating horizontal overflow. Tool rows now explicitly own their one-column wrapping/alignment contract on desktop and mobile.
+v1.56.0.3 is a focused **EPZ project-open history hotfix** on the accepted v1.56.0.2 Processing Toolbox baseline.
 
 ## Toolbox architecture
 
@@ -18,7 +18,7 @@ Retired file:
 
 The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
 
-## v1.56.0.2 tools
+## v1.56.0.3 tools
 
 - Buffer
 - Centroids
@@ -42,9 +42,9 @@ The overlay set in this release deliberately preserves the existing Turf behavio
 - Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
 - Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
 - Output layers store `.epz`-persistent `gisProcessing` provenance.
-- v1.56.0.2 records its actual processing CRS as `EPSG:4326`.
+- v1.56.0.3 records its actual processing CRS as `EPSG:4326`.
 
-All local deployment assets use the `20260812-v15602-processing-tool-list-ui` cache key, including the worker's local registry/core imports.
+All local deployment assets use the `20260812-v15603-processing-tool-list-ui` cache key, including the worker's local registry/core imports.
 
 ## Automated gate
 
@@ -55,7 +55,7 @@ npm run check
 npm run test:browser-smoke
 ```
 
-Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites**, **1,705 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Final automated verification: **291/291 Node tests**, **9/9 browser smoke suites**, **1,706 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Targeted live validation
 
@@ -66,5 +66,5 @@ Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites
 5. Run **Clip** or **Intersection** with a polygon overlay and confirm both source and overlay scopes are available.
 6. Run **Dissolve** on a simple polygon layer and inspect the result/provenance.
 7. Start a non-trivial job and press **Cancel**. No partial output layer should appear.
-8. Save/reopen `.epz` and confirm the processing output and `gisProcessing` provenance remain present.
+8. Save/reopen `.epz` and confirm the processing output and `gisProcessing` provenance remain present. Immediately after reopening, Ctrl+Z/Ctrl+Y must do nothing until a new edit is made.
 9. Repeat a simple run on a phone-sized interface to confirm the same Toolbox remains usable.

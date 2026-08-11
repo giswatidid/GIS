@@ -1,6 +1,6 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.56.0.2",
+  "version": "1.56.0.3",
   "private": true,
   "description": "Static privacy-first browser GIS editor with OpenLayers, a declarative Processing Toolbox, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
   "scripts": {

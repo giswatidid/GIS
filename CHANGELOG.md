@@ -1,11 +1,13 @@
 # EditPolygon changelog
 
-## v1.56.0.2 — Processing Toolbox tool-list UI hotfix
+## v1.56.0.3 — EPZ project-open history hotfix
 
-- Fixed the Processing Toolbox browser list so tool titles and descriptions are top-aligned inside each tool row instead of being displaced by inherited global button white-space/layout rules.
-- Tool rows now explicitly allow wrapping, constrain their grid contents to the available width and remove the unnecessary horizontal scrollbar caused by long descriptions.
-- Added desktop and phone-width browser regression checks for left-aligned titles, wrapped descriptions, bounded row widths and zero horizontal overflow.
-- Processing execution, scope semantics and the v1.56.0.1 selection-scope fix are otherwise unchanged.
+- Fixes a project-open undo boundary bug where a stale structural history snapshot could survive the `.epz` restore wrappers and become the first Ctrl+Z action in the newly opened project.
+- Opening an `.epz` now always starts a fresh editing session with empty project/image undo and redo stacks **after** GIS workspace and reference-overlay restoration has finished.
+- Removes the obsolete `pushHistory()` snapshot taken immediately before replacing the current project with an opened project file.
+- Keeps undo/redo intentionally transient: `.epz` stores durable project state and processing provenance, not in-memory editor history. After reopening, Ctrl+Z/Ctrl+Y do nothing until the user makes a new edit.
+- Adds regression coverage for both project-open pipelines, the final GIS restore boundary, and the rule that history/future stacks are not serialised into `project.json`.
+- Processing algorithms, output provenance and the v1.56.0.2 Toolbox layout are otherwise unchanged.
 
 ## v1.56.0.1 — Processing selection-scope hotfix
 
