@@ -11,11 +11,11 @@ function block(startToken,endToken){
   return app.slice(start,end);
 }
 
-test('v1.55.7.4 publishes one final runtime-authority snapshot at the end of the application scope',()=>{
-  const marker='/* v1.55.7.4 — runtime authority boundary.';
+test('v1.56.0 publishes one final runtime-authority snapshot at the end of the application scope',()=>{
+  const marker='/* v1.56.0 — runtime authority boundary.';
   const start=app.indexOf(marker);assert.ok(start>=0);
   const tail=app.slice(start);
-  assert.match(tail,/version:'1\.55\.7\.4'/);
+  assert.match(tail,/version:'1\.56\.0'/);
   assert.match(tail,/renderAll\(\);[\s\S]*window\.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY/);
   assert.match(tail,/renderMap,renderAll,renderSidebar,renderSelected,renderOverlay/);
   assert.match(tail,/featuresAtLatLng,featureHitAtMapPoint,parametricCircleHitAtMapPoint/);
@@ -28,7 +28,7 @@ test('retired pan-recovery drag hook cannot abort startup before Advanced GIS in
   assert.doesNotMatch(app,/customPointerDragActive/);
   const phase3=app.indexOf("window.refreshPhase3Ui=function");
   const gisInstall=app.indexOf('window.EditPolygonGIS={');
-  const authority=app.indexOf('/* v1.55.7.4 — runtime authority boundary.');
+  const authority=app.indexOf('/* v1.56.0 — runtime authority boundary.');
   assert.ok(phase3>=0&&gisInstall>phase3&&authority>gisInstall,{phase3,gisInstall,authority});
   assert.match(app.slice(gisInstall,authority),/applyGisWorkspaceMode/);
 });

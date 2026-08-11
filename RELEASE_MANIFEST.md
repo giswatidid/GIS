@@ -1,27 +1,50 @@
-# EditPolygon v1.55.7.4 release manifest
+# EditPolygon v1.56.0 release manifest
 
-v1.55.7.4 is a focused live-sketch rendering hotfix on top of v1.55.7.3. It does not change project data, committed geometry, draw completion semantics or the v1.55.7.2 navigation model.
+v1.56.0 is the **Processing Toolbox foundation** release on top of the accepted v1.55.7.4 OpenLayers/drawing baseline. It intentionally establishes one processing architecture before the larger v1.56.1–v1.56.3 tool expansion.
 
-## Fixed regression
+## Toolbox architecture
 
-The remaining pan/zoom ghost came from **duplicate preview authority**. Unfinished drawing geometry was being painted twice: once as an OpenLayers transient vector layer and again as historical screen-space SVG paths in `#editOverlay`. At rest both copies overlap exactly, but during map movement the SVG copy can repaint one frame behind the native vector layer, revealing the old dashed guide/fill as a ghost.
+New runtime modules:
 
-v1.55.7.4 removes geometry painting from the SVG draw overlay. OpenLayers now exclusively renders live sketch linework, fill, cursor and guide geometry. The DOM overlay remains responsible only for interactive vertex handles and textual draw hints.
+- `docs/assets/gis-processing-registry.js` — declarative tool catalogue and search metadata.
+- `docs/assets/gis-processing-core.js` — request normalisation, scopes, validation, provenance, result contracts and shared execution.
+- `docs/assets/gis-processing-worker.js` — sole cancellable Toolbox worker.
+- `docs/assets/gis-processing.js` — desktop/mobile Toolbox controller and result UI.
+- `docs/assets/gis-processing.css` — responsive Toolbox layout.
 
-The v1.55.7.3 screen-pixel cursor resynchronisation remains in place, so the sole OpenLayers preview continues to follow the mouse correctly during pan/zoom.
+Retired file:
 
-## Regression protection
+- `docs/assets/gis-analysis-worker.js`
 
-The automated suite verifies that:
+The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
 
-- `drawRuntimePreviewItems()` continues to supply polygon fill, linework, live guide and cursor geometry to the adapter-owned transient vector layer;
-- the authoritative `renderDrawOverlay()` no longer writes `drawFillPath`, `drawLinePath` or `drawPreviewPath`;
-- the late LineString compatibility wrapper cannot reintroduce SVG sketch geometry;
-- click-drag navigation still pans without creating a vertex;
-- screen-pixel cursor reprojection remains active during map movement;
-- Freehand Polygon keeps press-and-drag ownership.
+## v1.56.0 tools
 
-All local deployment assets use the `20260811-v15574-single-sketch-authority` cache key.
+- Buffer
+- Centroids
+- Point on surface
+- Convex hull
+- Bounding rectangle
+- Clip
+- Intersection
+- Dissolve
+
+The overlay set in this release deliberately preserves the existing Turf behaviour. Robust GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve-by-field and Make Valid belong to v1.56.1.
+
+## Processing contract
+
+- Explicit **All / Filtered / Selected** input and overlay scopes. Hidden visibility state never changes processing membership.
+- Pre-flight geometry/parameter validation before execution.
+- Stage-aware progress and one active cancellable job.
+- Project mutation only after a complete result is returned and normalised.
+- Cancellation, worker error and zero output leave the project untouched.
+- Successful output creation is one history transaction.
+- Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
+- Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
+- Output layers store `.epz`-persistent `gisProcessing` provenance.
+- v1.56.0 records its actual processing CRS as `EPSG:4326`.
+
+All local deployment assets use the `20260811-v1560-processing-toolbox` cache key, including the worker's local registry/core imports.
 
 ## Automated gate
 
@@ -32,13 +55,16 @@ npm run check
 npm run test:browser-smoke
 ```
 
-Final automated verification: **277/277 Node tests**, **8/8 browser smoke suites**, **1,699 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites**, **1,704 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Targeted live validation
 
-1. Start **Free polygon** and place at least three vertices.
-2. Move the mouse so the dashed live guide and temporary fill are obvious.
-3. Click-drag the map repeatedly. There should be **one** live guide/fill and no old-position ghost.
-4. Repeat with wheel zoom and keyboard navigation.
-5. Finish the polygon and confirm it remains visible/editable.
-6. Confirm Freehand Polygon still draws normally with press-and-drag.
+1. Open **GIS → Processing** on a polygon layer. Confirm the layer is preselected and all eight tools are searchable.
+2. Hide one feature and verify **All features** still counts it; apply a filter and verify **Filtered features** changes independently.
+3. Select a subset and run **Centroids** or **Buffer** with Selected features. Confirm only the selected records produce output and the source layer is unchanged.
+4. Undo once: the complete processing output layer should disappear. Redo once: it should return.
+5. Run **Clip** or **Intersection** with a polygon overlay and confirm both source and overlay scopes are available.
+6. Run **Dissolve** on a simple polygon layer and inspect the result/provenance.
+7. Start a non-trivial job and press **Cancel**. No partial output layer should appear.
+8. Save/reopen `.epz` and confirm the processing output and `gisProcessing` provenance remain present.
+9. Repeat a simple run on a phone-sized interface to confirm the same Toolbox remains usable.

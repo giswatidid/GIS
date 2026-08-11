@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.7.4: OpenLayers is the sole map runtime. Application code talks only
+// v1.56.0: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -7227,7 +7227,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.4'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8817,7 +8817,7 @@ function renderDrawOverlay(){
   if(!D.active)return;
   const ov=overlay();
   const pts=D.points.slice();
-  // v1.55.7.4: OpenLayers' transient vector overlay is the sole authority for
+  // v1.56.0: OpenLayers' transient vector overlay is the sole authority for
   // live sketch linework/fill. The historical SVG paths remain in the DOM for
   // compatibility with the vertex/lasso overlay, but are deliberately kept
   // empty while drawing. Rendering the same cursor-linked geometry in both
@@ -8940,7 +8940,7 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
-// v1.55.7.4: cursor-linked draw preview state is screen-pixel anchored across view movement.
+// v1.56.0: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
@@ -20396,16 +20396,6 @@ function gisValidateStyle(style){const core=gisStyleCore();return core?core.vali
 function gisSetLabels(fileId,labels){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisLabels={enabled:false,field:'',...gisClone(labels||{})};renderAll();setDirty(true);return gisEditableSnapshot(fileId);}
 function gisSetCrs(fileId,crs){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');file.gisCrs=String(crs||'EPSG:4326');setDirty(true);gisNotify();return gisEditableSnapshot(fileId);}
 function gisCreateOutputFile(name,features,color='#7c3aed',meta={}){const models=[];flattenSupportedFeatures(features||[]).forEach((raw,i)=>{const m=normalize(raw,featureName(raw,`${name} ${i+1}`));if(m){applyColor(m,color);models.push(m);}});if(!models.length)throw Error('The operation produced no supported geometry.');const file={id:uid('file'),name,sourceFormat:'analysis',visible:true,color,features:models,gisCrs:'EPSG:4326',gisProcessing:meta};project.files.push(file);sidebarState.collapsedFiles.delete(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0].id;renderAll();setDirty(true);logOperation('gis-processing-output',{name,count:models.length,...meta});return gisEditableSnapshot(file.id);}
-function gisProcess(fileId,operation,params={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const active=(file.features||[]).filter(f=>!f._gisFiltered).map(featJSON);if(!active.length)throw Error('No visible filtered features to process.');let output=[];const name=String(params.name||`${file.name} — ${operation}`);
-  if(operation==='centroid')output=active.map((f,index)=>turf.centroid(f,{properties:{...(f.properties||{}),source_feature_id:f.id??'',source_feature_name:f.properties?.name||`Feature ${index+1}`,processing_operation:'centroid'}}));
-  else if(operation==='point-on-feature')output=active.map(f=>turf.pointOnFeature(f));
-  else if(operation==='buffer'){const distance=Number(params.distance||0);if(!Number.isFinite(distance)||distance===0)throw Error('Enter a non-zero buffer distance.');output=active.map(f=>turf.buffer(f,distance,{units:params.units||'kilometers',steps:Math.max(8,Number(params.steps)||16)})).filter(Boolean);}
-  else if(operation==='convex-hull'){const pts=[];for(const f of active){turf.coordEach(f,c=>pts.push(turf.point(c)));}const hull=turf.convex(turf.featureCollection(pts));if(hull)output=[hull];}
-  else if(operation==='dissolve'){let current=active[0];for(let i=1;i<active.length;i++){try{current=turf.union(turf.featureCollection([current,active[i]]))||current;}catch(_){}}output=current?[current]:[];}
-  else if(operation==='bbox'){output=[turf.bboxPolygon(turf.bbox(turf.featureCollection(active)))];}
-  else throw Error('Unsupported processing operation.');
-  return gisCreateOutputFile(name,output,params.color||'#7c3aed',{operation,sourceFileId:fileId,parameters:gisClone(params)});
-}
 function gisSelectFeatureById(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;project.selectedFileId=fileId;selectFeature(featureId);return true;}
 function gisZoomFeature(fileId,featureId){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;try{MAP_RUNTIME.fitExtent(turf.bbox(mapFeatureJSON(f)),{padding:[40,40],maxZoom:17});return true;}catch(_){return false;}}
 function gisSetFeatureVisibility(fileId,featureId,visible){const file=gisEditableFile(fileId),f=file?.features?.find(x=>x.id===featureId);if(!f)return false;f.visible=visible!==false;renderMap();renderSidebar();renderSelected();setDirty(true);gisNotify();setStatus(`${f.visible?'Shown':'Hidden'} ${gisFeatureTitle(file,f)}.`);return true;}
@@ -20450,7 +20440,7 @@ window.styleWithOpacity=styleWithOpacity;
 // Exclude filtered records from map drawing without changing their user visibility state.
 const v141BaseIsFeatureSleeping=isFeatureSleeping;
 isFeatureSleeping=function(file,f){return !!(f?._gisFiltered||v141BaseIsFeatureSleeping(file,f));};window.isFeatureSleeping=isFeatureSleeping;
-Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,previewStyle:gisPreviewStyle,clearStylePreview:gisClearStylePreview,validateStyle:gisValidateStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,process:gisProcess,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides,getLayerStyleState:gisLayerStyleState,setLayerSimpleStyle:gisSetLayerSimpleStyle,switchLayerStyleMode:gisSwitchLayerStyleMode,getFeatureStyleState:(fileId,featureId)=>{const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);return gisFeatureStyleState(file,feature);},setFeatureStyleOverride:gisSetFeatureStyleOverride,clearFeatureStyleOverride:gisClearFeatureStyleOverride});
+Object.assign(window.EditPolygonGIS,{version:GIS_DATA_VERSION,getEditableLayers:()=>project.files.map(file=>({id:file.id,name:file.name,count:(file.features||[]).length,visibleCount:(file.features||[]).filter(f=>!f._gisFiltered).length,crs:file.gisCrs||'EPSG:4326'})),getEditableLayer:gisEditableSnapshot,setAttribute:gisSetAttribute,addField:gisAddField,deleteField:gisDeleteField,calculateField:gisCalculateField,setFilter:gisSetFilter,setStyle:gisSetStyle,previewStyle:gisPreviewStyle,clearStylePreview:gisClearStylePreview,validateStyle:gisValidateStyle,setLabels:gisSetLabels,setCrs:gisSetCrs,selectFeature:gisSelectFeatureById,zoomFeature:gisZoomFeature,setFeatureVisibility:gisSetFeatureVisibility,showAllHidden:gisShowAllHidden,clearFeatureOverrides:gisClearFeatureOverrides,getLayerStyleState:gisLayerStyleState,setLayerSimpleStyle:gisSetLayerSimpleStyle,switchLayerStyleMode:gisSwitchLayerStyleMode,getFeatureStyleState:(fileId,featureId)=>{const file=gisEditableFile(fileId),feature=file?.features?.find(item=>item.id===featureId);return gisFeatureStyleState(file,feature);},setFeatureStyleOverride:gisSetFeatureStyleOverride,clearFeatureStyleOverride:gisClearFeatureStyleOverride});
 window.__editPolygonGisData={version:GIS_DATA_VERSION};
 
 /* v142: consolidated layers, inspector attributes and shared GIS selection bridge. */
@@ -21241,61 +21231,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     return core.expressionPreview(expression,features,dataCore.calculate,limit);
   }
 
-  function polygonBoundary(mask){
-    const geometry=mask?.geometry,lines=[];if(!geometry)return null;
-    if(geometry.type==='Polygon')lines.push(...(geometry.coordinates||[]));
-    else if(geometry.type==='MultiPolygon')for(const polygon of geometry.coordinates||[])lines.push(...polygon);
-    if(!lines.length)return null;return lines.length===1?turf.lineString(lines[0]):turf.multiLineString(lines);
-  }
-  function clipFeatureToMask(feature,mask,boundary){
-    const type=feature?.geometry?.type,properties=clone(feature?.properties||{});if(!type)return [];
-    if(type==='Polygon'||type==='MultiPolygon'){const result=turf.intersect({type:'FeatureCollection',features:[feature,mask]});if(result){result.properties=properties;return [result];}return [];}
-    if(type==='Point')return turf.booleanPointInPolygon(feature,mask)?[{...clone(feature),properties}]:[];
-    if(type==='MultiPoint'){const coordinates=(feature.geometry.coordinates||[]).filter(coord=>turf.booleanPointInPolygon(turf.point(coord),mask));return coordinates.length?[{type:'Feature',properties,geometry:{type:'MultiPoint',coordinates}}]:[];}
-    if(type==='LineString'||type==='MultiLineString'){
-      const inputs=type==='LineString'?[feature]:(feature.geometry.coordinates||[]).map(coordinates=>turf.lineString(coordinates,properties)),inside=[];
-      for(const line of inputs){let parts=[];try{parts=boundary?(turf.lineSplit(line,boundary).features||[]):[];}catch(_){ }if(!parts.length)parts=[line];
-        for(const part of parts){try{const length=turf.length(part,{units:'kilometers'}),probe=length>0?turf.along(part,length/2,{units:'kilometers'}):turf.pointOnFeature(part);if(turf.booleanPointInPolygon(probe,mask))inside.push(part.geometry.coordinates);}catch(_){ }}
-      }
-      if(!inside.length)return [];return [{type:'Feature',properties,geometry:inside.length===1?{type:'LineString',coordinates:inside[0]}:{type:'MultiLineString',coordinates:inside}}];
-    }
-    return [];
-  }
-  function unionPolygonFeatures(features){
-    const polygons=(features||[]).filter(feature=>['Polygon','MultiPolygon'].includes(feature?.geometry?.type));if(!polygons.length)return [];
-    let current=polygons[0];for(let i=1;i<polygons.length;i++)try{current=turf.union({type:'FeatureCollection',features:[current,polygons[i]]})||current;}catch(_){ }
-    return current?[current]:[];
-  }
-  function syncProcess(source,operation,params,overlayFeatures=[]){
-    if(operation==='buffer'){
-      const distance=Number(params.distance);if(!Number.isFinite(distance)||distance===0)throw Error('Enter a non-zero buffer distance.');
-      return (source||[]).map(feature=>{const result=turf.buffer(feature,distance,{units:params.units||'kilometers',steps:Math.max(8,Number(params.steps)||16)});if(result)result.properties=clone(feature.properties||{});return result;}).filter(Boolean);
-    }
-    if(operation==='dissolve'||operation==='union')return unionPolygonFeatures(source);
-    if(operation==='clip'||operation==='intersection'){
-      const masks=(overlayFeatures||[]).filter(feature=>['Polygon','MultiPolygon'].includes(feature?.geometry?.type));if(!masks.length)throw Error('Choose a polygon overlay layer.');
-      const mask=unionPolygonFeatures(masks)[0];if(!mask)throw Error('The overlay layer did not contain usable polygons.');
-      const boundary=polygonBoundary(mask),out=[];for(const feature of source||[])try{out.push(...clipFeatureToMask(feature,mask,boundary));}catch(_){ }
-      return out;
-    }
-    throw Error(`Unsupported worker operation: ${operation}`);
-  }
-  function cancelProcessing(){if(ANALYSIS_RUNTIME.worker){ANALYSIS_RUNTIME.worker.terminate();ANALYSIS_RUNTIME.worker=null;}if(ANALYSIS_RUNTIME.workerJob){ANALYSIS_RUNTIME.workerJob.reject(Error('Processing cancelled.'));ANALYSIS_RUNTIME.workerJob=null;}return true;}
-  async function processAsync(fileId,operation,params={},onProgress=()=>{}){
-    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');const selectedSet=new Set(selectedIds());
-    const source=(file.features||[]).filter(feature=>!feature._gisFiltered&&feature.visible!==false&&(!params.selectedOnly||selectedSet.has(feature.id))).map(featJSON);if(!source.length)throw Error('No visible source features are available for processing.');
-    const overlay=params.overlayFileId?gisEditableFile(params.overlayFileId):null,overlayFeatures=overlay?(overlay.features||[]).filter(feature=>!feature._gisFiltered&&feature.visible!==false).map(featJSON):[];
-    if(typeof Worker==='undefined'){
-      const direct=syncProcess(source,operation,params,overlayFeatures);pushHistory();return gisCreateOutputFile(params.name||`${file.name} — ${operation}`,direct,params.color||'#7c3aed',{operation,sourceFileId:fileId,overlayFileId:params.overlayFileId||null,parameters:clone(params),worker:false});
-    }
-    cancelProcessing();const worker=new Worker('assets/gis-analysis-worker.js?v=20260802-analysis-1480');ANALYSIS_RUNTIME.worker=worker;const id=++ANALYSIS_RUNTIME.jobSeq;
-    return new Promise((resolve,reject)=>{
-      ANALYSIS_RUNTIME.workerJob={id,reject};
-      worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){onProgress({done:message.done,total:message.total,percent:message.total?Math.round(message.done*100/message.total):0});return;}worker.terminate();ANALYSIS_RUNTIME.worker=null;ANALYSIS_RUNTIME.workerJob=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}try{pushHistory();const output=gisCreateOutputFile(params.name||`${file.name} — ${operation}`,message.features||[],params.color||'#7c3aed',{operation,sourceFileId:fileId,overlayFileId:params.overlayFileId||null,parameters:clone(params),worker:true});resolve(output);}catch(error){reject(error);}};
-      worker.onerror=event=>{worker.terminate();ANALYSIS_RUNTIME.worker=null;ANALYSIS_RUNTIME.workerJob=null;reject(Error(event.message||'The processing worker failed.'));};
-      worker.postMessage({id,task:{operation,features:source,overlayFeatures,params:clone(params)}});
-    });
-  }
+
 
   const MAP_SELECT={active:false,kind:null,fileId:null,fileIds:[],mode:'replace',points:[],cursor:null,dragStart:null,drawing:false,pointerId:null,overlay:null,svg:null,path:null,previewPath:null,rect:null,vertices:null,banner:null,metric:null,cursorMetric:null,targetLabel:''};
   function mapSelectionTargetFiles({fileId=null,fileIds=null}={}){
@@ -21616,8 +21552,6 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     calculateFieldAdvanced,
     rebuildSpatialIndex,
     invalidateSpatialIndex,
-    processAsync,
-    cancelProcessing,
     invalidateRenderCache,
     getSelectedFeature:gisSelectedFeatureDetails
   });
@@ -22474,7 +22408,94 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.7.4 — runtime authority boundary.
+
+/* v1.56.0 — Processing Toolbox application bridge.
+   Processing requests are declarative and validated by gis-processing-core.js.
+   Expensive geometry work runs in one cancellable worker and project mutation
+   occurs only after a complete result has returned. */
+(function(){
+  'use strict';
+  const PROCESSING_VERSION='1.56.0';
+  const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
+  const processingCore=()=>window.EditPolygonGISProcessingCore;
+  const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;
+  const processingClone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+  function processingLayers(){return (window.EditPolygonGIS?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}
+  function previewProcessingRequest(request={}){
+    const core=processingCore();if(!core)throw Error('The Processing Toolbox core is unavailable.');
+    return core.preflight(request,{layers:processingLayers(),selectionIds:selectedIds()});
+  }
+  function processingScopedFeatures(file,scope='all'){
+    const selected=new Set(selectedIds());
+    return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:true);
+  }
+  function processingTask(preflight){
+    const source=gisEditableFile(preflight.request.inputs.source.layerId);if(!source)throw Error('Input layer not found.');
+    const sourceFeatures=processingScopedFeatures(source,preflight.request.inputs.source.scope).map(feature=>{const raw=featJSON(feature);raw.id=feature.id;return raw;});
+    const overlay=preflight.overlay?gisEditableFile(preflight.overlay.id):null;
+    const overlayFeatures=overlay?processingScopedFeatures(overlay,preflight.request.inputs.overlay.scope).map(feature=>{const raw=featJSON(feature);raw.id=feature.id;return raw;}):[];
+    return {toolId:preflight.tool.id,features:sourceFeatures,overlayFeatures,parameters:processingClone(preflight.request.parameters)};
+  }
+  function processingOutputFeature(raw,index,name,color,source=null,inheritStyle=false){
+    const properties=processingClone(raw?.properties||{});properties.name=String(properties.name||`${name} ${index+1}`);
+    const model=normalize({type:'Feature',properties,geometry:processingClone(raw.geometry)},properties.name);if(!model)return null;
+    const sourceFeature=inheritStyle&&raw?.id!=null?(source?.features||[]).find(feature=>feature.id===raw.id):null;
+    model.id=uid('feat');model.visible=true;model.locked=false;model.style=canonicalEditableFeatureStyle(model.geometry,color);
+    if(sourceFeature){model.style=processingClone(sourceFeature.style||model.style);model.styleOverride=processingClone(sourceFeature.styleOverride||null);model.opacity=sourceFeature.opacity;}
+    return model;
+  }
+  function processingDerivedColor(source,tool){return tool?.stylePolicy==='inherit'?(source?.color||'#1664d6'):(COLORS[(project.files||[]).length%COLORS.length]||'#7c3aed');}
+  function createProcessingOutput(preflight,result,{worker=true}={}){
+    const source=gisEditableFile(preflight.source.id);if(!source)throw Error('The source layer is no longer available.');
+    if(!Array.isArray(result?.features)||!result.features.length)throw Error('The operation completed but produced no output geometry. The project was not changed.');
+    const name=String(preflight.request.output.name||processingCore().defaultOutputName(preflight.tool,preflight.source)).trim()||'Processing result';
+    const color=processingDerivedColor(source,preflight.tool),inheritStyle=preflight.tool.stylePolicy==='inherit',models=result.features.map((feature,index)=>processingOutputFeature(feature,index,name,color,source,inheritStyle)).filter(Boolean);
+    if(models.length!==result.features.length)throw Error(`${result.features.length-models.length} output feature${result.features.length-models.length===1?'':'s'} could not be normalised. No output layer was created.`);
+    const summary=processingCore().resultSummary({sourceCount:preflight.counts.source,outputCount:models.length,failures:result.failures||[]});
+    const provenance=processingCore().createProvenance(preflight,{processingCrs:'EPSG:4326',engine:'Turf.js 7.2.0',worker,result:{summary,failures:processingClone(result.failures||[])}});
+    const preserveSchema=preflight.tool.execution==='per-feature'||preflight.tool.execution==='overlay';
+    pushHistory();
+    const file={
+      id:uid('file'),name,sourceFormat:'processing',visible:true,color,opacity:source.opacity,features:models,
+      gisCrs:source.gisCrs||'EPSG:4326',gisStorageCrs:'EPSG:4326',gisSourceCrs:source.gisSourceCrs||source.gisCrs||'EPSG:4326',gisExportCrs:source.gisExportCrs||source.gisCrs||'EPSG:4326',gisProcessingCrs:'EPSG:4326',
+      gisSchema:preserveSchema?processingClone(source.gisSchema||null):null,gisSavedFilters:[],gisFilter:null,
+      simpleStyle:inheritStyle?processingClone(source.simpleStyle||null):null,gisStyle:inheritStyle?processingClone(source.gisStyle||null):null,styleMode:inheritStyle?(source.styleMode||'simple'):'simple',gisLabels:inheritStyle?processingClone(source.gisLabels||{enabled:false,field:''}):{enabled:false,field:''},gisDisplayField:source.gisDisplayField||'name',gisProcessing:provenance
+    };
+    project.files.push(file);sidebarState.collapsedFiles.delete(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0]?.id||null;project.mergeIds=[];
+    try{window.__editPolygonGISSchema?.ensureSchema?.(file);window.__editPolygonGISSchema?.applyTypedFilter?.(file);}catch(_){ }
+    window.EditPolygonGIS?.invalidateSpatialIndex?.(file.id);window.EditPolygonGIS?.invalidateRenderCache?.(file.id);renderAll();setDirty(true);gisNotify();
+    logOperation('gis-processing-output',{outputFileId:file.id,name,count:models.length,tool:preflight.tool.id,sourceFileId:source.id,sourceScope:preflight.request.inputs.source.scope,failed:summary.failed});
+    return {output:window.EditPolygonGIS.getEditableLayer(file.id),summary,failures:processingClone(result.failures||[]),provenance};
+  }
+  function cancelProcessing(){
+    if(PROCESSING_RUNTIME.worker){try{PROCESSING_RUNTIME.worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;}
+    if(PROCESSING_RUNTIME.job){PROCESSING_RUNTIME.job.reject(Error('Processing cancelled. No project data was changed.'));PROCESSING_RUNTIME.job=null;}
+    return true;
+  }
+  function processingWorker(task,onProgress=()=>{}){
+    const core=processingCore();
+    if(typeof Worker==='undefined')return Promise.resolve().then(()=>core.executeWithTurf(task,{turf,onProgress})).then(result=>({result,worker:false}));
+    cancelProcessing();const worker=new Worker('assets/gis-processing-worker.js?v=20260811-v1560-processing-toolbox');PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;
+    return new Promise((resolve,reject)=>{
+      PROCESSING_RUNTIME.job={id,reject};
+      worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){try{onProgress({stage:message.stage||'Processing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(90,Math.round((Number(message.percent)||0)*.9)))});}catch(_){ }return;}try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}resolve({result:message.result||{features:[],failures:[]},worker:true});};
+      worker.onerror=event=>{try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;reject(Error(event.message||'The processing worker failed.'));};
+      worker.postMessage({id,task});
+    });
+  }
+  async function runProcessingRequest(request={},onProgress=()=>{}){
+    const preflight=previewProcessingRequest(request);if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');
+    const task=processingTask(preflight);onProgress({stage:'Preparing input',done:0,total:task.features.length,percent:0});
+    const execution=await processingWorker(task,onProgress);onProgress({stage:'Validating output',done:task.features.length,total:task.features.length,percent:94});
+    const created=createProcessingOutput(preflight,execution.result,{worker:execution.worker});onProgress({stage:'Creating output layer',done:task.features.length,total:task.features.length,percent:100});return created;
+  }
+  function zoomProcessingLayer(fileId){const file=gisEditableFile(fileId);if(!file)return false;try{zoomFile(fileId);return true;}catch(_){return false;}}
+  function processingCatalog(){return {version:PROCESSING_VERSION,categories:processingRegistry()?.getCategories?.()||[],tools:processingRegistry()?.getTools?.()||[]};}
+  Object.assign(window.EditPolygonGIS,{processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer});
+  window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing};
+})();
+
+/* v1.56.0 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22484,7 +22505,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.7.4',
+  version:'1.56.0',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

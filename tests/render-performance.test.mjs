@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260811-v15574-single-sketch-authority/);
+  assert.match(html,/editpolygon-app\.js\?v=20260811-v1560-processing-toolbox/);
 });
 
 

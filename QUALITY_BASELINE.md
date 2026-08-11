@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.7.4.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup, v1.55.7.1 startup hotfix, v1.55.7.2 draw-time navigation and v1.55.7.3 screen-pixel cursor reprojection, while removing the remaining duplicate screen-space SVG sketch renderer. OpenLayers now exclusively owns unfinished sketch linework/fill; the DOM overlay retains only handles and hints.
+**Current baseline: v1.56.0.** OpenLayers remains the sole map runtime. The accepted v1.55.7.4 drawing/rendering baseline is unchanged; v1.56.0 adds the first declarative Processing Toolbox architecture and migrates the existing browser-local processing set into one validated/cancellable lifecycle.
 
 ## Current automated gate
 
@@ -11,10 +11,10 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.7.4 currently expects:
+v1.56.0 currently expects:
 
-- **277/277 Node tests**;
-- **8/8 browser smoke suites**;
+- **290/290 Node tests**;
+- **9/9 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
 - binding/architecture audit;
@@ -58,6 +58,18 @@ A live drag may mutate the focused native feature for pointer responsiveness, bu
 - Freehand Polygon retains pointer-drag ownership; it is the only polygon draw mode where dragging draws instead of panning.
 - Draw-time arrow keys and `+` / `-` route through adapter-owned navigation methods and must not mutate geometry.
 - The unfinished click-based draw cursor is screen-pixel anchored across view movement; synchronous runtime-preview refresh must occur before the deferred DOM overlay pass so a former pointer-linked guide/fill cannot flash during pan/zoom.
+
+### Processing Toolbox invariants
+
+- The canonical tool catalogue is declarative and lives in `gis-processing-registry.js`.
+- Processing membership has only three scopes: **all**, **filtered** and **selected**; feature visibility is not a processing filter.
+- The worker delegates to `gis-processing-core.js`; `gis-analysis-worker.js` is retired and must not be packaged.
+- Pre-flight validation runs before worker execution and rejects missing/unsupported layers, geometry families and parameters.
+- Cancellation, worker failure and empty outputs do not mutate the project.
+- Successful processing output is committed as one history transaction and is therefore undone/redone as one layer-level action.
+- Per-feature failures are reported with feature identity/message rather than silently discarded. Aggregate operations fail atomically when a partial aggregate would be misleading.
+- Provenance records tool, source/overlay, scopes, parameters, real processing CRS and result/failure metadata and survives `.epz`.
+- v1.56.0 executes Toolbox geometry in canonical WGS 84/Turf; robust GEOS-backed projected topology is deliberately deferred to v1.56.1.
 
 ### Large-data interaction
 
@@ -104,14 +116,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.7.4 no-growth ceilings are:
+The v1.56.0 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
-The current audit sees **1,699 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
+The current audit sees **1,704 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.55.7.4
+## Live parity evidence carried into v1.56.0
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -136,4 +148,4 @@ v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implem
 
 ## Next gate
 
-The next feature work is the Processing Toolbox. New processing tools must continue to use the canonical project/geometry model, produce normal undoable layers with provenance where appropriate, and stay independent of native OpenLayers objects.
+Live-test v1.56.0 Toolbox behaviour, then proceed to **v1.56.1 robust topology**: extend the existing GEOS-WASM adapter for Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid without duplicating the Toolbox lifecycle.

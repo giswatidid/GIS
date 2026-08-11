@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.55.7.4
+**Current application baseline:** v1.56.0
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-runtime migration is complete. **v1.55.7.4 uses OpenLayers as the sole native map runtime** behind the `EditPolygonMap` adapter. It preserves the v1.55.7 single-runtime performance cleanup, v1.55.7.1 startup/render-authority hotfix and v1.55.7.2 draw-time navigation model. v1.55.7.3 added screen-pixel cursor reprojection during pan/zoom; v1.55.7.4 completes that fix by making the OpenLayers transient vector overlay the **only** renderer of unfinished sketch linework/fill. The historical screen-space SVG overlay now renders only interactive draw handles/hints, eliminating the duplicate preview that could lag for one frame and appear as a ghost. Click-based drawing still leaves native map pan/zoom available, map drags are suppressed from becoming vertices, arrow and `+` / `-` keys navigate during drawing, and Freehand Polygon retains press-and-drag ownership. Runtime DOM overlays share batched map/view refresh subscriptions, one GeoJSON formatter is reused for repeated geometry conversion, redundant native render invalidations have been removed, and zoom lifecycle events use central fan-out so every subscriber receives the same start/end transition. The deployed parity campaign still covers drawing/editing, repeated-world and International Date Line behaviour, authoritative undo/redo, points and true circles, snapping/topology, measurements, Geometry Health, styling/labels, remote GeoJSON, ArcGIS services, WMS, large-vector performance, lossless `.epz` persistence and mobile/touch parity. Application code remains map-library-neutral; native OpenLayers implementation details are isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-runtime migration is complete and **v1.56.0 begins the Processing Toolbox roadmap on the stable v1.55.7.4 OpenLayers foundation**. OpenLayers remains the sole native map runtime behind `EditPolygonMap`; the drawing/navigation, repeated-world, mobile, large-vector and `.epz` parity work is unchanged. v1.56.0 replaces scattered layer-processing controls with one declarative browser-local Processing Toolbox, one validated request model and one cancellable worker lifecycle. Application code remains map-library-neutral; native OpenLayers implementation details stay isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -167,29 +167,26 @@ When advanced styling is active, the simple layer editor is clearly disabled. Us
 
 Individual features can also receive a deliberate style override and later return to the layer style.
 
-### Geometry processing
+### Processing Toolbox
 
-EditPolygon includes direct editing operations and worker-based layer processing.
+**GIS → Processing** opens the v1.56 browser-local Processing Toolbox. The layer used to open the toolbox is preselected, but the input can be changed before running.
 
-Current tools include:
+The v1.56.0 foundation ships with:
 
-- Merge and dissolve
-- Union
-- Clip
-- Intersection
-- Erase and cut workflows
-- Split polygon by drawn line
 - Buffer
-- Simplify
-- Smooth
-- Repair common geometry problems
-- Fill or remove holes
 - Centroids
-- Points on surface
+- Point on surface
 - Convex hull
 - Bounding rectangle
+- Clip
+- Intersection
+- Dissolve
 
-Longer layer-processing operations run in a browser worker and create a new editable output layer, leaving the source layer unchanged.
+Each job uses an explicit input scope: **All features**, **Filtered features** or **Selected features**. Hiding a layer or individual feature is only a presentation choice and does not silently remove it from processing. Overlay tools expose the same scope controls for their polygon mask layer.
+
+The Toolbox validates geometry and parameters before running, executes expensive work in a cancellable browser Worker, reports meaningful stages/failures, and only mutates the project after a complete result has returned. Successful runs create a normal editable output layer as a single undoable history transaction. Cancellation, worker failure or an empty output leave the project unchanged. Output layers preserve processing provenance inside `.epz`; per-feature/overlay tools also preserve compatible source schema and styling.
+
+The v1.56.0 overlay implementation deliberately migrates the existing Turf behaviour into the new framework. **v1.56.1** is the robust topology phase: GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid.
 
 ### Geometry Health validation and repair
 
@@ -407,7 +404,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.55.7.4 single-runtime/draw-navigation audit, the binding/architecture no-growth audit and the JavaScript test suite.
+This runs repository integration checks, the v1.56.0 single-runtime/Processing-Toolbox audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -435,9 +432,9 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-The map-runtime migration and its single-runtime cleanup are complete. v1.55.7.4 is the stable pre-toolbox baseline.
+The map-runtime migration and its single-runtime cleanup are complete. **v1.56.0 is the Processing Toolbox foundation release**, built on the stable v1.55.7.4 map/drawing baseline.
 
-1. **v1.56 — Processing Toolbox:** consolidated browser-local vector processing, selection and geometry-maintenance framework with workers, progress/cancellation and consistent outputs.
+1. **v1.56 — Processing Toolbox:** v1.56.0 establishes the registry/core/worker/UI and first eight tools; v1.56.1–v1.56.3 add robust GEOS topology, conversion/maintenance and spatial-analysis tools.
 2. **v1.57 — Large-data performance:** virtualised tables/lists, worker-based data operations, spatial indexing and larger-dataset architecture.
 3. **v1.58 — Professional styling and labels:** rule/expression styling, scale-dependent symbology and stronger cartographic label placement.
 4. **v1.59 — Advanced formats:** GeoPackage, FlatGeobuf, GeoParquet and GPX, plus format hardening.

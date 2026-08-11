@@ -1,5 +1,18 @@
 # EditPolygon changelog
 
+## v1.56.0 — Processing Toolbox foundation
+
+- Replaced the historical Process tab with a searchable, declarative **Processing Toolbox** shared by desktop and mobile.
+- Added the first controlled toolbox catalogue: **Buffer, Centroids, Point on surface, Convex hull, Bounding rectangle, Clip, Intersection and Dissolve**.
+- Added `gis-processing-registry.js`, `gis-processing-core.js`, `gis-processing-worker.js`, `gis-processing.js` and `gis-processing.css` so tool metadata, validation/execution, worker lifecycle and UI are no longer embedded as one-off processing branches in `editpolygon-app.js`.
+- Processing requests now use explicit **All / Filtered / Selected** feature scopes. Individual feature/layer visibility is presentation state and no longer silently changes which records are processed.
+- Added pre-flight geometry/parameter checks, stage-aware progress, cancellation, output summaries and explicit partial-failure reporting. Aggregate operations such as Dissolve fail atomically if an input cannot be combined rather than returning an incomplete aggregate without warning.
+- Processing runs create a new editable layer only after a complete result returns. Cancellation, worker failure and empty results leave the project unchanged; successful output creation is one history transaction.
+- Output layers retain machine-readable `gisProcessing` provenance in `.epz`, including tool, source/overlay layers, scopes, parameters, processing CRS, worker/engine metadata, input counts and result/failure summary.
+- Per-feature/overlay outputs preserve source schema and layer styling/labels where compatible, and transient GeoJSON feature IDs allow matching feature-level style overrides without adding internal IDs to attributes.
+- Retired `gis-analysis-worker.js`; all toolbox worker execution now delegates to the shared processing core instead of maintaining a second geometry implementation.
+- v1.56.0 deliberately keeps the migrated Turf-based overlay behaviour. Robust GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve-by-field and Make Valid are reserved for v1.56.1.
+
 ## v1.55.7.4 — Single live-sketch render authority
 
 - Fixes the remaining transient polygon ghost seen during pan/zoom by removing duplicate screen-space SVG rendering of unfinished sketch geometry.

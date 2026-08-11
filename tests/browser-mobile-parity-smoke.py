@@ -75,7 +75,7 @@ with sync_playwright() as p:
       olSize:[document.querySelector('.ol-control button').getBoundingClientRect().width,document.querySelector('.ol-control button').getBoundingClientRect().height]
     })''')
     assert initial['mobile'] is True,initial
-    assert initial['version']=='1.55.7.4',initial
+    assert initial['version']=='1.56.0',initial
     assert initial['gisButtons']==1,initial
     assert initial['oldNotice'] is False,initial
     assert initial['docWidth']<=initial['viewport']+1,initial

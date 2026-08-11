@@ -20,7 +20,6 @@ let styleCodeLayerId=null;
 let stylePreviewActive=false;
 let styleCodeTimer=0;
 let styleSimpleTimer=0;
-let processRunning=false;
 let lastStats=null;
 let lastCalculationPreview=[];
 let joinState=null;
@@ -34,6 +33,7 @@ function core(){return window.EditPolygonGISDataCore;}
 function styleCore(){return window.EditPolygonGISStyleCore;}
 function schemaCore(){return window.EditPolygonGISSchemaCore;}
 function joinCore(){return window.EditPolygonGISJoinCore;}
+function processingUI(){return window.EditPolygonGISProcessingUI;}
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 function layers(){return api()?.getEditableLayers?.()||[];}
 function active(){return layerId?api()?.getEditableLayer?.(layerId):null;}
@@ -60,7 +60,7 @@ function modal(){
   element=document.createElement('div');
   element.id='gisDataModal';
   element.className='gis-data-modal';
-  element.innerHTML=`<div class="gis-data-shell"><header><div><strong id="gisDataTitle">Layer data</strong><span id="gisDataSummary"></span></div><nav><button data-tab="table" class="active">Attributes</button><button data-tab="select">Select</button><button data-tab="filter">Filter</button><button data-tab="style">Style & labels</button><button data-tab="fields">Fields & stats</button><button data-tab="join">Join & summarize</button><button data-tab="crs">CRS</button><button data-tab="process">Process</button></nav><button id="gisDataClose" aria-label="Close">×</button></header><main id="gisDataBody"></main><footer><span id="gisDataStatus">All processing stays in this browser.</span><button id="gisDataDone">Done</button></footer></div>`;
+  element.innerHTML=`<div class="gis-data-shell"><header><div><strong id="gisDataTitle">Layer data</strong><span id="gisDataSummary"></span></div><nav><button data-tab="table" class="active">Attributes</button><button data-tab="select">Select</button><button data-tab="filter">Filter</button><button data-tab="style">Style & labels</button><button data-tab="fields">Fields & stats</button><button data-tab="join">Join & summarize</button><button data-tab="crs">CRS</button><button data-tab="process">Processing</button></nav><button id="gisDataClose" aria-label="Close">×</button></header><main id="gisDataBody"></main><footer><span id="gisDataStatus">All processing stays in this browser.</span><button id="gisDataDone">Done</button></footer></div>`;
   document.body.appendChild(element);
   element.addEventListener('click',click);
   element.addEventListener('change',change);
@@ -93,6 +93,7 @@ function open(id,initialTab='table'){
 }
 function close(){
   if(joinRunning){api()?.cancelJoinProcessing?.();joinRunning=false;joinProgress=null;}
+  if(processingUI()?.isRunning?.())processingUI().cancelIfRunning?.();
   if(layerId&&stylePreviewActive)api()?.clearStylePreview?.(layerId);
   stylePreviewActive=false;
   $('gisDataModal')?.classList.remove('active');
@@ -112,7 +113,8 @@ function render(which=tab()){
   $('gisDataTitle').textContent=layer.name;
   $('gisDataSummary').textContent=`${layer.features.length.toLocaleString()} ${layer.tableOnly?'rows':'features'} · ${layer.tableOnly?'non-spatial table':layer.crs}`;
   updateFilterTabState(layer);
-  $('gisDataBody').innerHTML=which==='select'?selectionView(layer):which==='filter'?filterView(layer):which==='style'?styleView(layer):which==='fields'?fieldsView(layer):which==='join'?joinView(layer):which==='crs'?crsView(layer):which==='process'?processView(layer):tableView(layer);
+  $('gisDataBody').innerHTML=which==='select'?selectionView(layer):which==='filter'?filterView(layer):which==='style'?styleView(layer):which==='fields'?fieldsView(layer):which==='join'?joinView(layer):which==='crs'?crsView(layer):which==='process'?'<div id="gisProcessingHost"></div>':tableView(layer);
+  if(which==='process'){const host=$('gisProcessingHost');if(!processingUI()||!host){host.innerHTML='<section class="gis-tool-card"><h3>Processing Toolbox unavailable</h3><p>The processing interface did not load correctly. Refresh the page and try again.</p></section>';}else processingUI().mount(host,{layerId,api:api(),status,onOpenOutput:output=>{layerId=output.id;selected.clear();resetStyleState(output);render('table');}});}
   if(which==='style')requestAnimationFrame(()=>{updateStyleControlVisibility();updateStyleCodeFeedback();});
 }
 
@@ -433,15 +435,11 @@ function readSpatialConfig(){const state=joinState.spatial;readJoinFieldMap('spa
 function updateJoinProgress(update){joinProgress=update;const progress=$('gisDataBody')?.querySelector('.gis-join-progress');if(progress){progress.querySelector('strong').textContent=update.stage||'Processing…';const span=progress.querySelector(':scope > span');if(span)span.textContent=`${Number(update.done||0).toLocaleString()}${update.total?` of ${Number(update.total).toLocaleString()}`:''}`;const bar=progress.querySelector('i');if(bar)bar.style.width=`${Math.max(0,Math.min(100,update.percent||0))}%`;}}
 function invalidateJoinPreview(){joinPreview=null;document.querySelectorAll('[data-action^="join-run-"]').forEach(button=>button.disabled=true);}
 
-function processView(layer){
-  const others=layers().filter(item=>item.id!==layer.id);
-  return `<section class="gis-tool-card gis-process-card"><h3>Worker-based processing</h3><p>Long-running buffer, dissolve, union, clip and intersection operations run away from the map interface in a browser worker. Outputs are new editable layers. The source layer is unchanged.</p><div class="gis-form-grid"><label>Operation<select id="gisProcessOp"><option value="buffer">Buffer</option><option value="dissolve">Dissolve polygons</option><option value="union">Union polygons</option><option value="clip">Clip by polygon layer</option><option value="intersection">Intersection with polygon layer</option><option value="centroid">Centroids</option><option value="point-on-feature">Points on surface</option><option value="convex-hull">Convex hull</option><option value="bbox">Bounding rectangle</option></select></label><label>Output name<input id="gisProcessName" value="${esc(layer.name)} — output"></label><label>Overlay layer<select id="gisProcessOverlay"><option value="">Choose for clip/intersection</option>${others.map(item=>`<option value="${item.id}">${esc(item.name)}</option>`).join('')}</select></label><label>Distance<input id="gisProcessDistance" type="number" value="1" step="0.1"></label><label>Units<select id="gisProcessUnits"><option value="meters">metres</option><option value="kilometers" selected>kilometres</option><option value="miles">miles</option></select></label><label>Output colour<input id="gisProcessColor" type="color" value="#7c3aed"></label><label class="gis-check"><input id="gisProcessSelectedOnly" type="checkbox"> Process only selected source features</label></div><div class="gis-process-progress" id="gisProcessProgress" hidden><div><span></span></div><strong>Preparing…</strong></div><div class="gis-button-row"><button class="primary" data-action="run-process" ${processRunning?'disabled':''}>${processRunning?'Processing…':'Run and create layer'}</button><button data-action="cancel-process" ${processRunning?'':'disabled'}>Cancel</button></div></section>`;
-}
-
 function click(event){
   const target=event.target.closest('[data-tab],[data-action],[data-sort]');if(!target)return;
   if(target.dataset.tab){
     if(tab()==='style'&&target.dataset.tab!=='style'&&stylePreviewActive){api().clearStylePreview?.(layerId);stylePreviewActive=false;}
+    if(tab()==='process'&&target.dataset.tab!=='process'&&processingUI()?.isRunning?.())processingUI().cancelIfRunning?.();
     render(target.dataset.tab);return;
   }
   const action=target.dataset.action,layer=active();
@@ -507,13 +505,7 @@ function click(event){
   else if(action==='interpret-crs'){const value=$('gisCrsCustom').value.trim()||$('gisCrs').value;if(value&&confirm(`Interpret the layer's current numeric coordinates as ${value} and transform them to WGS 84 for the map? Use this only if the layer is currently misplaced.`)){try{api().interpretCoordinates(layerId,value);status(`Reprojected coordinates from ${value}.`,'ok');render('crs');}catch(error){status(error.message,'error');}}}
   else if(action==='set-export-crs'){try{const value=$('gisExportCrs').value;api().setExportCrs(layerId,value);status(`Export CRS set to ${value}.`,'ok');render('crs');}catch(error){status(error.message,'error');}}
   else if(action==='export-crs-geojson'){const value=$('gisExportCrs').value,format=$('gisCrsExportFormat').value;Promise.resolve(api().exportLayerCrs(layerId,value,format)).then(()=>status(`Downloaded ${format.toUpperCase()} in ${value}.`,'ok')).catch(error=>status(error.message,'error'));}
-  else if(action==='run-process'){
-    if(processRunning)return;const operation=$('gisProcessOp').value,params={name:$('gisProcessName').value,distance:Number($('gisProcessDistance').value),units:$('gisProcessUnits').value,color:$('gisProcessColor').value,overlayFileId:$('gisProcessOverlay').value,selectedOnly:$('gisProcessSelectedOnly').checked};
-    const useWorker=['buffer','dissolve','union','clip','intersection'].includes(operation);processRunning=true;const progress=$('gisProcessProgress');if(progress){progress.hidden=false;progress.querySelector('strong').textContent='Starting worker…';progress.querySelector('span').style.width='0%';}target.disabled=true;
-    const task=useWorker?api().processAsync(layerId,operation,params,update=>{const p=$('gisProcessProgress');if(p){p.hidden=false;p.querySelector('span').style.width=`${update.percent||0}%`;p.querySelector('strong').textContent=`${(update.done||0).toLocaleString()} of ${(update.total||0).toLocaleString()} processed`;}}):Promise.resolve().then(()=>api().process(layerId,operation,params));
-    Promise.resolve(task).then(output=>{processRunning=false;status(`Created ${output.name} with ${output.features.length} feature(s).`,'ok');layerId=output.id;resetStyleState(output);render('table');}).catch(error=>{processRunning=false;status(error.message,'error');render('process');});
-  }
-  else if(action==='cancel-process'){api().cancelProcessing?.();processRunning=false;status('Processing cancelled.','error');render('process');}
+
 }
 
 function styleControlChanged(target){

@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.7.4**.
+This document describes the current application architecture as of **v1.56.0**.
 
 ## Runtime authority
 
@@ -23,6 +23,24 @@ There is no alternate map selector, automatic engine fallback, compatibility map
 - project persistence orchestration.
 
 Application code talks to the map only through `MAP_RUNTIME` / `EditPolygonMap`. Direct `ol.*` calls are prohibited outside the adapter and enforced by repository audits.
+
+## Processing Toolbox boundary
+
+v1.56.0 introduces a dedicated processing subsystem. Processing is deliberately split into declarative metadata, engine-neutral validation/execution, worker orchestration and UI rather than adding more processing branches to the historical application file.
+
+- `docs/assets/gis-processing-registry.js` is the canonical catalogue. It declares tool identity, category, searchable metadata, geometry compatibility, parameters, output kind, execution class, CRS policy and style policy. The v1.56.0 catalogue is Buffer, Centroids, Point on surface, Convex hull, Bounding rectangle, Clip, Intersection and Dissolve.
+- `docs/assets/gis-processing-core.js` owns request normalisation, **All / Filtered / Selected** scope semantics, pre-flight validation, provenance/result contracts and shared Turf execution. It has no DOM or OpenLayers dependency.
+- `docs/assets/gis-processing-worker.js` is the sole Toolbox worker. It loads the shared registry/core and delegates execution to the same core; the retired `gis-analysis-worker.js` must not return.
+- `docs/assets/gis-processing.js` owns the searchable Toolbox UI, dynamic parameter forms, progress/cancel state and result presentation.
+- `editpolygon-app.js` is only the application bridge: it supplies canonical project features to validated requests, starts/cancels the worker and commits a completed output as one project/history operation.
+
+Processing membership is independent from presentation visibility. `all` includes every feature in the chosen layer, `filtered` follows the active record filter, and `selected` follows EditPolygon's selection model. A hidden feature remains in `all` and can remain in `selected`. This prevents map presentation choices from silently altering analytical results.
+
+The worker operates on cloned canonical WGS 84 GeoJSON in v1.56.0. `gisProcessingCrs` and provenance therefore record `EPSG:4326` rather than claiming a projected CRS that was not actually used. Buffer uses Turf's geodesic distance handling; robust projected/GEOS topology is a v1.56.1 concern.
+
+Project mutation occurs only after a complete worker result returns and output geometry has been normalised successfully. Cancellation, worker errors and zero-output jobs create no file and no history entry. A successful run creates one editable output layer and one history transaction. Per-feature failures are explicitly reported; aggregate jobs that would be misleading if incomplete fail atomically.
+
+Each output stores `gisProcessing` provenance (tool/version, source and overlay layer IDs/names, scopes, parameters, processing CRS, engine/worker metadata, input counts, summary and failures). This survives `.epz` persistence and is intended to become the later re-run/Model Builder contract.
 
 ## OpenLayers adapter ownership
 
@@ -161,13 +179,13 @@ Mobile invariants include:
 
 ## Runtime authority boundary
 
-The end of `editpolygon-app.js` contains the **v1.55.7.4 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
+The end of `editpolygon-app.js` contains the **v1.56.0 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
 
 Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
 ## Historical binding debt
 
-The application remains a large historically layered file. v1.55.7.4 audits currently allow at most:
+The application remains a large historically layered file. v1.56.0 audits currently allow at most:
 
 - **198** duplicated function-binding names;
 - **371** extra historical binding sites.
@@ -186,4 +204,4 @@ Node unit tests cover the canonical models and adapter contract. Browser smoke s
 
 ## Next architecture step
 
-With the runtime migration and OpenLayers-only cleanup complete, roadmap work can return to the **Processing Toolbox**. Large-dataset virtualisation and further modular extraction remain later performance/maintainability work, but they no longer need to accommodate a second map implementation.
+v1.56.0 establishes the **Processing Toolbox foundation**. The next processing step is v1.56.1 robust GEOS-backed topology, followed by geometry conversion/maintenance and spatial-analysis phases. Large-dataset virtualisation remains the v1.57 performance milestone.

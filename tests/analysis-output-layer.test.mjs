@@ -42,10 +42,11 @@ this.createOutput=gisCreateOutputFile;`,context);
   assert.equal(context.rendered,true);
 });
 
-test('centroid outputs and legacy processing layers retain list-safe metadata',()=>{
-  assert.match(app,/turf\.centroid\(f,\{properties:\{\.\.\.\(f\.properties\|\|\{\}\),source_feature_id:/);
-  assert.match(app,/source_feature_name:/);
-  assert.match(app,/processing_operation:'centroid'/);
+test('legacy analysis outputs remain list-safe while v1.56 processing uses dedicated provenance metadata',()=>{
+  assert.match(app,/sourceFormat:'processing'/);
+  assert.match(app,/gisProcessing:provenance/);
+  assert.match(app,/gisProcessingCrs:'EPSG:4326'/);
+  assert.match(app,/sourceFormat:'analysis'/);
   assert.match(app,/file\.sourceFormat=file\.sourceFormat\|\|\(file\.gisProcessing\?'analysis':'geojson'\)/);
   assert.match(app,/String\(file\.sourceFormat\|\|'project'\)\.toUpperCase\(\)/);
 });

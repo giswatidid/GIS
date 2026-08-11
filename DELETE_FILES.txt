@@ -1,0 +1,1 @@
+docs/assets/gis-analysis-worker.js

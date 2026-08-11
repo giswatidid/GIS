@@ -1,14 +1,14 @@
 {
   "name": "editpolygon-browser-gis",
-  "version": "1.55.7.4",
+  "version": "1.56.0",
   "private": true,
-  "description": "Static privacy-first browser GIS editor with a single OpenLayers runtime, authoritative cached rendering, batched DOM overlays, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
+  "description": "Static privacy-first browser GIS editor with OpenLayers, a declarative Processing Toolbox, Geometry Health, typed schemas, joins, styling and browser-local geospatial processing",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check-repo.mjs && node scripts/audit-runtime.mjs && node scripts/audit-bindings.mjs && npm test",
     "test:browser-crs": "python tests/browser-crs-smoke.py",
     "test:browser-remote": "python tests/browser-remote-source-smoke.py",
-    "test:browser-smoke": "python tests/browser-openlayers-parity-smoke.py && python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py && python tests/browser-geometry-health-smoke.py && python tests/browser-mobile-parity-smoke.py && python tests/browser-mobile-layer-actions-smoke.py",
+    "test:browser-smoke": "python tests/browser-openlayers-parity-smoke.py && python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py && python tests/browser-geometry-health-smoke.py && python tests/browser-mobile-parity-smoke.py && python tests/browser-mobile-layer-actions-smoke.py && python tests/browser-processing-smoke.py",
     "test:browser-data": "python tests/browser-data-schema-smoke.py",
     "test:browser-join": "python tests/browser-join-smoke.py",
     "test:browser-geometry-health": "python tests/browser-geometry-health-smoke.py && python tests/browser-mobile-parity-smoke.py",
