@@ -175,12 +175,16 @@ function normaliseSavedProjectPayload(raw){
     dirty:!!d.dirty
   };
 }
+const HISTORY_SESSION={projectOpenBaseline:false,restoreDepth:0};
 function resetProjectHistoryAfterOpen(){
   // Saved .epz projects contain durable project state, not transient in-memory
-  // undo/redo stacks.  Project-open wrappers may restore GIS/reference state
-  // after the base payload, so this reset is intentionally idempotent and is
-  // repeated at the final project-open boundary below.
-  resetProjectHistoryAfterOpen();
+  // undo/redo stacks. Project-open wrappers may restore GIS/reference state
+  // after the base payload, so the final restore boundary calls this again.
+  project.history=[];
+  project.future=[];
+  IMAGE.history=[];
+  IMAGE.future=[];
+  HISTORY_SESSION.projectOpenBaseline=true;
   updateUndo();
 }
 function restoreCompleteProjectPayload(raw, opts={}){
@@ -2877,6 +2881,9 @@ function inverseHistoryEntry(entry){
 }
 function pushHistory(featureIds=null){
   try{
+    // The first real edit after opening a durable project starts the new undo
+    // session. Restore-time bookkeeping must never make project-open undoable.
+    if(!HISTORY_SESSION.restoreDepth)HISTORY_SESSION.projectOpenBaseline=false;
     const entry=captureHistoryEntry(featureIds);
     if(entry.kind==='full'&&entry.bytes>HISTORY_LIMITS.maxSingleBytes){
       project.history=[];
@@ -2903,6 +2910,7 @@ function notifyHistoryRestored(direction){
   try{window.dispatchEvent(new CustomEvent('editpolygon:history-restored',{detail:{direction}}));}catch(_){ }
 }
 function undo(){
+  if(HISTORY_SESSION.projectOpenBaseline)return;
   runRuntimeTransition('history',{action:'undo'});
   if(imageOverlayById(IMAGE.selectedId)&&IMAGE.history.length){imageUndo();return;}
   if(!project.history.length)return;
@@ -2922,6 +2930,7 @@ function undo(){
   }
 }
 function redo(){
+  if(HISTORY_SESSION.projectOpenBaseline)return;
   runRuntimeTransition('history',{action:'redo'});
   if(imageOverlayById(IMAGE.selectedId)&&IMAGE.future.length){imageRedo();return;}
   if(!project.future.length)return;
@@ -2940,7 +2949,11 @@ function redo(){
     setStatus('Redo could not be completed: '+(err.message||err),'error');
   }
 }
-function updateUndo(){$('undoBtn').disabled=!(project.history.length||IMAGE.history.length);$('redoBtn').disabled=!(project.future.length||IMAGE.future.length)}
+function updateUndo(){
+  const blocked=HISTORY_SESSION.projectOpenBaseline;
+  $('undoBtn').disabled=blocked||!(project.history.length||IMAGE.history.length);
+  $('redoBtn').disabled=blocked||!(project.future.length||IMAGE.future.length);
+}
 
 // Pick a privacy-preserving regional starting point from settings the browser
 // already exposes. This deliberately avoids geolocation permission, GPS and IP
@@ -2980,7 +2993,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.56.0.3: OpenLayers is the sole map runtime. Application code talks only
+// v1.56.0.4: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -7234,7 +7247,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.3'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.4'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8824,7 +8837,7 @@ function renderDrawOverlay(){
   if(!D.active)return;
   const ov=overlay();
   const pts=D.points.slice();
-  // v1.56.0.3: OpenLayers' transient vector overlay is the sole authority for
+  // v1.56.0.4: OpenLayers' transient vector overlay is the sole authority for
   // live sketch linework/fill. The historical SVG paths remain in the DOM for
   // compatibility with the vertex/lasso overlay, but are deliberately kept
   // empty while drawing. Rendering the same cursor-linked geometry in both
@@ -8947,7 +8960,7 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
-// v1.56.0.3: cursor-linked draw preview state is screen-pixel anchored across view movement.
+// v1.56.0.4: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
@@ -20114,16 +20127,21 @@ const v140BaseRestoreCompleteProjectPayload=restoreCompleteProjectPayload;
 restoreCompleteProjectPayload=function(raw,opts={}){
   const data=raw&&raw.data?raw.data:raw;
   const gis=gisClone(data?.gisWorkspace||gisDefaultState());
+  HISTORY_SESSION.restoreDepth++;
   GIS_RUNTIME.restoring=true;
-  const result=v140BaseRestoreCompleteProjectPayload.apply(this,arguments);
-  project.gisWorkspace=gisCore()?.normaliseState(gis)||gis;
-  GIS_RUNTIME.restoring=false;
-  syncGisRuntime();applyGisWorkspaceMode(project.gisWorkspace.workspace,{persist:true,dirty:false});gisNotify();
-  // Opening a durable project starts a new editing session.  Clear history only
-  // after every GIS/reference restore hook has run so no stale pre-open snapshot
-  // can become the first Ctrl+Z action in the newly opened project.
-  resetProjectHistoryAfterOpen();
-  return result;
+  try{
+    const result=v140BaseRestoreCompleteProjectPayload.apply(this,arguments);
+    project.gisWorkspace=gisCore()?.normaliseState(gis)||gis;
+    syncGisRuntime();applyGisWorkspaceMode(project.gisWorkspace.workspace,{persist:true,dirty:false});gisNotify();
+    return result;
+  }finally{
+    GIS_RUNTIME.restoring=false;
+    HISTORY_SESSION.restoreDepth=Math.max(0,HISTORY_SESSION.restoreDepth-1);
+    // Opening a durable project starts a new editing session. Clear history only
+    // after every synchronous GIS/reference restore hook has run. The baseline
+    // barrier also makes keyboard Undo/Redo obey the same disabled state as the UI.
+    resetProjectHistoryAfterOpen();
+  }
 };
 window.restoreCompleteProjectPayload=restoreCompleteProjectPayload;
 const v140BaseRestoreAutosavePayload=restoreAutosavePayload;
@@ -22420,13 +22438,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 
 
 
-/* v1.56.0.3 — Processing Toolbox application bridge.
+/* v1.56.0.4 — Processing Toolbox application bridge.
    Processing requests are declarative and validated by gis-processing-core.js.
    Expensive geometry work runs in one cancellable worker and project mutation
    occurs only after a complete result has returned. */
 (function(){
   'use strict';
-  const PROCESSING_VERSION='1.56.0.3';
+  const PROCESSING_VERSION='1.56.0.4';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;
@@ -22510,7 +22528,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing};
 })();
 
-/* v1.56.0.3 — runtime authority boundary.
+/* v1.56.0.4 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22520,7 +22538,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.56.0.3',
+  version:'1.56.0.4',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

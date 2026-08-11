@@ -20,8 +20,8 @@ test('Processing Toolbox modules load in dependency order and the retired worker
 
 test('application bridge exposes one declarative cancellable processing lifecycle',()=>{
   assert.match(app,/processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer/);
-  const bridgeStart=app.indexOf('/* v1.56.0.3 — Processing Toolbox application bridge.');
-  const bridgeEnd=app.indexOf('/* v1.56.0.3 — runtime authority boundary.');
+  const bridgeStart=app.indexOf('/* v1.56.0.4 — Processing Toolbox application bridge.');
+  const bridgeEnd=app.indexOf('/* v1.56.0.4 — runtime authority boundary.');
   const bridge=app.slice(bridgeStart,bridgeEnd);
   assert.ok(bridgeStart>=0&&bridgeEnd>bridgeStart,'processing bridge markers should exist in source order');
   assert.match(bridge,/function processingSelectionIds\(\)\{[\s\S]*?EditPolygonGIS\?\.getSelection\?\.\(\)\.ids/);

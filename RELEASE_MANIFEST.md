@@ -1,6 +1,6 @@
-# EditPolygon v1.56.0.3 release manifest
+# EditPolygon v1.56.0.4 release manifest
 
-v1.56.0.3 is a focused **EPZ project-open history hotfix** on the accepted v1.56.0.2 Processing Toolbox baseline.
+v1.56.0.4 is a focused **EPZ project-open history hotfix** on the accepted v1.56.0.2 Processing Toolbox baseline.
 
 ## Toolbox architecture
 
@@ -18,7 +18,7 @@ Retired file:
 
 The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
 
-## v1.56.0.3 tools
+## v1.56.0.4 tools
 
 - Buffer
 - Centroids
@@ -42,7 +42,7 @@ The overlay set in this release deliberately preserves the existing Turf behavio
 - Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
 - Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
 - Output layers store `.epz`-persistent `gisProcessing` provenance.
-- v1.56.0.3 records its actual processing CRS as `EPSG:4326`.
+- v1.56.0.4 records its actual processing CRS as `EPSG:4326`.
 
 All local deployment assets use the `20260812-v15603-processing-tool-list-ui` cache key, including the worker's local registry/core imports.
 

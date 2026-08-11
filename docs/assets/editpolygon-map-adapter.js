@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.56.0.3';
+  const VERSION='1.56.0.4';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){

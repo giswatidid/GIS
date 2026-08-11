@@ -1,6 +1,6 @@
 # EditPolygon changelog
 
-## v1.56.0.3 — EPZ project-open history hotfix
+## v1.56.0.4 — EPZ project-open history hotfix
 
 - Fixes a project-open undo boundary bug where a stale structural history snapshot could survive the `.epz` restore wrappers and become the first Ctrl+Z action in the newly opened project.
 - Opening an `.epz` now always starts a fresh editing session with empty project/image undo and redo stacks **after** GIS workspace and reference-overlay restoration has finished.
