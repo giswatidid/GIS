@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.55.7.3**.
+This document describes the current application architecture as of **v1.55.7.4**.
 
 ## Runtime authority
 
@@ -46,7 +46,7 @@ The runtime deliberately does **not** expose its native map object to applicatio
 
 ### Runtime event and overlay policy
 
-v1.55.7 introduced the single-runtime event cleanup listed below. v1.55.7.1 removed the one stale late compatibility hook that still referenced the retired pan-recovery state, v1.55.7.2 returned normal map navigation to click-based draw modes, and v1.55.7.3 keeps the live draw preview cursor screen-anchored while the view moves:
+v1.55.7 introduced the single-runtime event cleanup listed below. v1.55.7.1 removed the one stale late compatibility hook that still referenced the retired pan-recovery state, v1.55.7.2 returned normal map navigation to click-based draw modes, v1.55.7.3 keeps the live draw cursor screen-anchored while the view moves, and v1.55.7.4 establishes a single transient-sketch render authority:
 
 - zoom start/end are detected once by the runtime and fan out to every registered subscriber;
 - DOM overlays share one runtime-level set of map/view refresh subscriptions instead of each overlay adding its own listeners;
@@ -58,6 +58,7 @@ v1.55.7 introduced the single-runtime event cleanup listed below. v1.55.7.1 remo
 - Freehand Polygon is the exception: its overlay owns press-and-drag, while wheel and keyboard navigation are still routed through the adapter;
 - draw-time arrow and `+` / `-` keyboard navigation uses adapter-owned `panByPixels()` / `zoomBy()` methods rather than native map access from application code;
 - click-based draw state retains the pointer's screen pixel so pan/zoom can reproject the transient cursor guide into the new view before OpenLayers paints it; committed vertices remain geographic/model authority.
+- unfinished sketch linework, fill, guide segments and cursor geometry are rendered only by the OpenLayers transient vector overlay; the DOM/SVG draw overlay is limited to clickable vertex handles and textual hints, preventing duplicate screen-space geometry from ghosting during view movement.
 
 This keeps edit handles, measurement labels and other DOM overlays responsive without multiplying hot map listeners as overlay count grows, while drawing remains navigable without weakening the map abstraction.
 
@@ -88,7 +89,7 @@ Large editable datasets use a two-tier OpenLayers strategy:
 - the complete background dataset remains in a persistent indexed `VectorSource` and can use image-backed vector rendering for fast pan/zoom;
 - selected, picked or actively edited features are isolated into a small precise vector overlay.
 
-In v1.55.7.3 this is a direct single-runtime invariant rather than a negotiated capability. The application does not probe whether persistent sources or focused overlays are supported.
+In v1.55.7.4 this is a direct single-runtime invariant rather than a negotiated capability. The application does not probe whether persistent sources or focused overlays are supported.
 
 This avoids promoting hundreds or thousands of unrelated features to the precision editing path while preserving exact source coordinates for the focused feature. Large-layer sidebar rendering is bounded independently of the complete GIS dataset.
 
@@ -160,13 +161,13 @@ Mobile invariants include:
 
 ## Runtime authority boundary
 
-The end of `editpolygon-app.js` contains the **v1.55.7.3 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
+The end of `editpolygon-app.js` contains the **v1.55.7.4 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
 
 Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
 ## Historical binding debt
 
-The application remains a large historically layered file. v1.55.7.3 audits currently allow at most:
+The application remains a large historically layered file. v1.55.7.4 audits currently allow at most:
 
 - **198** duplicated function-binding names;
 - **371** extra historical binding sites.

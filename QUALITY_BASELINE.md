@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.7.3.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup, v1.55.7.1 startup hotfix and v1.55.7.2 draw-time navigation, while fixing transient cursor-guide ghosting during pan/zoom by reprojecting the pointer-linked preview from its screen pixel whenever the view changes.
+**Current baseline: v1.55.7.4.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup, v1.55.7.1 startup hotfix, v1.55.7.2 draw-time navigation and v1.55.7.3 screen-pixel cursor reprojection, while removing the remaining duplicate screen-space SVG sketch renderer. OpenLayers now exclusively owns unfinished sketch linework/fill; the DOM overlay retains only handles and hints.
 
 ## Current automated gate
 
@@ -11,9 +11,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.7.3 currently expects:
+v1.55.7.4 currently expects:
 
-- **276/276 Node tests**;
+- **277/277 Node tests**;
 - **8/8 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
@@ -104,14 +104,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.7.3 no-growth ceilings are:
+The v1.55.7.4 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
 The current audit sees **1,699 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.55.7.3
+## Live parity evidence carried into v1.55.7.4
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -132,7 +132,7 @@ The deployed OpenLayers path has been manually exercised for:
 - `.epz` save/reload including WMS persistence;
 - phone/touch GIS access and mobile action menus.
 
-v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, v1.55.7.1 fixed the startup regression discovered during live validation, and v1.55.7.3 restores full map navigation while drawing click-based geometry without changing project semantics.
+v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, v1.55.7.1 fixed the startup regression discovered during live validation, and v1.55.7.2 restored full map navigation while drawing click-based geometry, v1.55.7.3 reprojected the live cursor from screen pixels during view movement, and v1.55.7.4 makes the transient OpenLayers vector overlay the sole unfinished-sketch geometry renderer.
 
 ## Next gate
 

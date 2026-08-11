@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.7.3: OpenLayers is the sole map runtime. Application code talks only
+// v1.55.7.4: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -4432,7 +4432,7 @@ function DFinish(){if(!D.active)return;if(D.kind==='hole')return finishHole();if
 function clearDrawSvg(){['drawFillPath','drawLinePath','drawPreviewPath'].forEach(id=>{const el=$(id);if(el)el.setAttribute('d','')});const ov=(typeof overlay==='function'?overlay():null);if(ov)ov.querySelectorAll('.draw-dot,.draw-hint,.draw-shape-guide').forEach(n=>n.remove());}
 function lngLatToPoint(c){return MAP_RUNTIME.latLngToPixel([c[1],c[0]])}
 function drawPathFromPoints(points,close=false){if(!points.length)return'';const pts=points.map(lngLatToPoint);let d=`M ${pts[0].x} ${pts[0].y}`;for(let i=1;i<pts.length;i++)d+=` L ${pts[i].x} ${pts[i].y}`;if(close&&pts.length>2)d+=' Z';return d}
-function renderDrawOverlay(){clearDrawSvg();if(!D.active)return;const ov=overlay();const pts=D.points.slice();$('drawLinePath').setAttribute('d',drawPathFromPoints(pts,false));if(D.kind!=='split'&&pts.length>2)$('drawFillPath').setAttribute('d',drawPathFromPoints(pts.concat([D.cursor].filter(Boolean)),true));if(D.cursor&&pts.length){$('drawPreviewPath').setAttribute('d',drawPathFromPoints([pts[pts.length-1],D.cursor],false))}pts.forEach((c,i)=>{const p=lngLatToPoint(c);const dot=document.createElement('div');dot.className='draw-dot'+(i===0?' first':'');dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.title=i===0&&pts.length>=3?'Click to finish polygon':'Draw point';dot.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(i===0&&D.points.length>=3)DFinish()});ov.appendChild(dot);if(i===0&&pts.length>=3){const h=document.createElement('div');h.className='draw-hint';h.style.left=p.x+'px';h.style.top=p.y+'px';h.textContent='Click to finish';ov.appendChild(h)}})}
+function renderDrawOverlay(){clearDrawSvg();if(!D.active)return;const ov=overlay();const pts=D.points.slice();pts.forEach((c,i)=>{const p=lngLatToPoint(c);const dot=document.createElement('div');dot.className='draw-dot'+(i===0?' first':'');dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.title=i===0&&pts.length>=3?'Click to finish polygon':'Draw point';dot.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(i===0&&D.points.length>=3)DFinish()});ov.appendChild(dot);if(i===0&&pts.length>=3){const h=document.createElement('div');h.className='draw-hint';h.style.left=p.x+'px';h.style.top=p.y+'px';h.textContent='Click to finish';ov.appendChild(h)}})}
 function drawMetrics(){if(!D.active)return{area:null,perim:null};const pts=D.cursor?D.points.concat([D.cursor]):D.points;if(pts.length<2)return{area:null,perim:null};let perim=0;for(let i=1;i<pts.length;i++)perim+=turf.distance(turf.point(pts[i-1]),turf.point(pts[i]),{units:'kilometers'})*1000;if(pts.length>=3){perim+=turf.distance(turf.point(pts[pts.length-1]),turf.point(pts[0]),{units:'kilometers'})*1000;try{const ring=clone(pts);closeRing(ring);return{area:turf.area(turf.polygon([ring])),perim}}catch{}}return{area:null,perim}}
 function updateDrawStatus(){if(!D.active)return;const m=drawMetrics();const parts=[`Drawing · ${D.points.length} point${D.points.length===1?'':'s'}`];if(m.area!=null)parts.push(areaLabel(m.area));if(m.perim!=null)parts.push(lenLabel(m.perim)+' perimeter');setStatus(parts.join(' · '))}
 function drawOverlayLatLng(e){
@@ -7227,7 +7227,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.3'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.4'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8817,20 +8817,12 @@ function renderDrawOverlay(){
   if(!D.active)return;
   const ov=overlay();
   const pts=D.points.slice();
-  const ring=drawPreviewRing();
-  if(ring){
-    $('drawLinePath').setAttribute('d',drawPathFromRing(ring));
-    $('drawFillPath').setAttribute('d',drawPathFromRing(ring));
-  }else if(D.kind==='buffer'&&pts.length){
-    $('drawLinePath').setAttribute('d',drawPathFromPoints(pts,false));
-    if(D.cursor&&pts.length)$('drawPreviewPath').setAttribute('d',drawPathFromPoints([pts[pts.length-1],D.cursor],false));
-    const geom=drawPreviewGeometry();
-    if(geom&&geom.type==='Polygon')$('drawFillPath').setAttribute('d',drawPathFromRing(geom.coordinates[0]));
-  }else{
-    $('drawLinePath').setAttribute('d',drawPathFromPoints(pts,false));
-    if(D.kind!=='split'&&pts.length>2)$('drawFillPath').setAttribute('d',drawPathFromPoints(pts.concat([D.cursor].filter(Boolean)),true));
-    if(D.cursor&&pts.length)$('drawPreviewPath').setAttribute('d',drawPathFromPoints([pts[pts.length-1],D.cursor],false));
-  }
+  // v1.55.7.4: OpenLayers' transient vector overlay is the sole authority for
+  // live sketch linework/fill. The historical SVG paths remain in the DOM for
+  // compatibility with the vertex/lasso overlay, but are deliberately kept
+  // empty while drawing. Rendering the same cursor-linked geometry in both
+  // OpenLayers and screen-space SVG caused the SVG copy to lag one frame when
+  // the map panned/zoomed, producing the visible "ghost" segment/fill.
   pts.forEach((c,i)=>{
     const p=lngLatToPoint(c);
     const dot=document.createElement('div');
@@ -8948,7 +8940,7 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
-// v1.55.7.3: cursor-linked draw preview state is screen-pixel anchored across view movement.
+// v1.55.7.4: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
@@ -12655,8 +12647,8 @@ initUxRehaul();
   renderDrawOverlay=function(){
     if(!D.active||D.kind!=='line')return v116BaseRenderDrawOverlay();
     clearDrawSvg();const ov=overlay();const pts=D.points.slice();
-    $('drawLinePath').setAttribute('d',drawPathFromPoints(pts,false));$('drawFillPath').setAttribute('d','');
-    if(D.cursor&&pts.length)$('drawPreviewPath').setAttribute('d',drawPathFromPoints([pts[pts.length-1],D.cursor],false));
+    // Geometry is rendered only by renderDrawRuntimePreview(); keep this
+    // LineString-specific wrapper limited to DOM handles and the live hint.
     pts.forEach((c,i)=>{const p=lngLatToPoint(c),dot=document.createElement('div');dot.className='draw-dot'+(i===0?' first':'');dot.style.left=p.x+'px';dot.style.top=p.y+'px';dot.title=i===0?'Line start':'Line vertex';ov.appendChild(dot);});
     if(D.cursor){const p=lngLatToPoint(D.cursor),h=document.createElement('div');h.className='draw-shape-guide';h.style.left=p.x+'px';h.style.top=p.y+'px';h.textContent='Open line';ov.appendChild(h);}
   };
@@ -22482,7 +22474,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.7.3 — runtime authority boundary.
+/* v1.55.7.4 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22492,7 +22484,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.7.3',
+  version:'1.55.7.4',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

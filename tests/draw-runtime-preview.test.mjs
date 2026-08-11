@@ -64,3 +64,16 @@ test('draw preview layer state is initialized before startup can enter renderOve
   assert.ok(stateIndex<overlayIndex,'preview layer state must be initialized before renderOverlay is reachable');
   assert.ok(stateIndex<startupIndex,'preview layer state must be initialized before the first startup renderAll');
 });
+
+test('OpenLayers transient overlay is the sole live sketch geometry renderer',()=>{
+  const renderer=functionSource('renderDrawOverlay');
+  assert.doesNotMatch(renderer,/draw(?:Fill|Line|Preview)Path[^\n]*setAttribute\(['\"]d['\"]/,
+    'DOM overlay must not paint live draw geometry alongside the OpenLayers transient layer');
+  const start=app.indexOf('const v116BaseRenderDrawOverlay=renderDrawOverlay;');
+  const end=app.indexOf('const v116BaseDrawLiveHint=drawLiveHint;',start);
+  assert.ok(start>=0&&end>start,'missing LineString draw-overlay wrapper');
+  const wrapper=app.slice(start,end);
+  assert.doesNotMatch(wrapper,/draw(?:Fill|Line|Preview)Path[^\n]*setAttribute\(['\"]d['\"]/,
+    'LineString wrapper must not reintroduce screen-space SVG sketch geometry');
+  assert.match(functionSource('renderDrawRuntimePreview'),/MAP_RUNTIME\.setVectorOverlayFeatures/);
+});

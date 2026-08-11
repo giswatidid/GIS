@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.7.4 — Single live-sketch render authority
+
+- Fixes the remaining transient polygon ghost seen during pan/zoom by removing duplicate screen-space SVG rendering of unfinished sketch geometry.
+- Makes the adapter-owned OpenLayers transient vector overlay the sole renderer of live draw linework, polygon fill, dashed cursor guide and cursor marker.
+- Keeps the DOM edit overlay only for clickable draw vertices and textual hints, so there is no second geometry copy that can repaint one frame behind the map.
+- Retains v1.55.7.3 screen-pixel cursor reprojection and all v1.55.7.2 navigation behaviour: drag pan without vertices, wheel/arrow/+/- navigation, and Freehand Polygon press-and-drag drawing.
+- Covers both the normal polygon renderer and the late LineString wrapper so historical source-order code cannot reintroduce SVG sketch geometry.
+- Adds a regression test that rejects any future live geometry writes to `drawFillPath`, `drawLinePath` or `drawPreviewPath`.
+- No project schema, committed geometry, Advanced GIS or Processing Toolbox behaviour changes.
+
 ## v1.55.7.3 — Draw preview pan/zoom hotfix
 
 - Fixes a transient drawing-preview ghost that could appear while panning or zooming an unfinished click-based polygon after v1.55.7.2 enabled map navigation during drawing.
