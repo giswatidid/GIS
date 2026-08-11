@@ -11,16 +11,16 @@ const appCss=read('docs/assets/editpolygon.css');
 const olCss=read('docs/assets/editpolygon-openlayers.css');
 const projectFormat=read('docs/assets/editpolygon-project-format.js');
 const pkg=JSON.parse(read('package.json'));
-const RELEASE_KEY='20260811-v15572-draw-navigation';
+const RELEASE_KEY='20260811-v15573-draw-preview-pan';
 const retiredWord=['lea','flet'].join('');
 const retiredWordRe=new RegExp(retiredWord,'i');
 const retiredFactory=['create','Lea','fletRuntime'].join('');
 
-function fail(message){throw new Error(`v1.55.7.2 runtime/repository audit: ${message}`);}
+function fail(message){throw new Error(`v1.55.7.3 runtime/repository audit: ${message}`);}
 function requireToken(source,token,label){if(!source.includes(token))fail(`${label} is missing ${JSON.stringify(token)}`);}
 function forbidToken(source,token,label){if(source.includes(token))fail(`${label} still contains ${JSON.stringify(token)}`);}
 
-if(pkg.version!=='1.55.7.2')fail(`package version is ${pkg.version}, expected 1.55.7.2`);
+if(pkg.version!=='1.55.7.3')fail(`package version is ${pkg.version}, expected 1.55.7.3`);
 requireToken(html,'ol@v10.9.0/dist/ol.js','OpenLayers dependency');
 requireToken(html,'ol@v10.9.0/ol.css','OpenLayers stylesheet');
 if(retiredWordRe.test(html))fail('retired map dependency remains in deployment HTML');
@@ -36,7 +36,7 @@ for(const match of html.matchAll(/(?:src|href)=["']([^"']*assets\/[^"'?]+)(?:\?v
 // The map adapter now exposes one public factory only. OpenLayers remains an
 // implementation detail; transition-era capability shims and native escapes
 // must not reappear.
-requireToken(adapter,"const VERSION='1.55.7.2';",'map adapter version');
+requireToken(adapter,"const VERSION='1.55.7.3';",'map adapter version');
 requireToken(adapter,'function createRuntime(options={})','sole runtime factory');
 requireToken(adapter,'global.EditPolygonMapAdapter=Object.freeze({version:VERSION','adapter export');
 requireToken(adapter,'mercatorWorldPixel,createRuntime});','single runtime export');
@@ -61,7 +61,7 @@ for(const token of [
 ])requireToken(adapter,token,'OpenLayers cleanup invariant');
 forbidToken(adapter,'onMap=spec.onMap','per-overlay map subscription');
 
-requireToken(app,'// v1.55.7.2: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
+requireToken(app,'// v1.55.7.3: OpenLayers is the sole map runtime. Application code talks only','application runtime boundary');
 requireToken(app,"const MAP_RUNTIME=MAP_ADAPTER.createRuntime({",'application runtime creation');
 requireToken(app,'ol:window.ol','application OpenLayers dependency injection');
 for(const stale of ['requestedEngine','fallbackReason','L:window.L','MAP_PAN_GUARD','mapPanLooksActive','hardResetMapPan','scheduleMapPanReleaseCheck','customPointerDragActive','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','document.body.dataset.mapEngine'])forbidToken(app,stale,'application runtime');
@@ -104,12 +104,12 @@ forbidToken(app,'VStop=(function(base)','history source-order guard');
 for(const token of ['function geometryFingerprint(geometry)','function editableLayerMatchesGeometry(layer,featureId,geometry)','function clearEditableVectorLayers(layerKey=null)','function geometryToCanonicalWorld','geometry:geometryToCanonicalWorld(item.geometry)'])requireToken(adapter,token,'OpenLayers runtime invariant');
 
 // Runtime authority remains final in source order.
-const authority='/* v1.55.7.2 — runtime authority boundary.';
+const authority='/* v1.55.7.3 — runtime authority boundary.';
 const authorityIndex=app.indexOf(authority);
 if(authorityIndex<0)fail('runtime authority boundary is missing');
 const authorityTail=app.slice(authorityIndex);
 requireToken(authorityTail,'renderAll();','runtime authority handoff');
-requireToken(authorityTail,"version:'1.55.7.2'",'runtime authority snapshot');
+requireToken(authorityTail,"version:'1.55.7.3'",'runtime authority snapshot');
 requireToken(authorityTail,'window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY','runtime authority publication');
 const afterPublish=app.slice(app.indexOf('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY',authorityIndex));
 if(/\bfunction\s+[A-Za-z_$]|(?<![\w$.])[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?function\s*\(/.test(afterPublish))fail('function patch appears after runtime authority boundary');
@@ -124,7 +124,7 @@ requireToken(olCss,'.editpolygon-dom-overlays','OpenLayers DOM overlay styling')
 requireToken(mobileCss,'.ol-zoom button','mobile CSS OpenLayers controls');
 forbidToken(olCss,'data-map-engine','OpenLayers CSS');
 forbidToken(mobileCss,'data-map-engine="openlayers"','mobile CSS');
-requireToken(mobile,"const VERSION='1.55.7.2';",'mobile controller version');
+requireToken(mobile,"const VERSION='1.55.7.3';",'mobile controller version');
 
 // Drawing/navigation contract: unfinished click-based geometry must leave the
 // native map interaction surface exposed. Freehand alone owns press-and-drag.
@@ -151,7 +151,10 @@ if(freePolygonIndex<0||pointIndex<0||freePolygonIndex>pointIndex)fail('Free poly
 
 // Lossless project persistence is independent of map implementation.
 for(const token of ["const FORMAT_VERSION=1;","const MANIFEST_FILE='manifest.json';","const PROJECT_FILE='project.json';",'async function sha256(text)','async function createArchive(payload','async function readArchive(file'])requireToken(projectFormat,token,'EPZ project format');
-requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.2'})",'EPZ save version');
+requireToken(app,'function syncDrawCursorToCurrentView(renderRuntime=false)','draw cursor view resynchronisation');
+requireToken(app,'rememberDrawPointerScreenState(e);DRAW_NAVIGATION_GESTURE.dragged=true','draw drag screen-pixel tracking');
+requireToken(app,"MAP_RUNTIME.on('move resize',()=>{\n  if(D.active)syncDrawCursorToCurrentView(true);",'draw cursor synchronous move refresh');
+requireToken(app,"EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.3'})",'EPZ save version');
 requireToken(app,'EditPolygonProjectFormat.readArchive(file,{onProgress})','EPZ load path');
 requireToken(app,"referenceOverlays:Array.isArray(d.referenceOverlays)?clone(d.referenceOverlays):[]",'reference overlay persistence');
 requireToken(app,"gisWorkspace:d.gisWorkspace&&typeof d.gisWorkspace==='object'?clone(d.gisWorkspace):null",'GIS workspace persistence');
@@ -194,4 +197,4 @@ for(const name of fs.readdirSync('docs',{recursive:true}).filter(name=>name.ends
 }
 for(const name of fs.readdirSync('.', {recursive:true}))if(name.includes('__pycache__')||name.endsWith('.pyc'))fail(`packaging/runtime junk is present: ${name}`);
 
-console.log('v1.55.7.2 runtime/repository audit passed. Draw-time map navigation is adapter-owned; click-based drawing preserves pan/zoom while freehand retains drag ownership; mobile parity, lossless .epz persistence and authoritative rendering remain intact.');
+console.log('v1.55.7.3 runtime/repository audit passed. Draw-time map navigation is adapter-owned; the live cursor preview is screen-anchored across pan/zoom while freehand retains drag ownership; mobile parity, lossless .epz persistence and authoritative rendering remain intact.');

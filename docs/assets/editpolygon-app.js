@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.7.2: OpenLayers is the sole map runtime. Application code talks only
+// v1.55.7.3: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -3546,7 +3546,7 @@ let zoomHideTimer = null;
 function scheduleOverlayRender(){
   if(!V.active&&!D.active)return;
   if(overlayRaf)return;
-  overlayRaf = requestAnimationFrame(()=>{overlayRaf=0;renderOverlay();});
+  overlayRaf = requestAnimationFrame(()=>{overlayRaf=0;if(D.active)syncDrawCursorToCurrentView(false);renderOverlay();});
 }
 function hideOverlayForZoom(){
   if(!V.active&&!D.active)return;
@@ -3555,6 +3555,7 @@ function hideOverlayForZoom(){
   // Only vertex-edit handles need the old temporary hide during zoom.
   if(D.active){
     overlay().classList.remove('zooming');
+    syncDrawCursorToCurrentView(true);
     scheduleOverlayRender();
     return;
   }
@@ -3567,6 +3568,7 @@ function showOverlayAfterZoom(){
   // Restore pointer interaction before rebuilding. If a later overlay renderer
   // ever fails, the editor still cannot become permanently click-through.
   overlay().classList.remove('zooming');
+  if(D.active)syncDrawCursorToCurrentView(true);
   renderOverlay();
 }
 MAP_RUNTIME.on('zoomstart',hideOverlayForZoom);
@@ -3583,6 +3585,7 @@ function scheduleImageOverlayMoveRender(){
   });
 }
 MAP_RUNTIME.on('move resize',()=>{
+  if(D.active)syncDrawCursorToCurrentView(true);
   scheduleOverlayRender();
   // Image overlays need to follow the map, but an empty image subsystem must do
   // no work while the user pans a normal vector project.
@@ -4474,9 +4477,37 @@ function drawInputLatLng(e){
   if(ll&&Number.isFinite(Number(ll.lat))&&Number.isFinite(Number(ll.lng)))return {lat:Number(ll.lat),lng:Number(ll.lng)};
   return drawOverlayLatLng(e);
 }
+function drawInputPixel(e){
+  const p=e?.pixel;
+  if(p&&Number.isFinite(Number(p.x))&&Number.isFinite(Number(p.y)))return MAP_ADAPTER.point(Number(p.x),Number(p.y));
+  if(Array.isArray(p)&&Number.isFinite(Number(p[0]))&&Number.isFinite(Number(p[1])))return MAP_ADAPTER.point(Number(p[0]),Number(p[1]));
+  const original=drawInputOriginalEvent(e);
+  if(original&&Number.isFinite(Number(original.clientX))&&Number.isFinite(Number(original.clientY)))return overlayPoint(original);
+  return null;
+}
+function rememberDrawPointerScreenState(e){
+  if(!D.active)return;
+  const p=drawInputPixel(e);
+  if(p)D.cursorPixel=[p.x,p.y];
+  const original=drawInputOriginalEvent(e);
+  if(original&&typeof original.shiftKey==='boolean')D.cursorShift=!!original.shiftKey;
+}
+function syncDrawCursorToCurrentView(renderRuntime=false){
+  if(!D.active||D.kind==='freehand'||!Array.isArray(D.cursorPixel)||D.cursorPixel.length<2)return false;
+  const x=Number(D.cursorPixel[0]),y=Number(D.cursorPixel[1]);
+  if(!Number.isFinite(x)||!Number.isFinite(y))return false;
+  const ll=MAP_RUNTIME.pixelToLatLng(MAP_ADAPTER.point(x,y));
+  if(!ll||!Number.isFinite(Number(ll.lat))||!Number.isFinite(Number(ll.lng)))return false;
+  const snap=constrainedDrawCoord({lat:Number(ll.lat),lng:Number(ll.lng)},{shiftKey:!!D.cursorShift});
+  D.cursor=snap.coord;
+  D.shiftShape=!!D.cursorShift;
+  if(renderRuntime)renderDrawRuntimePreview();
+  return true;
+}
 function updateDrawCursorFromPointer(e){
   if(!D.active)return;
   if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind))return;
+  rememberDrawPointerScreenState(e);
   const original=drawInputOriginalEvent(e);
   const ll=drawInputLatLng(e);
   const snap=constrainedDrawCoord(ll,original);
@@ -7196,7 +7227,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.2'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.3'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8650,7 +8681,7 @@ function addDrawnGeometry(geom,name='Polygon',properties={}){
   const f={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geom),renderedGeometry:clone(geom),geometry:clone(geom),editStack:[],visible:true,style:{color,fillColor:color,weight:2,fillOpacity:.18}};
   f.properties.name=f.name;
   file.features.push(f);
-  D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
+  D.active=false;D.points=[];D.cursor=null;D.cursorPixel=null;D.cursorShift=false;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
   MAP_RUNTIME.setDoubleClickZoomEnabled(true);
   project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;
   clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:properties.drawKind||geom.type});setStatus(`${f.name} created.`);
@@ -8677,7 +8708,7 @@ function DStart(kind=null){
   const nextKind=kind||D.kind||'polygon';
   project.mode='draw';
   if(nextKind!=='hole'&&nextKind!=='split'){project.selectedFeatureId=null;project.selectedFileId=null;}
-  D.active=true;D.points=[];D.cursor=null;D.kind=nextKind;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
+  D.active=true;D.points=[];D.cursor=null;D.cursorPixel=null;D.cursorShift=false;D.kind=nextKind;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
   MAP_RUNTIME.setDoubleClickZoomEnabled(false);
   updateDrawToolbarForKind();
   setNotice(drawKindNotice(nextKind));
@@ -8699,7 +8730,7 @@ function drawKindStartStatus(kind){
   return ({rectangle:'Drawing rectangle. Click first corner.',circle:'Drawing circle. Click centre point.',regular:'Drawing regular polygon. Click centre point.',rotatedRect:'Drawing rotated rectangle. Click the first corner.',freehand:'Drawing freehand polygon. Press and drag to sketch.',buffer:'Drawing buffer corridor. Click centreline points.',hole:'Drawing hole in selected polygon.',split:'Drawing split line through selected polygon.'})[kind]||'Drawing polygon. Click map to add first point.';
 }
 function DCancel(silent=false){
-  overlay().classList.remove('shift-pan');D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.targetFeatureId=null;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
+  overlay().classList.remove('shift-pan');D.active=false;D.points=[];D.cursor=null;D.cursorPixel=null;D.cursorShift=false;D.kind='polygon';D.targetFeatureId=null;D.dragging=false;D.pointerId=null;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;
   MAP_RUNTIME.setDoubleClickZoomEnabled(true);clearDrawSvg();renderAll();if(!silent)setStatus('Drawing cancelled.');
 }
 function DUndo(){
@@ -8917,19 +8948,21 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
+// v1.55.7.3: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
 // remains overlay-owned because press-and-drag is its drawing gesture.
 const DRAW_NAVIGATION_GESTURE={dragged:false};
-function handleDrawRuntimePointerDown(){
-  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind))DRAW_NAVIGATION_GESTURE.dragged=false;
+function handleDrawRuntimePointerDown(e){
+  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind)){rememberDrawPointerScreenState(e);DRAW_NAVIGATION_GESTURE.dragged=false;}
 }
-function handleDrawRuntimePointerDrag(){
-  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind))DRAW_NAVIGATION_GESTURE.dragged=true;
+function handleDrawRuntimePointerDrag(e){
+  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind)){rememberDrawPointerScreenState(e);DRAW_NAVIGATION_GESTURE.dragged=true;}
 }
 function handleDrawRuntimeClick(e){
   if(!D.active||DRAW_DRAG_KINDS.has(D.kind))return;
+  rememberDrawPointerScreenState(e);
   if(DRAW_NAVIGATION_GESTURE.dragged){DRAW_NAVIGATION_GESTURE.dragged=false;return;}
   const original=drawInputOriginalEvent(e);
   if(D.kind==='line'&&Number(original?.detail||0)>=2){
@@ -8968,6 +9001,7 @@ function handleDrawNavigationKeydown(e){
 }
 function handleDrawOverlayWheel(e){
   if(!D.active||(D.kind==='freehand'&&D.dragging))return;
+  rememberDrawPointerScreenState(e);
   e.preventDefault();
   e.stopPropagation();
   MAP_RUNTIME.zoomBy(e.deltaY<0?1:-1,{animate:false});
@@ -12605,7 +12639,7 @@ initUxRehaul();
     const file=ensureScratch();const color=file.color||COLORS[project.files.length%COLORS.length];
     const f={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geom),renderedGeometry:clone(geom),geometry:clone(geom),editStack:[],visible:true,style:{color,fillColor:color,weight:3,fillOpacity:0}};
     f.properties.name=f.name;file.features.push(f);
-    D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
+    D.active=false;D.points=[];D.cursor=null;D.cursorPixel=null;D.cursorShift=false;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
     MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=f.id;
     clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:f.id,type:'LineString'});setStatus(`${f.name} created.`);return f;
   };
@@ -20977,7 +21011,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const file=ensureScratch();const color=file.color||COLORS[project.files.length%COLORS.length];
     const feature={id:uid('feat'),name:`${name} ${file.features.length+1}`,properties:{...properties},sourceGeometry:clone(geometry),renderedGeometry:clone(geometry),geometry:clone(geometry),editStack:[],visible:true,style:canonicalEditableFeatureStyle(geometry,color)};
     feature.properties.name=feature.name;file.features.push(feature);
-    D.active=false;D.points=[];D.cursor=null;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
+    D.active=false;D.points=[];D.cursor=null;D.cursorPixel=null;D.cursorShift=false;D.kind='polygon';D.dragging=false;D.shapeStartPoint=null;D.shapeLastPoint=null;D.shiftShape=false;D.stage=0;D.targetFeatureId=null;
     MAP_RUNTIME.setDoubleClickZoomEnabled(true);project.mode='select';project.selectedFileId=file.id;project.selectedFeatureId=feature.id;
     clearDrawSvg();renderAll();setDirty(true);logOperation('shape-created',{featureId:feature.id,type:geometry.type});setStatus(`${feature.name} created.`);return feature;
   };
@@ -22448,7 +22482,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.7.2 — runtime authority boundary.
+/* v1.55.7.3 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22458,7 +22492,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.7.2',
+  version:'1.55.7.3',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

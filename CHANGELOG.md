@@ -1,5 +1,15 @@
 # EditPolygon changelog
 
+## v1.55.7.3 — Draw preview pan/zoom hotfix
+
+- Fixes a transient drawing-preview ghost that could appear while panning or zooming an unfinished click-based polygon after v1.55.7.2 enabled map navigation during drawing.
+- Tracks the live drawing cursor by **screen pixel** as well as geographic coordinate. When the map view changes, the cursor coordinate is immediately reprojected from that fixed screen pixel before the transient OpenLayers preview is rendered.
+- Keeps the pointer-linked dashed guide and temporary polygon fill attached to the actual mouse position instead of letting an older ground-coordinate preview survive for one frame during map movement.
+- Applies the same cursor resynchronisation to drag-pan, wheel/keyboard zoom and view-reset paths while leaving committed vertices unchanged.
+- Preserves v1.55.7.2 behaviour: drag pans without adding vertices, wheel/arrow/+/- navigation works during drawing, and Freehand Polygon still owns press-and-drag.
+- Adds regression coverage for screen-pixel cursor reprojection and synchronous transient-preview refresh before the normal requestAnimationFrame overlay pass.
+- No project schema, saved geometry, Advanced GIS, editing or Processing Toolbox behaviour changes.
+
 ## v1.55.7.2 — Draw-time map navigation
 
 - Keeps native OpenLayers navigation available while any click-based drawing tool is active: drag to pan, mouse wheel to zoom, arrow keys to pan, and `+` / `-` to zoom.

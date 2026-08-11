@@ -1,51 +1,34 @@
-# EditPolygon v1.55.7.2 release manifest
+# EditPolygon v1.55.7.3 release manifest
 
-v1.55.7.2 is a focused interaction release on top of the accepted v1.55.7.1 OpenLayers baseline. It changes how unfinished drawing and map navigation share pointer/keyboard input; it does not change project data or geometry storage.
+v1.55.7.3 is a focused draw-preview hotfix on top of the accepted v1.55.7.2 draw-navigation release. It does not change project data, geometry storage or draw completion semantics.
 
-## Draw-time navigation
+## Fixed regression
 
-For click-based drawing tools:
+After v1.55.7.2 allowed OpenLayers pan/zoom while a click-based geometry remained unfinished, the cursor-linked guide/fill could briefly show an older position while the map view moved. The committed vertices were correct; only the transient pointer-linked preview could lag by one rendered frame.
 
-- single click adds a vertex/control point;
-- click-and-drag pans the OpenLayers map and does **not** add a vertex;
-- mouse wheel zoom remains native;
-- arrow keys pan the map;
-- `+` / `-` zoom the map;
-- double-click/Enter/first-point completion behaviour remains unchanged;
-- right-click undo remains available.
+The live draw state now retains the pointer's screen pixel. Whenever the view centre/resolution changes, EditPolygon immediately converts that screen pixel back to the current map coordinate and refreshes the runtime transient vector overlay before the deferred DOM-overlay repaint. This keeps the preview attached to the pointer while the map moves.
 
-The full-screen edit overlay is pointer-transparent for click-based drawing. Normalized runtime click/move/context-menu/double-click events provide drawing input, while OpenLayers owns drag-pan and wheel-zoom.
+The resynchronisation covers:
 
-## Freehand exception
+- click-and-drag pan while drawing;
+- mouse-wheel zoom;
+- keyboard `+` / `-` zoom;
+- arrow-key pan;
+- view reset / resize refreshes.
 
-Freehand Polygon intentionally keeps overlay pointer ownership because press-and-drag is the drawing gesture. Its wheel and keyboard navigation remain available when a freehand stroke is not actively being drawn.
-
-## Adapter boundary
-
-The application still performs no direct native OpenLayers navigation calls. `EditPolygonMap` adds:
-
-- `panByPixels(dx, dy, options)`
-- `zoomBy(delta, options)`
-
-These are used by draw-time keyboard navigation and keep the application/runtime boundary intact.
-
-## UI order
-
-**Free polygon** is now the first item in the Draw flyout. The dynamically installed LineString command follows it, then Point and the remaining shape tools.
+Committed vertices are never moved by this logic. Freehand Polygon remains unchanged because its press-and-drag gesture draws geometry rather than navigating the map.
 
 ## Regression protection
 
-The automated suite checks that:
+The automated suite verifies that:
 
-- click-based drawing uses `pointer-events:none` on the full-screen edit overlay;
-- Freehand Polygon restores pointer ownership;
-- a runtime `pointerdrag` suppresses the following drawing click;
-- normalized runtime click/double-click/mousemove/contextmenu events own click-based drawing input;
-- arrow and `+` / `-` keys call adapter navigation without editing geometry;
-- Free polygon precedes Point in the Draw flyout;
-- OpenLayers adapter navigation methods remain public without exposing the native map.
+- the cursor can be reprojected from its stored screen pixel after a view change;
+- `move`/`resize` refresh the runtime cursor-linked preview synchronously;
+- zoom-start/zoom-end paths resynchronise the live cursor before rendering;
+- pointer-drag and pointer-move events remember screen position;
+- all v1.55.7.2 drag-without-vertex and keyboard/wheel navigation behaviour remains intact.
 
-All local deployment assets use the `20260811-v15572-draw-navigation` cache key.
+All local deployment assets use the `20260811-v15573-draw-preview-pan` cache key.
 
 ## Automated gate
 
@@ -56,13 +39,13 @@ npm run check
 npm run test:browser-smoke
 ```
 
-Final verification: **274/274 Node tests**, **8/8 browser smoke suites**, **1,696 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Final verification: **276/276 Node tests**, **8/8 browser smoke suites**, **1,699 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Targeted live validation
 
-1. Start **Free polygon**, place two or three vertices, then click-drag the map. The map should pan and the vertex count must not change.
-2. While the polygon is unfinished, use the mouse wheel, arrow keys and `+` / `-`; navigation should work and the unfinished polygon should stay aligned.
-3. Finish the polygon and confirm it remains visible/editable.
-4. Try Point, LineString, Rectangle and Circle briefly; drag-panning between clicks should work.
-5. Start **Freehand polygon** and confirm press-and-drag still sketches rather than pans.
-6. Confirm **Free polygon** is the first Draw option.
+1. Start **Free polygon** and place three vertices.
+2. Move the pointer away from the last vertex so the dashed live guide is obvious.
+3. Click-drag the map several times. The guide/fill should stay attached to the pointer with no old-position ghost.
+4. Repeat with wheel zoom and `+` / `-`.
+5. Finish the polygon and confirm it remains visible/editable.
+6. Confirm Freehand Polygon still draws normally with press-and-drag.

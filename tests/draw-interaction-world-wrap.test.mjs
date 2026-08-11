@@ -119,6 +119,7 @@ test('a map drag suppresses the following draw click instead of creating a verte
     drawInputOriginalEvent:e=>e,
     drawInputLatLng:()=>({lat:-27,lng:153}),
     maybeAddFinalDoubleClickPoint(){},
+    rememberDrawPointerScreenState(){},
     DFinish(){}
   };
   context.DAddPoint=()=>{context.calls++;};
@@ -157,6 +158,36 @@ test('drawing keyboard navigation pans with arrows and zooms with plus/minus wit
   assert.deepEqual(JSON.parse(JSON.stringify(calls.slice(1))),[['zoom',1,{animate:false}],['zoom',-1,{animate:false}]]);
 });
 
+
+
+test('draw cursor is reprojected from its screen pixel when the map view moves',()=>{
+  const calls=[];
+  const context={
+    D:{active:true,kind:'polygon',points:[[150,-25]],cursor:[151,-24],cursorPixel:[420,260],cursorShift:false},
+    MAP_ADAPTER:{point:(x,y)=>({x,y})},
+    MAP_RUNTIME:{pixelToLatLng:p=>({lat:-20+p.y/1000,lng:140+p.x/100})},
+    constrainedDrawCoord:ll=>({coord:[ll.lng,ll.lat],latlng:{lng:ll.lng,lat:ll.lat}}),
+    renderDrawRuntimePreview:()=>calls.push('runtime'),
+    Number,Array
+  };
+  vm.createContext(context);
+  vm.runInContext(`${functionSource('syncDrawCursorToCurrentView')};this.fn=syncDrawCursorToCurrentView;`,context);
+  assert.equal(context.fn(true),true);
+  assert.deepEqual(JSON.parse(JSON.stringify(context.D.cursor)),[144.2,-19.74]);
+  assert.deepEqual(calls,['runtime']);
+});
+
+test('view movement synchronously refreshes the cursor-linked runtime preview before the RAF overlay pass',()=>{
+  const schedule=functionSource('scheduleOverlayRender');
+  const zoom=functionSource('hideOverlayForZoom');
+  const zoomEnd=functionSource('showOverlayAfterZoom');
+  assert.match(schedule,/syncDrawCursorToCurrentView\(false\)[\s\S]*renderOverlay\(\)/);
+  assert.match(zoom,/syncDrawCursorToCurrentView\(true\)[\s\S]*scheduleOverlayRender\(\)/);
+  assert.match(zoomEnd,/syncDrawCursorToCurrentView\(true\)[\s\S]*renderOverlay\(\)/);
+  assert.match(app,/MAP_RUNTIME\.on\('move resize',[\s\S]{0,160}syncDrawCursorToCurrentView\(true\)[\s\S]{0,160}scheduleOverlayRender\(\)/);
+  assert.match(functionSource('handleDrawRuntimePointerDrag'),/rememberDrawPointerScreenState\(e\)[\s\S]*dragged=true/);
+  assert.match(functionSource('updateDrawCursorFromPointer'),/rememberDrawPointerScreenState\(e\)/);
+});
 
 test('Free polygon is the first Draw flyout option',()=>{
   const flyout=html.slice(html.indexOf('id="drawToolFlyout"'),html.indexOf('id="imageToolFlyout"'));

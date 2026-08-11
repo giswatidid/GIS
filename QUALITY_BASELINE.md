@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.7.2.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup and v1.55.7.1 startup hotfix, while making normal map navigation available during unfinished click-based drawing without allowing drag gestures to create vertices.
+**Current baseline: v1.55.7.3.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup, v1.55.7.1 startup hotfix and v1.55.7.2 draw-time navigation, while fixing transient cursor-guide ghosting during pan/zoom by reprojecting the pointer-linked preview from its screen pixel whenever the view changes.
 
 ## Current automated gate
 
@@ -11,9 +11,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.7.2 currently expects:
+v1.55.7.3 currently expects:
 
-- **274/274 Node tests**;
+- **276/276 Node tests**;
 - **8/8 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
@@ -57,6 +57,7 @@ A live drag may mutate the focused native feature for pointer responsiveness, bu
 - A map `pointerdrag` during drawing suppresses the following map click from becoming a geometry vertex.
 - Freehand Polygon retains pointer-drag ownership; it is the only polygon draw mode where dragging draws instead of panning.
 - Draw-time arrow keys and `+` / `-` route through adapter-owned navigation methods and must not mutate geometry.
+- The unfinished click-based draw cursor is screen-pixel anchored across view movement; synchronous runtime-preview refresh must occur before the deferred DOM overlay pass so a former pointer-linked guide/fill cannot flash during pan/zoom.
 
 ### Large-data interaction
 
@@ -103,14 +104,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.7.2 no-growth ceilings are:
+The v1.55.7.3 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
-The current audit sees **1,696 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
+The current audit sees **1,699 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.55.7.2
+## Live parity evidence carried into v1.55.7.3
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -131,7 +132,7 @@ The deployed OpenLayers path has been manually exercised for:
 - `.epz` save/reload including WMS persistence;
 - phone/touch GIS access and mobile action menus.
 
-v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, v1.55.7.1 fixed the startup regression discovered during live validation, and v1.55.7.2 restores full map navigation while drawing click-based geometry without changing project semantics.
+v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, v1.55.7.1 fixed the startup regression discovered during live validation, and v1.55.7.3 restores full map navigation while drawing click-based geometry without changing project semantics.
 
 ## Next gate
 
