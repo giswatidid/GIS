@@ -81,7 +81,7 @@ function openLayersContext(){
 
 test('map adapter publishes one runtime factory and no transition-era runtime aliases',()=>{
   const {context}=openLayersContext(),api=context.EditPolygonMapAdapter;
-  assert.equal(api.version,'1.55.7.1');
+  assert.equal(api.version,'1.55.7.2');
   assert.equal(typeof api.createRuntime,'function');
   assert.equal('createOpenLayersRuntime' in api,false);
   assert.equal('requestedEngine' in api,false);
@@ -170,11 +170,15 @@ test('OpenLayers runtime owns reference GeoJSON and static image layers',()=>{
   runtime.setDisplayLayerVisible(raster,false);assert.equal(raster.visible,false);
 });
 
-test('interaction toggles are owned by OpenLayers interactions',()=>{
+test('interaction toggles and public drawing navigation stay adapter-owned',()=>{
   const {context}=openLayersContext(),runtime=context.EditPolygonMapAdapter.createRuntime({target:'map',ol:context.ol});
   runtime.setPanEnabled(false);assert.equal(runtime.isPanEnabled(),false);
   runtime.setPanEnabled(true);assert.equal(runtime.isPanEnabled(),true);
   runtime.setDoubleClickZoomEnabled(false);assert.equal(runtime.isDoubleClickZoomEnabled(),false);
+  assert.equal(typeof runtime.panByPixels,'function');
+  assert.equal(typeof runtime.zoomBy,'function');
+  const z=runtime.getZoom();assert.equal(runtime.zoomBy(1,{animate:false}),z+1);assert.equal(runtime.getZoom(),z+1);
+  const before=[...runtime.getCenter()];runtime.panByPixels(80,0,{animate:false});assert.notDeepEqual([...runtime.getCenter()],before);
   assert.equal('nativePanLooksActive' in runtime,false);
   assert.equal('recoverNativePan' in runtime,false);
 });

@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.55.7.1.** OpenLayers is the sole map runtime. This hotfix preserves the v1.55.7 cleanup and removes a dangling reference to the retired pan-recovery helper that could abort startup before Advanced GIS and the final authoritative renderer were installed.
+**Current baseline: v1.55.7.2.** OpenLayers is the sole map runtime. This release preserves the v1.55.7 cleanup and v1.55.7.1 startup hotfix, while making normal map navigation available during unfinished click-based drawing without allowing drag gestures to create vertices.
 
 ## Current automated gate
 
@@ -11,9 +11,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.55.7.1 currently expects:
+v1.55.7.2 currently expects:
 
-- **271/271 Node tests**;
+- **274/274 Node tests**;
 - **8/8 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
@@ -53,6 +53,10 @@ A live drag may mutate the focused native feature for pointer responsiveness, bu
 - Zoom lifecycle uses a central detector/fan-out; multiple `zoomstart` and `zoomend` subscribers must all be notified exactly once for the same logical transition.
 - OpenLayers setters/source mutations are not followed by redundant explicit render invalidations unless a specific path demonstrably requires one.
 - The removed single-runtime pan-recovery compatibility listener stack must not return.
+- Click-based drawing keeps the edit overlay pointer-transparent so native OpenLayers drag-pan and wheel-zoom interactions remain available.
+- A map `pointerdrag` during drawing suppresses the following map click from becoming a geometry vertex.
+- Freehand Polygon retains pointer-drag ownership; it is the only polygon draw mode where dragging draws instead of panning.
+- Draw-time arrow keys and `+` / `-` route through adapter-owned navigation methods and must not mutate geometry.
 
 ### Large-data interaction
 
@@ -99,14 +103,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.55.7.1 no-growth ceilings are:
+The v1.55.7.2 no-growth ceilings are:
 
 - **198 duplicate function-binding names**;
 - **371 extra historical binding sites**.
 
-The current audit sees **1,686 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
+The current audit sees **1,696 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.55.7.1
+## Live parity evidence carried into v1.55.7.2
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -127,7 +131,7 @@ The deployed OpenLayers path has been manually exercised for:
 - `.epz` save/reload including WMS persistence;
 - phone/touch GIS access and mobile action menus.
 
-v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, and v1.55.7.1 fixes the startup regression discovered during live validation without changing project semantics or GIS features.
+v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implementation, v1.55.7 performed the first single-runtime cleanup, v1.55.7.1 fixed the startup regression discovered during live validation, and v1.55.7.2 restores full map navigation while drawing click-based geometry without changing project semantics.
 
 ## Next gate
 

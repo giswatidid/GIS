@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../docs/assets/editpolygon.css',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
 
 function functionSource(name){
   const marker=`function ${name}(`;
@@ -76,17 +77,28 @@ test('authoritative draw constraint owns LineString world-wrap and cannot be rep
   assert.equal(app.includes('v116BaseConstrainedDrawCoord'),false);
 });
 
-test('draw overlay cannot become click-through from stale Shift-pan or zoom lifecycle state',()=>{
+test('click-based drawing exposes native map navigation while freehand keeps drag ownership',()=>{
   const start=functionSource('DStart');
   const zoom=functionSource('hideOverlayForZoom');
   const zoomEnd=functionSource('showOverlayAfterZoom');
+  const click=functionSource('handleDrawRuntimeClick');
   assert.match(start,/classList\.remove\('shift-pan','zooming'\)/);
   assert.match(zoom,/if\(D\.active\)[\s\S]*classList\.remove\('zooming'\)[\s\S]*scheduleOverlayRender\(\)[\s\S]*return/);
   assert.match(zoomEnd,/classList\.remove\('zooming'\)[\s\S]*renderOverlay\(\)/);
   assert.doesNotMatch(app,/e\.key==='Shift'\)updateShiftPanState/);
-  assert.match(css,/#editOverlay\.drawing\.zooming\{opacity:1;pointer-events:auto\}/);
+  assert.match(css,/#editOverlay\.drawing\{pointer-events:none;cursor:crosshair\}/);
+  assert.match(css,/#editOverlay\.drawing\.drawing-freehand\{pointer-events:auto\}/);
+  assert.match(css,/#editOverlay\.drawing\.zooming\{opacity:1;pointer-events:none\}/);
+  assert.match(css,/#editOverlay\.drawing\.drawing-freehand\.zooming\{pointer-events:auto\}/);
+  assert.match(click,/DRAW_NAVIGATION_GESTURE\.dragged[\s\S]*return/);
+  assert.match(app,/MAP_RUNTIME\.on\('pointerdown',handleDrawRuntimePointerDown\)/);
+  assert.match(app,/MAP_RUNTIME\.on\('pointerdrag',handleDrawRuntimePointerDrag\)/);
+  assert.match(app,/MAP_RUNTIME\.on\('click',handleDrawRuntimeClick\)/);
+  assert.match(app,/MAP_RUNTIME\.on\('dblclick',handleDrawRuntimeDoubleClick\)/);
+  assert.match(app,/MAP_RUNTIME\.on\('mousemove',updateDrawCursorFromPointer\)/);
+  assert.match(app,/document\.addEventListener\('keydown',handleDrawNavigationKeydown,true\)/);
+  assert.match(app,/overlay\(\)\.addEventListener\('wheel',handleDrawOverlayWheel,\{passive:false\}\)/);
   assert.match(app,/overlay\(\)\.addEventListener\('pointermove',updateDrawCursorFromPointer,true\)/);
-  assert.match(app,/if\(!window\.PointerEvent\)overlay\(\)\.addEventListener\('mousemove',updateDrawCursorFromPointer,true\)/);
   assert.equal(app.includes('updateShapeCursorFromPointer'),false);
   assert.match(functionSource('renderOverlay'),/renderDrawOverlay\(\);[\s\S]*renderDrawRuntimePreview\(\)/);
 });
@@ -95,4 +107,61 @@ test('LineString drawing no longer owns a late coordinate conversion implementat
   const lineBlock=app.slice(app.indexOf('// ---------- Drawing ----------'),app.indexOf('// v117',app.indexOf('// ---------- Drawing ----------'))>0?app.indexOf('// v117',app.indexOf('// ---------- Drawing ----------')):app.indexOf('// v118',app.indexOf('// ---------- Drawing ----------')));
   assert.doesNotMatch(lineBlock,/constrainedDrawCoord\s*=\s*function/);
   assert.match(lineBlock,/drawPreviewGeometry=function\(\)[\s\S]*D\.kind==='line'/);
+});
+
+
+test('a map drag suppresses the following draw click instead of creating a vertex',()=>{
+  const context={
+    D:{active:true,kind:'polygon'},
+    DRAW_DRAG_KINDS:new Set(['freehand']),
+    DRAW_NAVIGATION_GESTURE:{dragged:true},
+    calls:0,
+    drawInputOriginalEvent:e=>e,
+    drawInputLatLng:()=>({lat:-27,lng:153}),
+    maybeAddFinalDoubleClickPoint(){},
+    DFinish(){}
+  };
+  context.DAddPoint=()=>{context.calls++;};
+  vm.createContext(context);
+  vm.runInContext(`${functionSource('handleDrawRuntimeClick')};this.handleDrawRuntimeClick=handleDrawRuntimeClick;`,context);
+  context.handleDrawRuntimeClick({detail:1});
+  assert.equal(context.calls,0);
+  assert.equal(context.DRAW_NAVIGATION_GESTURE.dragged,false);
+  context.handleDrawRuntimeClick({detail:1});
+  assert.equal(context.calls,1);
+  context.D.kind='freehand';
+  context.handleDrawRuntimeClick({detail:1});
+  assert.equal(context.calls,1);
+});
+
+test('drawing keyboard navigation pans with arrows and zooms with plus/minus without editing geometry',()=>{
+  const calls=[];
+  const context={
+    D:{active:true,kind:'polygon'},
+    document:{activeElement:{tagName:'BODY',isContentEditable:false}},
+    MAP_RUNTIME:{
+      getSize:()=>({x:1000,y:700}),
+      panByPixels:(x,y,o)=>calls.push(['pan',x,y,o]),
+      zoomBy:(d,o)=>calls.push(['zoom',d,o])
+    },
+    Math,Number
+  };
+  vm.createContext(context);
+  for(const name of ['drawNavigationPanStep','handleDrawNavigationKeydown'])vm.runInContext(`${functionSource(name)};this.${name}=${name};`,context);
+  const event=key=>({key,defaultPrevented:false,ctrlKey:false,metaKey:false,altKey:false,preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}});
+  const left=event('ArrowLeft');context.handleDrawNavigationKeydown(left);
+  assert.equal(left.prevented,true);assert.equal(left.stopped,true);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0])),['pan',-98,0,{animate:false}]);
+  const plus=event('+');context.handleDrawNavigationKeydown(plus);
+  const minus=event('-');context.handleDrawNavigationKeydown(minus);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.slice(1))),[['zoom',1,{animate:false}],['zoom',-1,{animate:false}]]);
+});
+
+
+test('Free polygon is the first Draw flyout option',()=>{
+  const flyout=html.slice(html.indexOf('id="drawToolFlyout"'),html.indexOf('id="imageToolFlyout"'));
+  const polygon=flyout.indexOf('data-draw-tool="polygon"');
+  const point=flyout.indexOf('data-draw-tool="point"');
+  assert.ok(polygon>=0&&point>=0);
+  assert.ok(polygon<point);
 });

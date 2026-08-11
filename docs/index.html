@@ -168,12 +168,12 @@ html.v121-app-ready body{
 </script>
 
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
-<link rel="stylesheet" href="assets/editpolygon.css?v=20260810-v15571-startup-hotfix"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260810-v15571-startup-hotfix"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260810-v15571-startup-hotfix"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260810-v15571-startup-hotfix"/>
-<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260810-v15571-startup-hotfix"/>
-<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260810-v15571-startup-hotfix"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260811-v15572-draw-navigation"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260811-v15572-draw-navigation"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260811-v15572-draw-navigation"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260811-v15572-draw-navigation"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260811-v15572-draw-navigation"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260811-v15572-draw-navigation"/>
 
 
 
@@ -250,8 +250,8 @@ html.v121-app-ready body{
 </div>
 <div aria-label="Draw tools" class="rail-flyout" id="drawToolFlyout" role="menu">
 <div class="rail-flyout-title">Draw shapes</div>
+<button data-draw-tool="polygon"><span class="flyout-icon">P</span><span><strong>Free polygon</strong><small>Click points. Drag to pan; wheel or arrow/+/- keys navigate; Shift snaps angles</small></span></button>
 <button data-draw-tool="point"><span class="flyout-icon">•</span><span><strong>Point</strong><small>Click once to create an editable GIS point</small></span></button>
-<button data-draw-tool="polygon"><span class="flyout-icon">P</span><span><strong>Free polygon</strong><small>Click points. Hold Shift to snap the next edge to 45° angles</small></span></button>
 <button data-draw-tool="rectangle"><span class="flyout-icon">▭</span><span><strong>Rectangle / square</strong><small>Click first corner, click opposite corner. Hold Shift for square</small></span></button>
 <button data-draw-tool="circle"><span class="flyout-icon">○</span><span><strong>Circle</strong><small>Click centre, click radius. GML preserves the true circle</small></span></button>
 <button data-draw-tool="rotatedRect"><span class="flyout-icon">▱</span><span><strong>Rotated rectangle</strong><small>Click first edge, then set width. Shift snaps edge angle</small></span></button>
@@ -699,30 +699,30 @@ html.v121-app-ready body{
 </div>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.9.0/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js"></script>
-<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260810-v15571-startup-hotfix">
-<script src="assets/editpolygon-map-adapter.js?v=20260810-v15571-startup-hotfix"></script>
+<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260811-v15572-draw-navigation">
+<script src="assets/editpolygon-map-adapter.js?v=20260811-v15572-draw-navigation"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="assets/editpolygon-project-format.js?v=20260810-v15571-startup-hotfix"></script>
+<script src="assets/editpolygon-project-format.js?v=20260811-v15572-draw-navigation"></script>
 <script src="https://unpkg.com/@tmcw/togeojson@6.0.1/dist/togeojson.umd.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
 <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="assets/gis-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-data-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-schema-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-analysis-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-join-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-style-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-crs-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-remote-source.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-geometry-health-core.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/editpolygon-app.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-workspace.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-data-tools.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-ui-integration.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/gis-geometry-health.js?v=20260810-v15571-startup-hotfix"></script>
-<script src="assets/editpolygon-mobile.js?v=20260810-v15571-startup-hotfix"></script>
+<script src="assets/gis-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-data-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-schema-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-analysis-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-join-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-style-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-crs-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-remote-source.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/editpolygon-app.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-workspace.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-data-tools.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-ui-integration.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/gis-geometry-health.js?v=20260811-v15572-draw-navigation"></script>
+<script src="assets/editpolygon-mobile.js?v=20260811-v15572-draw-navigation"></script>
 
 
 

@@ -36,13 +36,21 @@ with sync_playwright() as p:
     browser=p.chromium.launch(**opts)
     page=browser.new_page(viewport={'width':800,'height':500})
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-    page.set_content('<!doctype html><html><body><div id="map" style="width:800px;height:500px"></div><script>'+FAKE_OL+'</script></body></html>')
+    page.set_content('<!doctype html><html><body><div id="map" style="width:800px;height:500px"></div><div id="editOverlay"></div><script>'+FAKE_OL+'</script></body></html>')
+    page.add_style_tag(path=str(ROOT/'docs/assets/editpolygon.css'))
     page.add_script_tag(path=str(ROOT/'docs/assets/editpolygon-map-adapter.js'))
     result=page.evaluate('''async()=>{
       const r=EditPolygonMapAdapter.createRuntime({target:'map',center:[153,-27],zoom:6,ol});
       const base=r.createTileLayer({url:'https://{s}.example/{z}/{x}/{y}.png'});r.addDisplayLayer(base);
       const vec=r.createEditableVectorLayer({layerKey:'editable-main',features:[{id:'p1',geometry:{type:'Point',coordinates:[153,-27]},style:{color:'#123456',radius:5},label:{text:'P1',coordinate:[153,-27]}}]});r.addDisplayLayer(vec);
       const p=r.lonLatToPixel([153,-27]);r.setPanEnabled(false);const disabled=!r.isPanEnabled();r.setPanEnabled(true);
+      const navMethods=typeof r.panByPixels==='function'&&typeof r.zoomBy==='function';
+      const navZoomStart=r.getZoom(),navZoomResult=r.zoomBy(1,{animate:false}),navZoomed=r.getZoom()===navZoomStart+1;
+      r.zoomBy(-1,{animate:false});
+      const navCenterBefore=r.getCenter();r.panByPixels(40,-20,{animate:false});const navCenterAfter=r.getCenter();
+      const navPanned=navCenterAfter[0]!==navCenterBefore[0]||navCenterAfter[1]!==navCenterBefore[1];
+      r.setView([153,-27],6,{animate:false});
+      const editOverlay=document.getElementById('editOverlay');editOverlay.className='drawing';const clickDrawPointer=getComputedStyle(editOverlay).pointerEvents;editOverlay.className='drawing drawing-freehand';const freehandPointer=getComputedStyle(editOverlay).pointerEvents;
       const hitIds=r.editableFeatureIdsAtPixel([15300,-2700],{hitTolerance:8});
       const bulkVec=r.createEditableVectorLayer({layerKey:'editable-bulk',renderMode:'image',interactionOptimized:true,imageRatio:1.2,features:[{id:'bulk1',geometry:{type:'Point',coordinates:[151,-26]},style:{color:'#234567',radius:4}}]});r.addDisplayLayer(bulkVec);
       const transitionCapabilitiesAbsent=!('supportsFocusedEditableOverlay' in r)&&!('prefersPersistentEditableVectorSource' in r)&&!('getNativeMap' in r);
@@ -66,12 +74,15 @@ with sync_playwright() as p:
       r.setView([873,-27],6,{animate:false});
       const wrappedPixel=r.lonLatToPixel([153,-27]);
       const wrappedInverse=r.pixelToLonLat(wrappedPixel);
-      return {engine:r.engine,hasRequestedEngine:('requestedEngine' in r),center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:window.__fakeOlLastMap.getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,transitionCapabilitiesAbsent,suppressOn,suppressed,suppressOff,suppressionRestored,disabled,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:window.__fakeOlLastMap.controls.map(c=>c.kind)};
+      return {engine:r.engine,hasRequestedEngine:('requestedEngine' in r),center:r.getCenter(),zoom:r.getZoom(),pixel:[p.x,p.y],navMethods,navZoomResult,navZoomed,navPanned,clickDrawPointer,freehandPointer,wrappedPixel:[wrappedPixel.x,wrappedPixel.y],wrappedInverse,layers:window.__fakeOlLastMap.getLayers().getArray().length,featureCount:vec.__editpolygonFeatureCount,hitIds,wmsParams:wms.getSource().o.params,wmsServerType:wms.getSource().o.serverType||null,wmsHasCrossOrigin:Object.prototype.hasOwnProperty.call(wms.getSource().o,'crossOrigin'),wmsInitiallyPresent,wmsShownPresent,wmsHiddenAbsent,wmsFinalPresent:r.hasDisplayLayer(wms),styleCacheSize:vec.__editpolygonStyleCacheSize,bulkRenderMode:bulkVec.__editpolygonRenderMode,bulkImageRatio:bulkVec.o.imageRatio,transitionCapabilitiesAbsent,suppressOn,suppressed,suppressOff,suppressionRestored,disabled,hasLegacyMap:('getLegacyMap' in r),hasParityBridge:('parityBridge' in r),matchesInitial,matchesMoved,matchesOldAfterMove,purgeCount,purgeGone,liveUpdated,liveCoordinates:liveGeometry.coordinates,transientCount:transient.getSource().f.length,handleEngine,handleParent,childOrder,nativeClick,refCount:ref.__editpolygonFeatureCount,rasterKind:raster.__editpolygonReferenceKind,rasterOpacity:raster.opacity,controlKinds:window.__fakeOlLastMap.controls.map(c=>c.kind)};
     }''')
     assert result['engine']=='openlayers',result
     assert result['hasRequestedEngine'] is False,result
     assert result['center']==[873,-27],result
     assert result['zoom']==6,result
+    assert result['navMethods'] is True and result['navZoomResult']==7 and result['navZoomed'] is True,result
+    assert result['navPanned'] is True,result
+    assert result['clickDrawPointer']=='none' and result['freehandPointer']=='auto',result
     assert result['wrappedPixel']==[87300,-2700],result
     assert result['wrappedInverse']==[873,-27],result
     assert result['layers']==7,result

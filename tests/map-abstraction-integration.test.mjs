@@ -6,7 +6,7 @@ const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8')
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 const adapter=fs.readFileSync(new URL('../docs/assets/editpolygon-map-adapter.js',import.meta.url),'utf8');
 
-test('v1.55.7.1 loads the sole OpenLayers dependency before the map adapter and application',()=>{
+test('v1.55.7.2 loads the sole OpenLayers dependency before the map adapter and application',()=>{
   const openlayers=html.indexOf('cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js');
   const mapAdapter=html.indexOf('editpolygon-map-adapter.js');
   const application=html.indexOf('editpolygon-app.js');

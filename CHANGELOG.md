@@ -1,5 +1,16 @@
 # EditPolygon changelog
 
+## v1.55.7.2 — Draw-time map navigation
+
+- Keeps native OpenLayers navigation available while any click-based drawing tool is active: drag to pan, mouse wheel to zoom, arrow keys to pan, and `+` / `-` to zoom.
+- Makes map drag and draw-click semantics explicit. Runtime `pointerdrag` state suppresses the following click so holding the mouse button and dragging cannot create an accidental vertex.
+- Keeps **Freehand Polygon** as the deliberate exception: press-and-drag continues to sketch geometry rather than pan the map. Wheel and keyboard navigation remain available between freehand strokes.
+- Routes click-based drawing through normalized `EditPolygonMap` runtime events instead of requiring the full-screen edit overlay to own pointer input. Cursor preview, right-click undo, double-click finish and world-wrap/Date Line coordinate handling remain intact.
+- Adds adapter-owned `panByPixels()` and `zoomBy()` navigation methods so application code never reaches into OpenLayers native objects.
+- Moves **Free polygon** to the first position in the Draw flyout, ahead of Point and the dynamically inserted LineString tool.
+- Adds regression coverage for drag-without-vertex behaviour, draw-time keyboard navigation, freehand pointer ownership, overlay pointer-event policy and Draw flyout ordering.
+- No project schema, saved geometry format, editing semantics or Advanced GIS capability changes.
+
 ## v1.55.7.1 — Startup/render authority hotfix
 
 - Fixes an uncaught `ReferenceError` introduced by v1.55.7 when the retired pan-recovery `customPointerDragActive` helper was removed but a late legacy enhancement block still referenced it.

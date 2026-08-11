@@ -1,7 +1,7 @@
 (function(global){
   'use strict';
 
-  const VERSION='1.55.7.1';
+  const VERSION='1.55.7.2';
 
   function finite(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback;}
   function point(x,y){
@@ -190,6 +190,14 @@
     function getView(){return {center:getCenter(),zoom:getZoom()};}
     function setView(centerLonLat,nextZoom,viewOptions={}){const c=lonLat(centerLonLat),projected=ol.proj.fromLonLat(c);if(viewOptions.animate&&typeof view.animate==='function')view.animate({center:projected,zoom:nextZoom,duration:finite(viewOptions.duration,250)});else{view.setCenter(projected);if(Number.isFinite(Number(nextZoom)))view.setZoom(Number(nextZoom));}}
     function setViewLatLng(centerLatLng,nextZoom,viewOptions){let c;if(Array.isArray(centerLatLng))c=[finite(centerLatLng[1]),finite(centerLatLng[0])];else c=lonLat(centerLatLng);setView(c,nextZoom,viewOptions);}
+    function panByPixels(dx=0,dy=0,viewOptions={}){
+      const size=getSize(),x=(size.x/2)+finite(dx,0),y=(size.y/2)+finite(dy,0),next=pixelToLonLat(point(x,y));
+      setView(next,getZoom(),viewOptions);return true;
+    }
+    function zoomBy(delta=0,viewOptions={}){
+      const amount=finite(delta,0),next=Math.max(0,Math.min(22,getZoom()+amount));
+      setView(getCenter(),next,viewOptions);return next;
+    }
     function fitExtent(extent,fitOptions={}){const b=bbox(extent);if(!b)return false;const projected=ol.proj.transformExtent?ol.proj.transformExtent(b,'EPSG:4326','EPSG:3857'):[ol.proj.fromLonLat([b[0],b[1]])[0],ol.proj.fromLonLat([b[0],b[1]])[1],ol.proj.fromLonLat([b[2],b[3]])[0],ol.proj.fromLonLat([b[2],b[3]])[1]];view.fit(projected,{size:nativeMap.getSize?.(),padding:normalisePadding(fitOptions.padding),maxZoom:Number.isFinite(Number(fitOptions.maxZoom))?Number(fitOptions.maxZoom):undefined,duration:fitOptions.animate===false?0:finite(fitOptions.duration,0)});return true;}
     function fitLatLngBounds(boundsLike,fitOptions={}){try{if(Array.isArray(boundsLike)&&Array.isArray(boundsLike[0])){const a=boundsLike[0],b=boundsLike[1];return fitExtent([a[1],a[0],b[1],b[0]],fitOptions);}}catch(_){ }return false;}
     function panInside(coord,panOptions={}){const c=lonLat(coord),projected=ol.proj.fromLonLat(c),size=nativeMap.getSize?.();let inside=false;try{inside=ol.extent?.containsCoordinate?.(view.calculateExtent(size),projected)||false;}catch(_){ }if(!inside)setView(c,getZoom(),{animate:panOptions.animate!==false,duration:200});return true;}
@@ -394,7 +402,7 @@
       return controller;
     }
 
-    return Object.freeze({version:VERSION,engine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,setEditableFeatureSuppressed});
+    return Object.freeze({version:VERSION,engine:'openlayers',nativeVersion:String(ol.VERSION||'10.9.0'),getContainer,getSize,getZoom,getCenter,getView,setView,setViewLatLng,panByPixels,zoomBy,fitExtent,fitLatLngBounds,panInside,getExtent,lonLatToPixel,latLngToPixel,pixelToLonLat,pixelToLatLng,lonLatToLayerPixel,latLngToLayerPixel,layerPixelToLonLat,layerPixelToLatLng,projectLonLat,distance,distanceLatLng,setPanEnabled,isPanEnabled,setDoubleClickZoomEnabled,isDoubleClickZoomEnabled,resize,on,off,stopNativeEvent,addDisplayLayer,removeDisplayLayer,hasDisplayLayer,createEmptyLayerGroup,createTileLayer,createWmsLayer,createGeoJsonLayer,createStaticImageLayer,setDisplayLayerOpacity,setDisplayLayerVisible,setDisplayLayerZIndex,setGeoJsonLayerStyle,createEditableVectorLayer,createVectorOverlayLayer,clearVectorOverlayLayer,setVectorOverlayFeatures,createDomOverlay,updateEditableFeatureGeometry,editableLayerMatchesGeometry,clearEditableVectorLayers,editableFeatureIdsAtPixel,setEditableFeatureSuppressed});
   }
 
   global.EditPolygonMapAdapter=Object.freeze({version:VERSION,point,lonLat,latLng,bbox,bboxIntersects,wrapLongitudeNear,canonicalLongitude,geometryToCanonicalWorld,geometryFingerprint,haversine,mercatorWorldPixel,createRuntime});

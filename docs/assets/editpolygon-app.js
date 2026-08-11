@@ -2972,7 +2972,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.55.7.1: OpenLayers is the sole map runtime. Application code talks only
+// v1.55.7.2: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -3630,6 +3630,7 @@ function renderOverlay(){
     renderDrawRuntimePreview();
     ov.classList.toggle('lasso',false);
     ov.classList.toggle('drawing',D.active);
+    ov.classList.toggle('drawing-freehand',D.active&&D.kind==='freehand');
     renderSnapIndicator();
     return;
   }
@@ -3640,6 +3641,7 @@ function renderOverlay(){
   renderDrawRuntimePreview();
   ov.classList.toggle('lasso',V.active&&V.lasso);
   ov.classList.toggle('drawing',D.active);
+  ov.classList.toggle('drawing-freehand',D.active&&D.kind==='freehand');
 
   if(!V.active){
     updatePerfState('Performance: normal');
@@ -4466,13 +4468,20 @@ overlay().addEventListener('contextmenu',e=>{
   DUndo();
 });
 
+function drawInputOriginalEvent(e){return e?.originalEvent||e?.nativeEvent||e||null}
+function drawInputLatLng(e){
+  const ll=e?.latLng;
+  if(ll&&Number.isFinite(Number(ll.lat))&&Number.isFinite(Number(ll.lng)))return {lat:Number(ll.lat),lng:Number(ll.lng)};
+  return drawOverlayLatLng(e);
+}
 function updateDrawCursorFromPointer(e){
   if(!D.active)return;
   if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind))return;
-  const ll=drawOverlayLatLng(e);
-  const snap=constrainedDrawCoord(ll,e);
+  const original=drawInputOriginalEvent(e);
+  const ll=drawInputLatLng(e);
+  const snap=constrainedDrawCoord(ll,original);
   D.cursor=snap.coord;
-  D.shiftShape=!!e.shiftKey;
+  D.shiftShape=!!original?.shiftKey;
   const p=displayLatLng(snap.latlng);
   $('mouseCoords').textContent=`Lat: ${p.lat.toFixed(6)} · Lng: ${p.lng.toFixed(6)}${snap.target?' · snap '+snap.target.type:''}`;
   renderOverlay();
@@ -7187,7 +7196,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.1'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.55.7.2'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -8372,15 +8381,15 @@ function drawKindLabel(kind){
 }
 function drawKindHint(kind){
   return ({
-    polygon:'Click points · Shift snaps edge angles',
-    hole:'Click points inside active polygon',
-    split:'Click line points through active polygon',
+    polygon:'Click points · drag pans · wheel/keys navigate · Shift snaps angles',
+    hole:'Click points inside active polygon · drag pans',
+    split:'Click line points · drag pans · wheel/keys navigate',
     rectangle:'Click start, click end · Shift = square',
     circle:'Click centre, click radius',
     rotatedRect:'Click first edge, then click width · Shift snaps edge',
     regular:'Click centre, click radius',
     freehand:'Press and drag to sketch',
-    buffer:'Click centreline points · finish to build corridor'
+    buffer:'Click centreline points · drag pans · finish to build corridor'
   })[kind]||'Click points';
 }
 function drawCanFinish(){
@@ -8684,7 +8693,7 @@ function drawKindNotice(kind){
   if(kind==='buffer')return 'Draw buffer corridor: click centreline points, then press Enter or Finish. Set width in metres in the draw bar. Shift snaps line angles.';
   if(kind==='split')return 'Draw split line: click points through the selected polygon. Double-click or press Enter to split. Backspace/right-click removes last point. Shift snaps line angles. Esc cancels.';
   if(kind==='hole')return 'Draw hole: click points inside the selected polygon. Click first point or press Enter to finish. Shift snaps edge angles.';
-  return 'Draw polygon: click points on the map. Hold <strong>Shift</strong> to constrain the next edge to 0°, 45°, 90° and related angles. Double-click, click first point, or press Enter to finish.';
+  return 'Draw polygon: click points on the map. Drag the map to pan without adding a vertex; use the mouse wheel, arrow keys, or + / - to navigate while drawing. Hold <strong>Shift</strong> to constrain the next edge to 0°, 45°, 90° and related angles. Double-click, click first point, or press Enter to finish.';
 }
 function drawKindStartStatus(kind){
   return ({rectangle:'Drawing rectangle. Click first corner.',circle:'Drawing circle. Click centre point.',regular:'Drawing regular polygon. Click centre point.',rotatedRect:'Drawing rotated rectangle. Click the first corner.',freehand:'Drawing freehand polygon. Press and drag to sketch.',buffer:'Drawing buffer corridor. Click centreline points.',hole:'Drawing hole in selected polygon.',split:'Drawing split line through selected polygon.'})[kind]||'Drawing polygon. Click map to add first point.';
@@ -8855,9 +8864,10 @@ function updateDrawStatus(){
 }
 function maybeAddFinalDoubleClickPoint(e){
   if(!D.active)return;
-  if(D.kind!=='polygon'&&D.kind!=='hole'&&D.kind!=='split'&&D.kind!=='buffer')return;
-  const ll=drawOverlayLatLng(e);
-  const snap=constrainedDrawCoord(ll,e);
+  if(D.kind!=='polygon'&&D.kind!=='hole'&&D.kind!=='split'&&D.kind!=='buffer'&&D.kind!=='line')return;
+  const original=drawInputOriginalEvent(e);
+  const ll=drawInputLatLng(e);
+  const snap=constrainedDrawCoord(ll,original);
   const c=snap.coord;
   const last=D.points[D.points.length-1];
   if(!last){D.points.push(c);return;}
@@ -8906,6 +8916,70 @@ overlay().addEventListener('pointerdown',handleShapePointerDown,true);
 overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
+
+// v1.55.7.2: click-based drawing no longer owns the full map interaction
+// surface. OpenLayers receives drag/wheel gestures directly, while these
+// normalized map events add vertices only after a genuine click. Freehand
+// remains overlay-owned because press-and-drag is its drawing gesture.
+const DRAW_NAVIGATION_GESTURE={dragged:false};
+function handleDrawRuntimePointerDown(){
+  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind))DRAW_NAVIGATION_GESTURE.dragged=false;
+}
+function handleDrawRuntimePointerDrag(){
+  if(D.active&&!DRAW_DRAG_KINDS.has(D.kind))DRAW_NAVIGATION_GESTURE.dragged=true;
+}
+function handleDrawRuntimeClick(e){
+  if(!D.active||DRAW_DRAG_KINDS.has(D.kind))return;
+  if(DRAW_NAVIGATION_GESTURE.dragged){DRAW_NAVIGATION_GESTURE.dragged=false;return;}
+  const original=drawInputOriginalEvent(e);
+  if(D.kind==='line'&&Number(original?.detail||0)>=2){
+    maybeAddFinalDoubleClickPoint(e);
+    DFinish();
+    return;
+  }
+  DAddPoint(drawInputLatLng(e),original);
+}
+function handleDrawRuntimeDoubleClick(e){
+  if(!D.active||DRAW_DRAG_KINDS.has(D.kind))return;
+  MAP_RUNTIME.stopNativeEvent(e);
+  maybeAddFinalDoubleClickPoint(e);
+  DFinish();
+}
+function handleDrawRuntimeContextMenu(e){
+  if(!D.active||DRAW_DRAG_KINDS.has(D.kind))return;
+  MAP_RUNTIME.stopNativeEvent(e);
+  DUndo();
+}
+function drawNavigationPanStep(){
+  const size=MAP_RUNTIME.getSize();
+  return Math.max(48,Math.min(140,Math.round(Math.min(Number(size?.x)||0,Number(size?.y)||0)*0.14)||80));
+}
+function handleDrawNavigationKeydown(e){
+  if(!D.active||e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
+  const active=document.activeElement,tag=active?.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||active?.isContentEditable)return;
+  const step=drawNavigationPanStep(),options={animate:false};
+  if(e.key==='ArrowLeft'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.panByPixels(-step,0,options);return;}
+  if(e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.panByPixels(step,0,options);return;}
+  if(e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.panByPixels(0,-step,options);return;}
+  if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.panByPixels(0,step,options);return;}
+  if(e.key==='+'||e.key==='='||e.key==='Add'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.zoomBy(1,options);return;}
+  if(e.key==='-'||e.key==='_'||e.key==='Subtract'){e.preventDefault();e.stopPropagation();MAP_RUNTIME.zoomBy(-1,options);}
+}
+function handleDrawOverlayWheel(e){
+  if(!D.active||(D.kind==='freehand'&&D.dragging))return;
+  e.preventDefault();
+  e.stopPropagation();
+  MAP_RUNTIME.zoomBy(e.deltaY<0?1:-1,{animate:false});
+}
+MAP_RUNTIME.on('pointerdown',handleDrawRuntimePointerDown);
+MAP_RUNTIME.on('pointerdrag',handleDrawRuntimePointerDrag);
+MAP_RUNTIME.on('click',handleDrawRuntimeClick);
+MAP_RUNTIME.on('dblclick',handleDrawRuntimeDoubleClick);
+MAP_RUNTIME.on('mousemove',updateDrawCursorFromPointer);
+MAP_RUNTIME.on('contextmenu',handleDrawRuntimeContextMenu);
+document.addEventListener('keydown',handleDrawNavigationKeydown,true);
+overlay().addEventListener('wheel',handleDrawOverlayWheel,{passive:false});
 
 
 ['drawSegmentsInput','drawSidesInput','drawBufferWidthInput'].forEach(id=>{$(id)?.addEventListener('input',()=>{if(D.active){renderOverlay();updateDrawStatus();updateButtons();}});});
@@ -22374,7 +22448,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 }
 
 
-/* v1.55.7.1 — runtime authority boundary.
+/* v1.55.7.2 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22384,7 +22458,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.55.7.1',
+  version:'1.55.7.2',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,
