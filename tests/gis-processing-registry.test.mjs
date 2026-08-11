@@ -6,9 +6,9 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../docs/assets/gis-processing-registry.js',import.meta.url),'utf8');
 function load(){const window={};const context=vm.createContext({window,globalThis:window,Object,Map,JSON,String,Array});vm.runInContext(source,context,{filename:'gis-processing-registry.js'});return window.EditPolygonGISProcessingRegistry;}
 
-test('v1.56.0 processing registry publishes the controlled first toolbox catalogue',()=>{
+test('v1.56.0.1 processing registry publishes the controlled first toolbox catalogue',()=>{
   const api=load();
-  assert.equal(api.version,'1.56.0');
+  assert.equal(api.version,'1.56.0.1');
   assert.deepEqual(api.getTools().map(tool=>tool.id),['buffer','centroid','point-on-feature','convex-hull','bbox','clip','intersection','dissolve']);
   assert.deepEqual(api.getCategories().map(category=>category.id),['geometry','overlay','aggregation']);
   assert.equal(api.requiresOverlay('clip'),true);

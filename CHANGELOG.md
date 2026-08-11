@@ -1,5 +1,12 @@
 # EditPolygon changelog
 
+## v1.56.0.1 — Processing selection-scope hotfix
+
+- Fixes a startup/runtime wiring error in the new Processing Toolbox where the application bridge referenced a private `selectedIds()` helper outside its lexical scope.
+- The visible symptom was `selectedIds is not defined`, a pre-flight count of 0 source features and a disabled **Run and create layer** button even when the chosen layer contained valid features.
+- Processing now resolves selection through the public `EditPolygonGIS.getSelection()` API, so **All**, **Filtered** and **Selected** scopes share the same stable selection contract as the rest of Advanced GIS.
+- Adds a source-order regression guard that rejects any future Processing bridge dependency on the earlier private selection helper. No geometry algorithms, output schema or project format changed from v1.56.0.
+
 ## v1.56.0 — Processing Toolbox foundation
 
 - Replaced the historical Process tab with a searchable, declarative **Processing Toolbox** shared by desktop and mobile.

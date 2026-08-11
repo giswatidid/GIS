@@ -3,8 +3,8 @@ let ready=false;
 function ensureProcessingRuntime(){
   if(ready&&self.turf&&self.EditPolygonGISProcessingCore)return;
   if(!self.turf)importScripts('https://unpkg.com/@turf/turf@7.2.0/turf.min.js');
-  if(!self.EditPolygonGISProcessingRegistry)importScripts('gis-processing-registry.js?v=20260811-v1560-processing-toolbox');
-  if(!self.EditPolygonGISProcessingCore)importScripts('gis-processing-core.js?v=20260811-v1560-processing-toolbox');
+  if(!self.EditPolygonGISProcessingRegistry)importScripts('gis-processing-registry.js?v=20260811-v15601-processing-selection-fix');
+  if(!self.EditPolygonGISProcessingCore)importScripts('gis-processing-core.js?v=20260811-v15601-processing-selection-fix');
   if(!self.turf||!self.EditPolygonGISProcessingCore)throw Error('The browser processing engine could not be loaded.');
   ready=true;
 }

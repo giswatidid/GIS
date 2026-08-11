@@ -9,7 +9,7 @@ const ui=fs.readFileSync(new URL('../docs/assets/gis-processing.js',import.meta.
 const worker=fs.readFileSync(new URL('../docs/assets/gis-processing-worker.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../docs/assets/gis-processing.css',import.meta.url),'utf8');
 
-const KEY='20260811-v1560-processing-toolbox';
+const KEY='20260811-v15601-processing-selection-fix';
 test('Processing Toolbox modules load in dependency order and the retired worker is gone',()=>{
   const order=['gis-processing-registry.js','gis-processing-core.js','editpolygon-app.js','gis-processing.js','gis-data-tools.js'].map(name=>html.indexOf(name));
   assert.ok(order.every(index=>index>=0),order);for(let i=1;i<order.length;i++)assert.ok(order[i]>order[i-1],order);
@@ -20,6 +20,13 @@ test('Processing Toolbox modules load in dependency order and the retired worker
 
 test('application bridge exposes one declarative cancellable processing lifecycle',()=>{
   assert.match(app,/processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer/);
+  const bridgeStart=app.indexOf('/* v1.56.0.1 — Processing Toolbox application bridge.');
+  const bridgeEnd=app.indexOf('/* v1.56.0.1 — runtime authority boundary.');
+  const bridge=app.slice(bridgeStart,bridgeEnd);
+  assert.ok(bridgeStart>=0&&bridgeEnd>bridgeStart,'processing bridge markers should exist in source order');
+  assert.match(bridge,/function processingSelectionIds\(\)\{[\s\S]*?EditPolygonGIS\?\.getSelection\?\.\(\)\.ids/);
+  assert.match(bridge,/selectionIds:processingSelectionIds\(\)/);
+  assert.doesNotMatch(bridge,/\bselectedIds\(\)/,'processing bridge must not depend on the private selection helper from an earlier lexical scope');
   assert.match(app,new RegExp(`new Worker\\('assets/gis-processing-worker\\.js\\?v=${KEY}'\\)`));
   assert.doesNotMatch(app,/function\s+gisProcess\s*\(/);
   assert.doesNotMatch(app,/function\s+processAsync\s*\(/);

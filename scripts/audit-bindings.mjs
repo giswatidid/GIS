@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const app=fs.readFileSync('docs/assets/editpolygon-app.js','utf8');
 const adapter=fs.readFileSync('docs/assets/editpolygon-map-adapter.js','utf8');
 
-function fail(message){throw new Error(`v1.56.0 binding/architecture audit: ${message}`);}
+function fail(message){throw new Error(`v1.56.0.1 binding/architecture audit: ${message}`);}
 function lineAt(index){return app.slice(0,index).split('\n').length;}
 
 // Source-order tripwire for the remaining historical application file. New
@@ -18,8 +18,8 @@ for(const match of app.matchAll(bindingPattern)){
 }
 const duplicateNames=[...bindings].filter(([,sites])=>sites.length>1);
 const extraBindings=[...bindings.values()].reduce((sum,sites)=>sum+Math.max(0,sites.length-1),0);
-if(duplicateNames.length>198)fail(`duplicate function-binding names grew to ${duplicateNames.length} (v1.56.0 ceiling 198)`);
-if(extraBindings>371)fail(`extra historical function bindings grew to ${extraBindings} (v1.56.0 ceiling 371)`);
+if(duplicateNames.length>198)fail(`duplicate function-binding names grew to ${duplicateNames.length} (v1.56.0.1 ceiling 198)`);
+if(extraBindings>371)fail(`extra historical function bindings grew to ${extraBindings} (v1.56.0.1 ceiling 371)`);
 
 const bindingCeilings={
   renderMap:1,selectFeature:1,selectFeatureMulti:1,clearSelection:1,deletePolygon:1,undo:1,redo:1,
@@ -35,7 +35,7 @@ for(const name of ['featuresAtLatLng','featureHitAtMapPoint','parametricCircleHi
   if(sites.length!==1)fail(`${name} must have exactly one authoritative binding; found ${sites.length} at ${sites.join(', ')||'none'}`);
 }
 
-// v1.56.0 keeps the native OpenLayers implementation adapter-owned. The
+// v1.56.0.1 keeps the native OpenLayers implementation adapter-owned. The
 // application has no native-map escape and no engine-specific branch.
 const directOl=[...app.matchAll(/\bol\.[A-Za-z_$][\w$]*/g)];
 const retiredNamespace=new RegExp('\\b'+'L'+'\\.[A-Za-z_$][\\w$]*','g');
@@ -79,12 +79,12 @@ for(const required of ["registerRuntimeTransition('selection'","registerRuntimeT
   if(!app.includes(required))fail(`central runtime lifecycle is missing ${required}`);
 }
 
-const authorityMarker='/* v1.56.0 — runtime authority boundary.';
+const authorityMarker='/* v1.56.0.1 — runtime authority boundary.';
 const authority=app.indexOf(authorityMarker);
 if(authority<0)fail('runtime authority boundary is missing');
 const authorityTail=app.slice(authority);
 if(!authorityTail.includes('renderAll();'))fail('runtime authority boundary no longer performs final renderer handoff');
-if(!authorityTail.includes("version:'1.56.0'"))fail('runtime authority snapshot has the wrong version');
+if(!authorityTail.includes("version:'1.56.0.1'"))fail('runtime authority snapshot has the wrong version');
 if(!authorityTail.includes('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY'))fail('runtime authority snapshot is not published');
 const afterPublish=app.slice(app.indexOf('window.__EditPolygonRuntimeAuthority=EDITPOLYGON_RUNTIME_AUTHORITY',authority));
 if(/\bfunction\s+[A-Za-z_$]|(?<![\w$.])[A-Za-z_$][\w$]*\s*=\s*(?:async\s*)?function\s*\(/.test(afterPublish))fail('new function patch appears after runtime authority boundary');
@@ -103,4 +103,4 @@ if(adapter.includes(retiredFactory))fail('retired runtime factory remains in map
 for(const stale of ['requestedEngine','fallbackReason','createOpenLayersRuntime','getNativeMap','nativePanLooksActive','recoverNativePan','ensureDisplayPane','prefersPersistentEditableVectorSource','supportsFocusedEditableOverlay','__editpolygonEngine'])if(adapter.includes(stale))fail(`retired runtime state remains in map adapter: ${stale}`);
 
 const top=[...duplicateNames].sort((a,b)=>b[1].length-a[1].length).slice(0,8).map(([name,sites])=>`${name}:${sites.length}`).join(', ');
-console.log(`v1.56.0 binding/architecture audit passed: ${bindings.size} named bindings, ${duplicateNames.length} duplicate names, ${extraBindings} extra sites, 0 application engine branches, 0 application native-map calls, 0 native-map escapes. Highest wrapper chains: ${top}.`);
+console.log(`v1.56.0.1 binding/architecture audit passed: ${bindings.size} named bindings, ${duplicateNames.length} duplicate names, ${extraBindings} extra sites, 0 application engine branches, 0 application native-map calls, 0 native-map escapes. Highest wrapper chains: ${top}.`);

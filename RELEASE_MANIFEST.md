@@ -1,6 +1,6 @@
-# EditPolygon v1.56.0 release manifest
+# EditPolygon v1.56.0.1 release manifest
 
-v1.56.0 is the **Processing Toolbox foundation** release on top of the accepted v1.55.7.4 OpenLayers/drawing baseline. It intentionally establishes one processing architecture before the larger v1.56.1–v1.56.3 tool expansion.
+v1.56.0.1 is the first **Processing Toolbox hotfix** on top of v1.56.0. It preserves the new toolbox architecture and fixes the selection-scope wiring defect discovered in live testing: the Processing application bridge now resolves selection through the public `EditPolygonGIS.getSelection()` API instead of referencing a private helper outside its lexical scope.
 
 ## Toolbox architecture
 
@@ -18,7 +18,7 @@ Retired file:
 
 The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
 
-## v1.56.0 tools
+## v1.56.0.1 tools
 
 - Buffer
 - Centroids
@@ -42,9 +42,9 @@ The overlay set in this release deliberately preserves the existing Turf behavio
 - Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
 - Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
 - Output layers store `.epz`-persistent `gisProcessing` provenance.
-- v1.56.0 records its actual processing CRS as `EPSG:4326`.
+- v1.56.0.1 records its actual processing CRS as `EPSG:4326`.
 
-All local deployment assets use the `20260811-v1560-processing-toolbox` cache key, including the worker's local registry/core imports.
+All local deployment assets use the `20260811-v15601-processing-selection-fix` cache key, including the worker's local registry/core imports.
 
 ## Automated gate
 
@@ -55,7 +55,7 @@ npm run check
 npm run test:browser-smoke
 ```
 
-Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites**, **1,704 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Final automated verification: **290/290 Node tests**, **9/9 browser smoke suites**, **1,705 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Targeted live validation
 
