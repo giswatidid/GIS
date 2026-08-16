@@ -2,6 +2,7 @@
 
 ## v1.56.1 — Full Processing Toolbox consolidation
 
+- Live-testing hotfix: switching Processing tools now preserves the current source scope (All, Filtered or Selected), so **Process selected** remains selected after choosing Difference, Union or another tool.
 - Completes the pre-release v1.56 Processing Toolbox milestone with a **32-tool declarative catalogue** spanning vector geometry, overlay, aggregation, conversion, selection, spatial analysis and geometry maintenance.
 - Generalises Processing requests from a fixed source/overlay/new-layer shape to declared inputs, generic parameters and layer/selection result contracts, including deliberate in-place maintenance where a tool permits it.
 - Adds `gis-processing-engine.js` as the shared high-level processing router and `gis-spatial-core.js` as the shared indexing/relationship/nearest engine.

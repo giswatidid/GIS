@@ -87,6 +87,11 @@ with sync_playwright() as p:
     page.evaluate("EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',sourceScope:'selected',api:EditPolygonGIS,status:window.__status,onOpenOutput:output=>window.__opened=output.id})")
     assert page.locator('[data-processing-scope="source"]').input_value()=='selected'
     assert '1 source feature' in page.locator('.gis-processing-preflight').inner_text()
+    # Switching tools must preserve the selected scope. This is the actual
+    # Process selected workflow: enter on Selected, then choose an algorithm.
+    page.locator('[data-processing-tool="difference"]').click()
+    assert page.locator('[data-processing-scope="source"]').input_value()=='selected'
+    assert '1 source feature' in page.locator('.gis-processing-preflight').inner_text()
     page.evaluate("EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',sourceScope:'all',api:EditPolygonGIS,status:window.__status,onOpenOutput:output=>window.__opened=output.id})")
 
     page.locator('[data-processing-scope="source"]').select_option('filtered')
