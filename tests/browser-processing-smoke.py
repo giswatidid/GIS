@@ -45,7 +45,7 @@ with sync_playwright() as p:
         previewProcessingRequest:request=>EditPolygonGISProcessingCore.preflight(request,{layers:window.__layers,selectionIds:window.__selection.ids}),
         runProcessingRequest:(request,onProgress)=>new Promise((resolve,reject)=>{
           window.__pendingReject=reject;onProgress({stage:'Preparing input',done:0,total:3,percent:0});
-          setTimeout(()=>{if(window.__pendingReject!==reject)return;onProgress({stage:'Processing',done:3,total:3,percent:90});window.__pendingReject=null;resolve({output:{id:'out',name:request.output.name||'Result',features:[{id:'out1'}]},summary:{input:3,processed:3,output:1,failed:0,partial:false},failures:[],provenance:{tool:request.toolId}});},window.__slow?300:30);
+          setTimeout(()=>{if(window.__pendingReject!==reject)return;onProgress({stage:'Processing',done:3,total:3,percent:90});window.__pendingReject=null;const selection=request.toolId.startsWith('select-')||request.toolId==='invert-selection';const modified=request.output?.mode==='modify-source';resolve(selection?{kind:'selection',output:{kind:'selection',count:1},summary:{input:3,processed:3,output:1,failed:0,partial:false},failures:[]}:{kind:'layer',output:{id:modified?'source':'out',name:modified?'Source polygons':(request.output.name||'Result'),modified,features:[{id:'out1'}]},summary:{input:3,processed:3,output:1,failed:0,partial:false},failures:[],provenance:{tool:request.toolId}});},window.__slow?300:30);
         }),
         cancelProcessing:()=>{window.__cancelCount++;const reject=window.__pendingReject;window.__pendingReject=null;if(reject)reject(Error('Processing cancelled. No project data was changed.'));return true;},
         zoomLayer:id=>{window.__zoomed=id;return true;}
@@ -55,7 +55,7 @@ with sync_playwright() as p:
     page.add_script_tag(path=str(ROOT/'docs/assets/gis-processing.js'))
     page.evaluate("EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',api:EditPolygonGIS,status:window.__status,onOpenOutput:output=>window.__opened=output.id})")
 
-    assert page.locator('[data-processing-tool]').count()==8
+    assert page.locator('[data-processing-tool]').count()==32
     assert page.locator('[data-processing-tool="buffer"]').get_attribute('class').find('active')>=0
     # Tool rows must resist the application's global nowrap/inline-flex button defaults.
     desktop_tools=page.evaluate('''()=>{
@@ -77,18 +77,39 @@ with sync_playwright() as p:
     assert desktop_tools['buttonWhiteSpace']=='normal',desktop_tools
     assert desktop_tools['titleAlign']=='left' and desktop_tools['descriptionAlign']=='left',desktop_tools
     assert abs(desktop_tools['titleLeft']-desktop_tools['descriptionLeft'])<=1,desktop_tools
-    options=page.locator('#gisProcessingSourceScope option').all_inner_texts()
+    options=page.locator('[data-processing-scope="source"] option').all_inner_texts()
     assert 'All features (3)' in options,options
     assert 'Filtered features (2)' in options,options
     assert 'Selected features (1)' in options,options
     assert 'Layer visibility does not change processing membership.' in page.locator('.gis-processing-parameter-lock > .gis-processing-form').inner_text()
 
-    page.locator('#gisProcessingSourceScope').select_option('filtered')
+    # Simple Editor / bulk shortcuts can enter the authoritative Toolbox with the selected scope preconfigured.
+    page.evaluate("EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',sourceScope:'selected',api:EditPolygonGIS,status:window.__status,onOpenOutput:output=>window.__opened=output.id})")
+    assert page.locator('[data-processing-scope="source"]').input_value()=='selected'
+    assert '1 source feature' in page.locator('.gis-processing-preflight').inner_text()
+    page.evaluate("EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',sourceScope:'all',api:EditPolygonGIS,status:window.__status,onOpenOutput:output=>window.__opened=output.id})")
+
+    page.locator('[data-processing-scope="source"]').select_option('filtered')
     assert '2 source features' in page.locator('.gis-processing-preflight').inner_text()
     page.locator('[data-processing-tool="clip"]').click()
-    assert page.locator('#gisProcessingOverlay').count()==1
-    assert page.locator('#gisProcessingOverlay').input_value()=='overlay'
+    assert page.locator('[data-processing-input="overlay"]').count()==1
+    assert page.locator('[data-processing-input="overlay"]').input_value()=='overlay'
     assert '1 overlay feature' in page.locator('.gis-processing-preflight').inner_text()
+
+    # Field-driven and selection tools use the same generic parameter/input contract.
+    page.locator('[data-processing-tool="dissolve"]').click()
+    assert page.locator('[data-processing-param="field"]').count()==1
+    assert 'name' in page.locator('[data-processing-param="field"] option').all_inner_texts()
+    page.locator('[data-processing-tool="select-by-attribute"]').click()
+    assert page.locator('.gis-processing-output-note').inner_text().find('does not create a layer')>=0
+    assert page.locator('[data-processing-action="run"]').inner_text()=='Run selection'
+
+    # Maintenance tools alone expose an explicit undoable in-place output mode.
+    page.locator('[data-processing-tool="simplify"]').click()
+    assert page.locator('#gisProcessingOutputMode').count()==1
+    page.locator('#gisProcessingOutputMode').select_option('modify-source')
+    assert page.locator('[data-processing-action="run"]').inner_text()=='Run and modify layer'
+    page.locator('#gisProcessingOutputMode').select_option('new-layer')
 
     page.locator('[data-processing-tool="buffer"]').click()
     page.locator('[data-processing-action="run"]').click()

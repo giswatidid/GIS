@@ -1,6 +1,6 @@
 # EditPolygon quality baseline
 
-**Current baseline: v1.56.0.4.** OpenLayers remains the sole map runtime. The accepted v1.55.7.4 drawing/rendering baseline is unchanged; v1.56.0.4 keeps the accepted Processing Toolbox architecture and hardens `.epz` project-open history isolation so every reopened project starts with a clean undo/redo session.
+**Current baseline: v1.56.1.** OpenLayers remains the sole map runtime. The accepted v1.55.7.4 drawing/rendering baseline is unchanged; v1.56.1 completes the Processing Toolbox consolidation with 32 declarative tools, shared spatial/schema/GEOS engines and generic layer/modify/selection result contracts.
 
 ## Current automated gate
 
@@ -11,9 +11,9 @@ npm run check
 npm run test:browser-smoke
 ```
 
-v1.56.0.4 currently expects:
+v1.56.1 currently expects:
 
-- **291/291 Node tests**;
+- **304/304 Node tests**;
 - **9/9 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
@@ -61,15 +61,21 @@ A live drag may mutate the focused native feature for pointer responsiveness, bu
 
 ### Processing Toolbox invariants
 
-- The canonical tool catalogue is declarative and lives in `gis-processing-registry.js`.
+- The canonical 32-tool catalogue is declarative and lives in `gis-processing-registry.js`.
 - Processing membership has only three scopes: **all**, **filtered** and **selected**; feature visibility is not a processing filter.
-- The worker delegates to `gis-processing-core.js`; `gis-analysis-worker.js` is retired and must not be packaged.
-- Pre-flight validation runs before worker execution and rejects missing/unsupported layers, geometry families and parameters.
-- Cancellation, worker failure and empty outputs do not mutate the project.
-- Successful processing output is committed as one history transaction and is therefore undone/redone as one layer-level action.
-- Per-feature failures are reported with feature identity/message rather than silently discarded. Aggregate operations fail atomically when a partial aggregate would be misleading.
-- Provenance records tool, source/overlay, scopes, parameters, real processing CRS and result/failure metadata and survives `.epz`.
-- v1.56.0.4 executes Toolbox geometry in canonical WGS 84/Turf; robust GEOS-backed projected topology is deliberately deferred to v1.56.1.
+- `gis-processing-core.js` owns generic request/pre-flight/result/provenance/CRS contracts; algorithms do not leak back into application code.
+- The sole worker delegates to `gis-processing-engine.js`; `gis-analysis-worker.js` is retired and must not be packaged.
+- `gis-spatial-core.js` is the shared spatial index/relationship/nearest engine used by both Processing and Join & Summarize.
+- `gis-geos-adapter.js` is the shared low-level GEOS-WASM boundary used by Geometry Health and robust Processing operations.
+- Typed attribute selection uses the schema/filter predicate engine rather than a separate text-only comparator.
+- Pre-flight validation rejects missing/unsupported layers, scopes, geometry families, fields and parameters before worker execution.
+- Cancellation and worker failure do not mutate the project.
+- New-layer and permitted in-place operations are each committed as exactly one history transaction; selection results create no layer.
+- Per-feature failures carry feature identity/message; aggregate jobs that would be misleading if partial fail atomically.
+- Provenance records every input/scope, parameters, output policy, actual processing CRS, engine and result/failure metadata and survives `.epz`.
+- Projected GEOS operations transform cloned WGS 84 input to a suitable metric CRS and transform output back before commit; provenance records the CRS actually used.
+- Join & Summarize may offer a specialised workflow, but it must not own a second dissolve or spatial-match implementation.
+- The Simple Editor must not reintroduce independent Merge/Dissolve, Cut/Difference, Intersection, Clip, Erase, Repair or Simplify processing kernels. It may keep direct graphical editing operations such as Offset/inset, Split by drawn line, holes and Smooth, while feature and multi-selection shortcuts open the authoritative Processing Toolbox.
 
 ### Large-data interaction
 
@@ -116,14 +122,14 @@ Mobile is a first-class interface. The quality gate covers:
 
 ## Binding/source-order baseline
 
-The v1.56.0.4 no-growth ceilings are:
+The v1.56.1 no-growth ceilings are:
 
-- **198 duplicate function-binding names**;
-- **371 extra historical binding sites**.
+- **196 duplicate function-binding names**;
+- **369 extra historical binding sites**.
 
-The current audit sees **1,705 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
+The current audit sees **1,670 named bindings**. Critical runtime functions must retain stable identities. No new feature function may be appended after the runtime-authority boundary. These debt counts should decrease as the application is modularised.
 
-## Live parity evidence carried into v1.56.0.4
+## Live parity evidence carried into v1.56.1
 
 The deployed OpenLayers path has been manually exercised for:
 
@@ -148,4 +154,4 @@ v1.55.5 made OpenLayers the normal runtime, v1.55.6 removed the alternate implem
 
 ## Next gate
 
-Live-test v1.56.0.4 Toolbox behaviour, then proceed to **v1.56.1 robust topology**: extend the existing GEOS-WASM adapter for Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid without duplicating the Toolbox lifecycle.
+v1.56 is complete. Proceed to **v1.57 large-data performance** without weakening the Processing/Spatial/GEOS ownership boundaries established here.

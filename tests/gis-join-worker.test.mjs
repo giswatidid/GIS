@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const joinSource=fs.readFileSync(new URL('../docs/assets/gis-join-core.js',import.meta.url),'utf8');
-const analysisSource=fs.readFileSync(new URL('../docs/assets/gis-analysis-core.js',import.meta.url),'utf8');
+const spatialSource=fs.readFileSync(new URL('../docs/assets/gis-spatial-core.js',import.meta.url),'utf8');
 const workerSource=fs.readFileSync(new URL('../docs/assets/gis-join-worker.js',import.meta.url),'utf8');
 
 function bbox(geometry){
@@ -43,16 +43,16 @@ function context(){
   };
   const sandbox={self,globalThis:self,console,Map,Set,Date,Math,JSON,Number,String,Array,Object,Error,RegExp,Intl,structuredClone,importScripts:()=>{}};
   vm.createContext(sandbox);
-  vm.runInContext(analysisSource,sandbox,{filename:'gis-analysis-core.js'});
+  vm.runInContext(spatialSource,sandbox,{filename:'gis-spatial-core.js'});
   vm.runInContext(joinSource,sandbox,{filename:'gis-join-core.js'});
   vm.runInContext(workerSource,sandbox,{filename:'gis-join-worker.js'});
   return {self,messages};
 }
 const schema=fields=>({version:1,fields:fields.map(([name,type])=>({name,alias:name,type,nullable:true}))});
 
-test('spatial worker joins points to containing polygons and summarizes all matches',()=>{
+test('spatial worker joins points to containing polygons and summarizes all matches',async()=>{
   const {self,messages}=context();
-  self.onmessage({data:{id:'job',task:{operation:'spatialJoin',targetRecords:[
+  await self.onmessage({data:{id:'job',task:{operation:'spatialJoin',targetRecords:[
     {id:'p1',geometry:{type:'Point',coordinates:[1,1]},properties:{name:'Inside'}},
     {id:'p2',geometry:{type:'Point',coordinates:[8,8]},properties:{name:'Outside'}}
   ],sourceRecords:[
@@ -64,9 +64,9 @@ test('spatial worker joins points to containing polygons and summarizes all matc
   assert.equal(result.rows[1].properties.region,null);assert.equal(result.rows[1].properties.match_count,0);
   assert.equal(result.diagnostics.matchedTargets,1);assert.equal(result.diagnostics.unmatchedTargets,1);
 });
-test('spatial worker finds nearest point, reports geodesic distance and honours a limit',()=>{
+test('spatial worker finds nearest point, reports geodesic distance and honours a limit',async()=>{
   const {self,messages}=context();
-  self.onmessage({data:{id:'near',task:{operation:'spatialJoin',targetRecords:[{id:'a',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'A'}}],sourceRecords:[
+  await self.onmessage({data:{id:'near',task:{operation:'spatialJoin',targetRecords:[{id:'a',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'A'}}],sourceRecords:[
     {id:'near',geometry:{type:'Point',coordinates:[153.01,-27]},properties:{site:'Near'}},
     {id:'far',geometry:{type:'Point',coordinates:[154,-27]},properties:{site:'Far'}}
   ],config:{predicate:'nearest',matchMode:'first',keepUnmatched:true,includeDistance:true,maxDistanceKm:5,targetSchema:schema([['name','text']]),sourceSchema:schema([['site','text']]),fieldMap:[{source:'site',output:'nearest_site',include:true}],aggregations:[]}}}});
@@ -76,15 +76,15 @@ test('spatial worker finds nearest point, reports geodesic distance and honours 
   assert.match(result.diagnostics.distanceMethod,/geodesic/);
 });
 
-test('spatial worker reports invalid geometry instead of silently treating it as a match',()=>{
+test('spatial worker reports invalid geometry instead of silently treating it as a match',async()=>{
   const {self,messages}=context();
-  self.onmessage({data:{id:'bad',task:{operation:'spatialJoin',targetRecords:[{id:'bad',geometry:null,properties:{}}],sourceRecords:[{id:'point',geometry:{type:'Point',coordinates:[0,0]},properties:{}}],config:{predicate:'nearest',targetSchema:schema([]),sourceSchema:schema([]),fieldMap:[],aggregations:[]}}}});
+  await self.onmessage({data:{id:'bad',task:{operation:'spatialJoin',targetRecords:[{id:'bad',geometry:null,properties:{}}],sourceRecords:[{id:'point',geometry:{type:'Point',coordinates:[0,0]},properties:{}}],config:{predicate:'nearest',targetSchema:schema([]),sourceSchema:schema([]),fieldMap:[],aggregations:[]}}}});
   const error=messages.find(message=>message.type==='error');assert.ok(error);assert.match(error.message,/No target records have usable geometry/);
 });
 
-test('spatial worker can expand multiple intersections and omit unmatched targets',()=>{
+test('spatial worker can expand multiple intersections and omit unmatched targets',async()=>{
   const {self,messages}=context();
-  self.onmessage({data:{id:'expand',task:{operation:'spatialJoin',targetRecords:[
+  await self.onmessage({data:{id:'expand',task:{operation:'spatialJoin',targetRecords:[
     {id:'target1',geometry:{type:'Polygon',coordinates:[[[0,0],[5,0],[5,5],[0,5],[0,0]]]},properties:{asset:'A'}},
     {id:'target2',geometry:{type:'Polygon',coordinates:[[[20,20],[21,20],[21,21],[20,21],[20,20]]]},properties:{asset:'B'}}
   ],sourceRecords:[
@@ -99,9 +99,9 @@ test('spatial worker can expand multiple intersections and omit unmatched target
   assert.match(result.diagnostics.warnings.join(' '),/expands/);
 });
 
-test('spatial worker summarizes numeric values from all intersecting source features',()=>{
+test('spatial worker summarizes numeric values from all intersecting source features',async()=>{
   const {self,messages}=context();
-  self.onmessage({data:{id:'sum',task:{operation:'spatialJoin',targetRecords:[
+  await self.onmessage({data:{id:'sum',task:{operation:'spatialJoin',targetRecords:[
     {id:'target',geometry:{type:'Polygon',coordinates:[[[0,0],[5,0],[5,5],[0,5],[0,0]]]},properties:{name:'Area'}}
   ],sourceRecords:[
     {id:'s1',geometry:{type:'Point',coordinates:[1,1]},properties:{value:4}},

@@ -1,5 +1,19 @@
 # EditPolygon changelog
 
+## v1.56.1 — Full Processing Toolbox consolidation
+
+- Completes the pre-release v1.56 Processing Toolbox milestone with a **32-tool declarative catalogue** spanning vector geometry, overlay, aggregation, conversion, selection, spatial analysis and geometry maintenance.
+- Generalises Processing requests from a fixed source/overlay/new-layer shape to declared inputs, generic parameters and layer/selection result contracts, including deliberate in-place maintenance where a tool permits it.
+- Adds `gis-processing-engine.js` as the shared high-level processing router and `gis-spatial-core.js` as the shared indexing/relationship/nearest engine.
+- Expands the existing GEOS-WASM adapter for robust Intersection, Difference, Union, Symmetric difference, Unary Union/Dissolve, Snap, topology-preserving Simplify, Densify and metric Distance while retaining the Geometry Health MakeValid boundary.
+- Adds real processing-CRS handling for projected GEOS/metric operations: cloned canonical WGS 84 input is transformed for processing and returned to canonical WGS 84 before commit; provenance records the actual CRS.
+- Makes Join & Summarize consume the shared spatial core and shared dissolve primitive instead of maintaining independent implementations.
+- Makes Select by Attribute consume typed schema/filter semantics and passes authoritative input schemas into worker tasks.
+- Adds selection-only Toolbox results and undoable new-layer/in-place commit policies without making map visibility an analysis scope.
+- Removes independent Simple Editor Merge/Dissolve, Cut/Difference, Intersection, Clip, Erase, Repair and Simplify processing entry points/kernels, including the broken development-era Erase path. Feature and multi-selection actions now open the authoritative Toolbox with **Selected features** preconfigured; direct graphical editing conveniences such as Offset/inset, Split, holes and Smooth remain.
+- Adds `.gitignore` required by the repository quality gate and expands regression coverage for the full catalogue, contracts, shared spatial engine, GEOS adapter and Processing execution router.
+- Marks v1.56 complete; v1.57 large-data performance is the next roadmap milestone.
+
 ## v1.56.0.4 — EPZ project-open history hotfix
 
 - Fixes a project-open undo boundary bug where a stale structural history snapshot could survive the `.epz` restore wrappers and become the first Ctrl+Z action in the newly opened project.

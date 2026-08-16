@@ -15,5 +15,5 @@ test('attribute tools observe editable GIS rows rendered after startup', () => {
 });
 
 test('attribute tools expose a supported manual recovery hook', () => {
-  assert.match(source, /window\.EditPolygonGISDataTools=Object\.freeze\(\{open,openLayer:open,ensureButtons:queueEnsureButtons\}\)/);
+  assert.match(source, /window\.EditPolygonGISDataTools=Object\.freeze\(\{open,openLayer:open,openProcessing:[\s\S]*?ensureButtons:queueEnsureButtons\}\)/);
 });

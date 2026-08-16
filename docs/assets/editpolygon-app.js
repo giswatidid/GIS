@@ -430,13 +430,7 @@ function ensureFeatureModel(f){
 }
 function editLabel(edit){
   const labels={
-    cut:'Cut',
-    intersect:'Intersect',
-    clip:'Clip',
-    erase:'Erase',
-    simplify:'Simplify',
     smooth:'Smooth',
-    repair:'Repair',
     fillHoles:'Fill holes',
     drawHole:'Draw hole',
     splitLine:'Split line',
@@ -523,123 +517,6 @@ function flattenEdits(f){
   f.geometry=clone(f.sourceGeometry);
 }
 
-const SIMPLIFY_MERCATOR_RADIUS=6378137;
-function simplifyClampMercatorLat(lat){
-  return Math.max(-85.05112878,Math.min(85.05112878,Number(lat)||0));
-}
-function simplifyWrapLongitude(lng){
-  if(!Number.isFinite(Number(lng)))return 0;
-  return ((((Number(lng)+180)%360)+360)%360)-180;
-}
-function simplifyUnwrapLine(coords){
-  if(!Array.isArray(coords)||!coords.length)return [];
-  const wasClosed=coords.length>1&&same(coords[0],coords[coords.length-1]);
-  const source=wasClosed?coords.slice(0,-1):coords.slice();
-  const out=[];
-  let previous=null;
-  for(const coord of source){
-    if(!Array.isArray(coord)||coord.length<2)continue;
-    let lng=Number(coord[0]),lat=Number(coord[1]);
-    if(!Number.isFinite(lng)||!Number.isFinite(lat))continue;
-    if(previous!=null){
-      while(lng-previous>180)lng-=360;
-      while(lng-previous<-180)lng+=360;
-    }
-    previous=lng;
-    out.push([lng,lat,...coord.slice(2)]);
-  }
-  if(wasClosed&&out.length)out.push(clone(out[0]));
-  return out;
-}
-function simplifyProjectCoord(coord){
-  const lng=Number(coord[0]);
-  const lat=simplifyClampMercatorLat(coord[1]);
-  const x=SIMPLIFY_MERCATOR_RADIUS*lng*Math.PI/180;
-  const y=SIMPLIFY_MERCATOR_RADIUS*Math.log(Math.tan(Math.PI/4+(lat*Math.PI/180)/2));
-  return [x,y,...coord.slice(2)];
-}
-function simplifyUnprojectCoord(coord){
-  const lng=Number(coord[0])/SIMPLIFY_MERCATOR_RADIUS*180/Math.PI;
-  const lat=(2*Math.atan(Math.exp(Number(coord[1])/SIMPLIFY_MERCATOR_RADIUS))-Math.PI/2)*180/Math.PI;
-  return [simplifyWrapLongitude(lng),lat,...coord.slice(2)];
-}
-function simplifyMapLine(coords,mapper,unwrap=false){
-  const source=unwrap?simplifyUnwrapLine(coords):coords;
-  const wasClosed=Array.isArray(source)&&source.length>1&&same(source[0],source[source.length-1]);
-  const out=(source||[]).map(mapper);
-  if(wasClosed&&out.length)out[out.length-1]=clone(out[0]);
-  return out;
-}
-function simplifyProjectGeometry(geom){
-  if(!geom)return null;
-  const g=clone(geom);
-  if(g.type==='Point')g.coordinates=simplifyProjectCoord(g.coordinates);
-  else if(g.type==='MultiPoint')g.coordinates=g.coordinates.map(simplifyProjectCoord);
-  else if(g.type==='LineString')g.coordinates=simplifyMapLine(g.coordinates,simplifyProjectCoord,true);
-  else if(g.type==='MultiLineString')g.coordinates=g.coordinates.map(line=>simplifyMapLine(line,simplifyProjectCoord,true));
-  else if(g.type==='Polygon')g.coordinates=g.coordinates.map(ring=>simplifyMapLine(ring,simplifyProjectCoord,true));
-  else if(g.type==='MultiPolygon')g.coordinates=g.coordinates.map(poly=>poly.map(ring=>simplifyMapLine(ring,simplifyProjectCoord,true)));
-  return g;
-}
-function simplifyUnprojectGeometry(geom){
-  if(!geom)return null;
-  const g=clone(geom);
-  if(g.type==='Point')g.coordinates=simplifyUnprojectCoord(g.coordinates);
-  else if(g.type==='MultiPoint')g.coordinates=g.coordinates.map(simplifyUnprojectCoord);
-  else if(g.type==='LineString')g.coordinates=simplifyMapLine(g.coordinates,simplifyUnprojectCoord,false);
-  else if(g.type==='MultiLineString')g.coordinates=g.coordinates.map(line=>simplifyMapLine(line,simplifyUnprojectCoord,false));
-  else if(g.type==='Polygon')g.coordinates=g.coordinates.map(ring=>simplifyMapLine(ring,simplifyUnprojectCoord,false));
-  else if(g.type==='MultiPolygon')g.coordinates=g.coordinates.map(poly=>poly.map(ring=>simplifyMapLine(ring,simplifyUnprojectCoord,false)));
-  return g;
-}
-function simplifyGeometryKilometres(geom,toleranceKm,highQuality=true){
-  const km=Number(toleranceKm);
-  if(!geom||!Number.isFinite(km)||km<=0)return clone(geom);
-  const projected=simplifyProjectGeometry(geom);
-  const result=turf.simplify(
-    {type:'Feature',properties:{},geometry:projected},
-    {tolerance:km*1000,highQuality:highQuality!==false,mutate:false}
-  );
-  const unprojected=simplifyUnprojectGeometry(result?.geometry||projected);
-  return normalizeEditableGeometry(unprojected)||unprojected||clone(geom);
-}
-function simplifyToleranceLabel(km){
-  const value=Number(km);
-  if(!Number.isFinite(value))return '—';
-  if(value<1){
-    const metres=value*1000;
-    return `${fmt(metres,metres<10?2:metres<100?1:0)} m`;
-  }
-  return `${fmt(value,value<10?2:value<100?1:0)} km`;
-}
-function simplifyGeometryDiagonalKm(geom){
-  try{
-    const b=turf.bbox({type:'Feature',properties:{},geometry:geom});
-    const a=turf.point([b[0],b[1]]),z=turf.point([b[2],b[3]]);
-    const d=turf.distance(a,z,{units:'kilometers'});
-    return Number.isFinite(d)&&d>0?d:null;
-  }catch(_){return null;}
-}
-function simplifyNiceCeiling(value){
-  const n=Math.max(Number(value)||0,1e-9);
-  const power=Math.pow(10,Math.floor(Math.log10(n)));
-  const scaled=n/power;
-  const nice=scaled<=1?1:scaled<=2?2:scaled<=5?5:10;
-  return nice*power;
-}
-function simplifyControlConfig(){
-  const r=ref(project.selectedFeatureId);
-  const geom=r?.feature?getDisplayGeometry(r.feature):null;
-  const diagonalKm=simplifyGeometryDiagonalKm(geom)||100;
-  const min=0.001; // 1 metre
-  const max=Math.max(1,Math.min(1000,simplifyNiceCeiling(diagonalKm*0.2)));
-  const rawDefault=Math.max(0.01,Math.min(max,diagonalKm*0.0005));
-  const value=Math.max(min,Math.min(max,Number(rawDefault.toPrecision(3))));
-  return {
-    id:'tolerance',label:'Tolerance (km)',type:'range-number',min,max,step:0.001,value,scale:'log',
-    title:`Logarithmic scale from ${simplifyToleranceLabel(min)} to ${simplifyToleranceLabel(max)}. Equal slider distances multiply the tolerance rather than adding a fixed amount.`
-  };
-}
 function geometryControlActualToSlider(c,value){
   const n=Number(value);
   if(c?.scale!=='log')return n;
@@ -692,22 +569,8 @@ function configureRangeNumberControl(range,num,c,onUpdate){
 
 function applyEditToGeometry(geom,edit,feature){
   const p=edit.params||{};
-  if(edit.type==='simplify'){
-    if(Number.isFinite(Number(p.toleranceKm))&&Number(p.toleranceKm)>0){
-      return simplifyGeometryKilometres(geom,Number(p.toleranceKm),true);
-    }
-    // Backward compatibility: older saved projects stored Turf's raw
-    // coordinate-unit tolerance in `tolerance`, despite the old UI calling it
-    // kilometres. Preserve those edits exactly until the user edits/replaces them.
-    const legacyTolerance=Number(p.tolerance||0.01);
-    const result=turf.simplify({type:'Feature',properties:{},geometry:geom},{tolerance:legacyTolerance,highQuality:true,mutate:false});
-    return result?.geometry||geom;
-  }
   if(edit.type==='smooth'){
     return smoothGeometryObject(geom, Math.max(1,Math.min(3,Math.round(Number(p.iterations||1)))));
-  }
-  if(edit.type==='repair'){
-    return repairGeometryObject(geom)||geom;
   }
   if(edit.type==='fillHoles'){
     const g=clone(geom);
@@ -722,22 +585,6 @@ function applyEditToGeometry(geom,edit,feature){
     if(g.type==='Polygon')g.coordinates.push(ring);
     else if(g.type==='MultiPolygon')g.coordinates[0].push(ring);
     return g;
-  }
-  if(edit.type==='cut'||edit.type==='erase'){
-    if(!p.cutterGeometry)return geom;
-    const result=turf.difference({type:'FeatureCollection',features:[
-      {type:'Feature',properties:{},geometry:geom},
-      {type:'Feature',properties:{},geometry:p.cutterGeometry}
-    ]});
-    return result?.geometry||geom;
-  }
-  if(edit.type==='intersect'||edit.type==='clip'){
-    if(!p.cutterGeometry)return geom;
-    const result=turf.intersect({type:'FeatureCollection',features:[
-      {type:'Feature',properties:{},geometry:geom},
-      {type:'Feature',properties:{},geometry:p.cutterGeometry}
-    ]});
-    return result?.geometry||geom;
   }
   if(edit.type==='splitLine'){
     if(!p.line||!p.widthMetres)return geom;
@@ -2993,7 +2840,7 @@ function initialMapView(){
 const startingView=initialMapView();
 const MAP_ADAPTER=window.EditPolygonMapAdapter;
 if(!MAP_ADAPTER||typeof MAP_ADAPTER.createRuntime!=='function')throw new Error('EditPolygon map adapter failed to load.');
-// v1.56.0.4: OpenLayers is the sole map runtime. Application code talks only
+// v1.56.1: OpenLayers is the sole map runtime. Application code talks only
 // to the stable EditPolygonMap contract; native implementation details stay in the adapter.
 const MAP_RUNTIME=MAP_ADAPTER.createRuntime({
   target:'map',
@@ -4326,7 +4173,7 @@ function renderSidebar(){
     else if(a==='featmenu'){showFeatureLayerMenu(e,el.dataset.f);}
   }));
 }
-function renderSelected(){const panel=$('selectedPanel'),r=ref();if(!r){panel.innerHTML='<div class="subtle">No feature selected.</div>';return}const f=r.feature,m=metrics(f.geometry),parts=f.geometry.type==='MultiPolygon'?f.geometry.coordinates.length:1;panel.innerHTML=`<div class="input-row"><input id="nameInput" type="text" value="${esc(f.name)}"><button id="renameBtn">Rename</button></div><div class="kv"><div class="k">File</div><div>${esc(r.file.name)}</div><div class="k">Geometry</div><div>${f.geometry.type}</div><div class="k">Parts</div><div>${parts}</div><div class="k">Vertices</div><div>${vertexCount(f.geometry)}</div><div class="k">Selected vertices</div><div>${V.active?V.selected.size:0}</div><div class="k">Area</div><div>${areaLabel(m.area)}</div><div class="k">Length / Perimeter</div><div>${lenLabel(m.perim)}</div></div><div class="input-row" style="margin-top:8px">${V.active?`<button id="panelLasso">${V.lasso?'Stop lasso':'Lasso select'}</button><button id="panelDeleteVertices" class="danger">Delete selected vertices</button><button id="panelClearVertices">Clear selection</button><button id="panelDone">Done</button>`:`<button id="panelEditVertices">Edit polygon</button><button id="panelDuplicate">Duplicate</button><button id="panelCut">Cut with selected</button><button id="panelDeletePolygon" class="danger">Delete polygon</button>`}</div>`;$('renameBtn').onclick=()=>{const v=$('nameInput').value.trim();if(!v)return;pushHistory();f.name=v;f.properties.name=v;renderAll();setDirty(true)};renderEditStackPanel(f);if(V.active){$('panelLasso').onclick=toggleLasso;$('panelDeleteVertices').onclick=VDelete;$('panelClearVertices').onclick=()=>{V.selected.clear();renderOverlay();renderSelected();updateStatus();updateButtons();setStatus('Vertex selection cleared.')};$('panelDone').onclick=()=>VStop(false)}else{$('panelEditVertices').onclick=VStart;$('panelDuplicate').onclick=duplicateFeature;const panelCut=$('panelCut');if(panelCut)panelCut.onclick=cutSelectedFromActive;$('panelDeletePolygon').onclick=deletePolygon}}
+function renderSelected(){const panel=$('selectedPanel'),r=ref();if(!r){panel.innerHTML='<div class="subtle">No feature selected.</div>';return}const f=r.feature,m=metrics(f.geometry),parts=f.geometry.type==='MultiPolygon'?f.geometry.coordinates.length:1;panel.innerHTML=`<div class="input-row"><input id="nameInput" type="text" value="${esc(f.name)}"><button id="renameBtn">Rename</button></div><div class="kv"><div class="k">File</div><div>${esc(r.file.name)}</div><div class="k">Geometry</div><div>${f.geometry.type}</div><div class="k">Parts</div><div>${parts}</div><div class="k">Vertices</div><div>${vertexCount(f.geometry)}</div><div class="k">Selected vertices</div><div>${V.active?V.selected.size:0}</div><div class="k">Area</div><div>${areaLabel(m.area)}</div><div class="k">Length / Perimeter</div><div>${lenLabel(m.perim)}</div></div><div class="input-row" style="margin-top:8px">${V.active?`<button id="panelLasso">${V.lasso?'Stop lasso':'Lasso select'}</button><button id="panelDeleteVertices" class="danger">Delete selected vertices</button><button id="panelClearVertices">Clear selection</button><button id="panelDone">Done</button>`:`<button id="panelEditVertices">Edit polygon</button><button id="panelDuplicate">Duplicate</button><button id="panelProcessing">Processing…</button><button id="panelDeletePolygon" class="danger">Delete polygon</button>`}</div>`;$('renameBtn').onclick=()=>{const v=$('nameInput').value.trim();if(!v)return;pushHistory();f.name=v;f.properties.name=v;renderAll();setDirty(true)};renderEditStackPanel(f);if(V.active){$('panelLasso').onclick=toggleLasso;$('panelDeleteVertices').onclick=VDelete;$('panelClearVertices').onclick=()=>{V.selected.clear();renderOverlay();renderSelected();updateStatus();updateButtons();setStatus('Vertex selection cleared.')};$('panelDone').onclick=()=>VStop(false)}else{$('panelEditVertices').onclick=VStart;$('panelDuplicate').onclick=duplicateFeature;const panelProcessing=$('panelProcessing');if(panelProcessing)panelProcessing.onclick=()=>window.EditPolygonGISDataTools?.openProcessing?.(r.file.id,'','selected');$('panelDeletePolygon').onclick=deletePolygon}}
 
 
 function renderEditStackPanel(feature){
@@ -4368,14 +4215,11 @@ function renderEditStackPanel(feature){
 }
 function editSummary(edit){
   const p=edit.params||{};
-  if(edit.type==='simplify')return Number.isFinite(Number(p.toleranceKm))?`Tolerance ${simplifyToleranceLabel(p.toleranceKm)}`:`Legacy tolerance ${p.tolerance}°`;
   if(edit.type==='smooth')return `${p.iterations||1} iteration${Number(p.iterations||1)===1?'':'s'}`;
   if(edit.type==='offset')return `${Number(p.distanceMetres||0)>=0?'Expand':'Inset'} ${Math.abs(Number(p.distanceMetres||0)).toLocaleString()} m`;
   if(edit.type==='truncate')return `${p.decimals??6} decimal place${Number(p.decimals??6)===1?'':'s'}`;
-  if(edit.type==='cut'||edit.type==='clip'||edit.type==='erase'||edit.type==='intersect')return 'Uses stored cutter/boundary geometry';
   if(edit.type==='drawHole')return `${(p.ring||[]).length} ring points`;
   if(edit.type==='splitLine')return `${(p.line||[]).length} line points · ${p.widthMetres} m`;
-  if(edit.type==='repair')return 'Clean rings / duplicate points';
   if(edit.type==='fillHoles')return 'Remove all inner rings';
   return '';
 }
@@ -4405,11 +4249,7 @@ function handleEditStackAction(e){
   setDirty(true);
 }
 function editStackParameters(edit){
-  if(edit.type==='simplify'){
-    const current=Number.isFinite(Number(edit.params.toleranceKm))?Number(edit.params.toleranceKm):0.01;
-    const n=askNumber('Simplify tolerance in kilometres',current);
-    if(n!=null&&n>0){edit.params.toleranceKm=n;delete edit.params.tolerance;}
-  }else if(edit.type==='smooth'){
+  if(edit.type==='smooth'){
     const n=askNumber('Smooth iterations', edit.params.iterations||1);
     if(n!=null&&n>=1)edit.params.iterations=Math.min(3,Math.round(n));
   }else if(edit.type==='splitLine'){
@@ -4624,220 +4464,6 @@ function createPolygonFromCoords(){
 function duplicateFeature(){const r=ref();if(!r)return;pushHistory();const copy=clone(r.feature);ensureFeatureModel(copy);copy.id=uid('feat');copy.name=r.feature.name+' copy';copy.properties.name=copy.name;r.file.features.push(copy);project.selectedFeatureId=copy.id;renderAll();setDirty(true)}
 function deletePolygon(){const r=ref();if(!r)return;if(isLocked(r.file,r.feature)){setStatus('Feature is locked. Unlock it before deleting.','error');return}const geomType=getDisplayGeometry(r.feature)?.type||'';const deletedKind=r.feature?.drawKind==='circle'||geomType==='CircleByCenterPoint'?'Circle':geomType.includes('LineString')?'Line':geomType.includes('Point')?'Point':'Polygon';runRuntimeTransition('delete',{featureId:r.feature.id,fileId:r.file.id});if(!confirm(`Delete "${r.feature.name}"?`))return;pushHistory();r.file.features=r.file.features.filter(f=>f.id!==r.feature.id);project.mergeIds=project.mergeIds.filter(id=>id!==r.feature.id);project.selectedFeatureId=null;project.selectedFileId=null;renderAll();setDirty(true);logOperation('feature-deleted',{geometryType:geomType});setStatus(`${deletedKind} deleted.`)}
 function togglePick(fid){project.mergeIds=project.mergeIds.includes(fid)?project.mergeIds.filter(id=>id!==fid):project.mergeIds.concat(fid);renderAll()}
-function mergeGeometryFamily(type){
-  if(type==='Polygon'||type==='MultiPolygon')return 'polygon';
-  if(type==='LineString'||type==='MultiLineString')return 'line';
-  if(type==='Point'||type==='MultiPoint')return 'point';
-  return 'unsupported';
-}
-function mergeActionLabel(refs){
-  const families=new Set((refs||[]).map(r=>mergeGeometryFamily(getDisplayGeometry(r?.feature)?.type)).filter(f=>f!=='unsupported'));
-  if(families.size!==1)return 'Merge / dissolve';
-  const family=[...families][0];
-  if(family==='line')return 'Merge lines';
-  if(family==='point')return 'Combine points';
-  return 'Dissolve polygons';
-}
-function mergeValidCoordinate(coord){
-  return Array.isArray(coord)&&Number.isFinite(Number(coord[0]))&&Number.isFinite(Number(coord[1]));
-}
-function mergeCoordinateKey(coord,precision=10){
-  return `${Number(coord?.[0]).toFixed(precision)},${Number(coord?.[1]).toFixed(precision)}`;
-}
-function mergeCoordinatesNear(a,b,tolerance=1e-8){
-  return mergeValidCoordinate(a)&&mergeValidCoordinate(b)&&Math.abs(Number(a[0])-Number(b[0]))<=tolerance&&Math.abs(Number(a[1])-Number(b[1]))<=tolerance;
-}
-function mergeCleanOpenLine(coords){
-  const out=[];
-  for(const coord of coords||[]){
-    if(!mergeValidCoordinate(coord))continue;
-    const copy=clone(coord);
-    if(!out.length||!mergeCoordinatesNear(out[out.length-1],copy,1e-12))out.push(copy);
-  }
-  return out.length>=2?out:[];
-}
-function mergeLinePartsFromGeometry(geometry){
-  if(!geometry)return [];
-  if(geometry.type==='LineString')return [mergeCleanOpenLine(geometry.coordinates)].filter(line=>line.length>=2);
-  if(geometry.type==='MultiLineString')return (geometry.coordinates||[]).map(mergeCleanOpenLine).filter(line=>line.length>=2);
-  return [];
-}
-function mergeDeduplicateLineParts(parts){
-  const seen=new Set(),out=[];
-  for(const raw of parts||[]){
-    const line=mergeCleanOpenLine(raw);
-    if(line.length<2)continue;
-    const forward=line.map(c=>mergeCoordinateKey(c,10)).join('|');
-    const reverse=[...line].reverse().map(c=>mergeCoordinateKey(c,10)).join('|');
-    const key=forward<reverse?forward:reverse;
-    if(seen.has(key))continue;
-    seen.add(key);out.push(line);
-  }
-  return out;
-}
-function mergeJoinLinePair(a,b){
-  if(!a?.length||!b?.length)return null;
-  const aStart=a[0],aEnd=a[a.length-1],bStart=b[0],bEnd=b[b.length-1];
-  if(mergeCoordinatesNear(aEnd,bStart))return a.concat(b.slice(1));
-  if(mergeCoordinatesNear(aEnd,bEnd))return a.concat([...b].reverse().slice(1));
-  if(mergeCoordinatesNear(aStart,bEnd))return b.concat(a.slice(1));
-  if(mergeCoordinatesNear(aStart,bStart))return [...b].reverse().concat(a.slice(1));
-  return null;
-}
-function mergeConnectedLineParts(parts){
-  let lines=mergeDeduplicateLineParts(parts);
-  let changed=true;
-  while(changed){
-    changed=false;
-    outer:for(let i=0;i<lines.length;i++){
-      for(let j=i+1;j<lines.length;j++){
-        const joined=mergeJoinLinePair(lines[i],lines[j]);
-        if(!joined)continue;
-        lines[i]=mergeCleanOpenLine(joined);
-        lines.splice(j,1);
-        changed=true;
-        break outer;
-      }
-    }
-  }
-  return lines;
-}
-function mergeLinesWithTurf(parts){
-  const clean=mergeDeduplicateLineParts(parts);
-  if(clean.length<2)return clean;
-  try{
-    if(typeof turf?.lineMerge!=='function')return mergeConnectedLineParts(clean);
-    const input={type:'FeatureCollection',features:clean.map(coordinates=>({type:'Feature',properties:{},geometry:{type:'LineString',coordinates}}))};
-    const merged=turf.lineMerge(input);
-    const output=[];
-    for(const feature of merged?.features||[]){
-      if(feature?.geometry?.type==='LineString')output.push(feature.geometry.coordinates);
-      else if(feature?.geometry?.type==='MultiLineString')output.push(...feature.geometry.coordinates);
-    }
-    return output.length?mergeConnectedLineParts(output):mergeConnectedLineParts(clean);
-  }catch(err){
-    console.warn('Turf line merge failed; using endpoint merge fallback.',err);
-    return mergeConnectedLineParts(clean);
-  }
-}
-function mergePicked(){
-  const ids=[...new Set([project.selectedFeatureId,...(project.mergeIds||[])].filter(Boolean))];
-  if(ids.length<2){
-    setStatus('Select at least two features to merge or combine.','error');
-    return;
-  }
-
-  const picked=ids.map(id=>ref(id)).filter(r=>r&&r.feature&&getDisplayGeometry(r.feature));
-  if(picked.length<2){
-    setStatus('At least two selected features must contain valid geometry.','error');
-    return;
-  }
-  const locked=picked.filter(r=>isLocked(r.file,r.feature));
-  if(locked.length){
-    setStatus(`Unlock ${locked.length===1?'the selected feature':`${locked.length} selected features`} before merging.`, 'error');
-    return;
-  }
-
-  const families=new Set(picked.map(r=>mergeGeometryFamily(getDisplayGeometry(r.feature).type)));
-  if(families.has('unsupported')){
-    setStatus('One or more selected features use an unsupported geometry type.','error');
-    return;
-  }
-  if(families.size!==1){
-    setStatus('Merge one geometry family at a time: select only polygons, only lines, or only points.','error');
-    return;
-  }
-
-  const family=[...families][0];
-  try{
-    let mergedGeometry=null;
-    let resultParts=1;
-    if(family==='polygon'){
-      const fc={type:'FeatureCollection',features:picked.map(r=>featJSON(r.feature))};
-      const merged=turf.union(fc);
-      mergedGeometry=merged?.geometry||null;
-      resultParts=mergedGeometry?.type==='MultiPolygon'?(mergedGeometry.coordinates||[]).length:1;
-    }else if(family==='line'){
-      const parts=picked.flatMap(r=>mergeLinePartsFromGeometry(getDisplayGeometry(r.feature)));
-      const mergedParts=mergeLinesWithTurf(parts);
-      if(mergedParts.length===1)mergedGeometry={type:'LineString',coordinates:mergedParts[0]};
-      else if(mergedParts.length>1)mergedGeometry={type:'MultiLineString',coordinates:mergedParts};
-      resultParts=mergedParts.length;
-    }else if(family==='point'){
-      const coords=[];
-      for(const r of picked){
-        const geometry=getDisplayGeometry(r.feature);
-        if(geometry.type==='Point')coords.push(geometry.coordinates);
-        else if(geometry.type==='MultiPoint')coords.push(...(geometry.coordinates||[]));
-      }
-      const unique=[],seen=new Set();
-      for(const coord of coords){
-        if(!mergeValidCoordinate(coord))continue;
-        const key=mergeCoordinateKey(coord,12);
-        if(seen.has(key))continue;
-        seen.add(key);unique.push(clone(coord));
-      }
-      if(unique.length===1)mergedGeometry={type:'Point',coordinates:unique[0]};
-      else if(unique.length>1)mergedGeometry={type:'MultiPoint',coordinates:unique};
-      resultParts=unique.length;
-    }
-
-    if(!mergedGeometry){
-      setStatus(`Could not ${family==='point'?'combine':'merge'} the selected ${family} features: no valid output geometry was produced.`,'error');
-      return;
-    }
-
-    pushHistory();
-    const keeper=picked[0];
-    const keeperFeature=keeper.feature;
-    ensureFeatureModel(keeperFeature);
-    setSourceGeometry(keeperFeature,mergedGeometry);
-    keeperFeature.name=keeperFeature.name||({polygon:'Merged polygon',line:'Merged lines',point:'Combined points'}[family]);
-    keeperFeature.properties=keeperFeature.properties||{};
-    keeperFeature.properties.name=keeperFeature.name;
-
-    const removeIds=new Set(picked.slice(1).map(r=>r.feature.id));
-    for(const file of project.files)file.features=file.features.filter(feature=>!removeIds.has(feature.id));
-
-    project.selectedFeatureId=keeperFeature.id;
-    project.selectedFileId=keeper.file.id;
-    project.mergeIds=[];
-    renderAll();
-    setDirty(true);
-    logOperation('merge',{family,keptId:keeperFeature.id,removed:[...removeIds],count:picked.length,outputType:mergedGeometry.type,parts:resultParts});
-    if(family==='polygon')setStatus(`Dissolved ${picked.length} polygon features into ${mergedGeometry.type==='MultiPolygon'?`${resultParts} polygon parts`:'one polygon'}.`);
-    else if(family==='line')setStatus(`Merged ${picked.length} line features into ${resultParts===1?'one continuous line':`${resultParts} connected line parts`}.`);
-    else setStatus(`Combined ${picked.length} point features into ${resultParts===1?'one point':`a MultiPoint with ${resultParts} points`}.`);
-  }catch(err){
-    console.error(err);
-    setStatus(`Merge failed: ${err?.message||err}`,'error');
-  }
-}
-
-
-function activeAndCutters(){
-  const targetRef=ref(project.selectedFeatureId);
-  const cutterIds=(project.mergeIds||[]).filter(id=>id!==project.selectedFeatureId);
-  const cutters=cutterIds.map(id=>ref(id)?.feature).filter(Boolean);
-  return {targetRef,cutterIds,cutters};
-}
-function turfFeatureFromGeom(geom, props={}){
-  return {type:'Feature',properties:props,geometry:clone(geom)};
-}
-function unionFeatures(features){
-  if(!features.length)return null;
-  if(features.length===1)return turfFeatureFromGeom(features[0].geometry, features[0].properties||{});
-  return turf.union({type:'FeatureCollection',features:features.map(f=>featJSON(f))});
-}
-function replaceFeatureGeometry(feature, geom){
-  if(!geom||!supported(geom.type))return false;
-  feature.geometry=clone(geom);
-  cleanupGeometry(feature);
-  return true;
-}
-function selectedFeaturesExceptActive(){
-  return (project.mergeIds||[]).filter(id=>id!==project.selectedFeatureId).map(id=>ref(id)?.feature).filter(Boolean);
-}
 function currentTargetOrError(){
   const r=ref(project.selectedFeatureId);
   if(!r){setStatus('Select an active polygon first.','error');return null}
@@ -4849,43 +4475,6 @@ function askNumber(message, defaultValue){
   const n=Number(raw);
   if(!Number.isFinite(n))return null;
   return n;
-}
-function repairRing(ring){
-  const out=[];
-  const n=ringCount(ring);
-  for(let i=0;i<n;i++){
-    const c=ring[i];
-    if(!Array.isArray(c)||!Number.isFinite(c[0])||!Number.isFinite(c[1]))continue;
-    if(!out.length || out[out.length-1][0]!==c[0] || out[out.length-1][1]!==c[1])out.push([c[0],c[1]]);
-  }
-  closeRing(out);
-  return ringCount(out)>=3?out:null;
-}
-function repairGeometryObject(geom){
-  const g=clone(geom);
-  if(g.type==='Polygon'){
-    const rings=[];
-    for(const r of g.coordinates||[]){
-      const rr=repairRing(r);
-      if(rr)rings.push(rr);
-    }
-    if(!rings.length)return null;
-    return {type:'Polygon',coordinates:rings};
-  }
-  if(g.type==='MultiPolygon'){
-    const polys=[];
-    for(const poly of g.coordinates||[]){
-      const rings=[];
-      for(const r of poly||[]){
-        const rr=repairRing(r);
-        if(rr)rings.push(rr);
-      }
-      if(rings.length)polys.push(rings);
-    }
-    if(!polys.length)return null;
-    return polys.length===1?{type:'Polygon',coordinates:polys[0]}:{type:'MultiPolygon',coordinates:polys};
-  }
-  return null;
 }
 function chaikinRing(ring, iterations=1){
   let pts=ring.slice(0, ringCount(ring)).map(c=>[c[0],c[1]]);
@@ -4911,75 +4500,6 @@ function smoothGeometryObject(geom, iterations=1){
   }
   return g;
 }
-function runIntersect(){
-  const {targetRef,cutters}=activeAndCutters();
-  if(!targetRef||!cutters.length){setStatus('Select active polygon, then Ctrl/Shift-click one or more overlap polygons.','error');return}
-  try{
-    const cutter=unionFeatures(cutters);
-    const result=turf.intersect({type:'FeatureCollection',features:[featJSON(targetRef.feature),cutter]});
-    if(!result||!result.geometry){setStatus('No overlap found.','error');return}
-    pushHistory();
-    addEdit(targetRef.feature,'intersect',{cutterGeometry:cutter.geometry});
-    renderAll();setDirty(true);logOperation('intersect',{targetId:targetRef.feature.id,cutterCount:cutters.length});
-    setStatus('Added non-destructive Intersect edit to active polygon.');
-  }catch(err){console.error(err);alert('Intersect failed: '+(err.message||err));}
-}
-function runClip(){
-  const boundary=ref(project.selectedFeatureId)?.feature;
-  const selected=selectedFeaturesExceptActive();
-  if(!boundary||!selected.length){setStatus('Select clipping boundary as active, then Ctrl/Shift-click polygons to clip.','error');return}
-  try{
-    pushHistory();
-    let changed=0, removed=0;
-    for(const f of selected){
-      const result=turf.intersect({type:'FeatureCollection',features:[featJSON(f),featJSON(boundary)]});
-      if(result&&result.geometry){addEdit(f,'clip',{cutterGeometry:boundary.geometry});changed++}
-      else{
-        for(const file of project.files)file.features=file.features.filter(x=>x.id!==f.id);
-        removed++;
-      }
-    }
-    project.mergeIds=[];
-    renderAll();setDirty(true);logOperation('clip',{boundaryId:boundary.id,changed,removed});
-    setStatus(`Clipped ${changed} polygon${changed===1?'':'s'}${removed?`; removed ${removed} outside polygon${removed===1?'':'s'}`:''}.`);
-  }catch(err){console.error(err);alert('Clip failed: '+(err.message||err));}
-}
-function runEraseMultiple(){
-  const eraser=ref(project.selectedFeatureId)?.feature;
-  const selected=selectedFeaturesExceptActive();
-  if(!eraser||!selected.length){setStatus('Select eraser polygon as active, then Ctrl/Shift-click polygons to erase from.','error');return}
-  try{
-    pushHistory();
-    let changed=0, removed=0;
-    for(const f of selected){
-      const result=turf.difference({type:'FeatureCollection',features:[featJSON(f),featJSON(eraser)]});
-      if(result&&result.geometry){addEdit(f,'clip',{cutterGeometry:boundary.geometry});changed++}
-      else{
-        for(const file of project.files)file.features=file.features.filter(x=>x.id!==f.id);
-        removed++;
-      }
-    }
-    project.mergeIds=[];
-    renderAll();setDirty(true);logOperation('erase-multiple',{eraserId:eraser.id,changed,removed});
-    setStatus(`Erased from ${changed} polygon${changed===1?'':'s'}${removed?`; removed ${removed} fully erased polygon${removed===1?'':'s'}`:''}.`);
-  }catch(err){console.error(err);alert('Erase failed: '+(err.message||err));}
-}
-function runSimplify(){
-  const r=currentTargetOrError(); if(!r)return;
-  const suggested=simplifyControlConfig().value;
-  const toleranceKm=askNumber('Simplify tolerance in kilometres. Small local features often use metres; large regional polygons may need several kilometres.',suggested);
-  if(toleranceKm==null||toleranceKm<=0){setStatus('Simplify cancelled.','error');return}
-  try{
-    const before=vertexCount(r.feature.geometry);
-    const simplified=simplifyGeometryKilometres(getDisplayGeometry(r.feature),toleranceKm,true);
-    if(!simplified){setStatus('Simplify failed.','error');return}
-    pushHistory();
-    addEdit(r.feature,'simplify',{toleranceKm});
-    const after=vertexCount(getDisplayGeometry(r.feature));
-    renderAll();setDirty(true);logOperation('simplify',{featureId:r.feature.id,toleranceKm,before,after});
-    setStatus(`Added non-destructive Simplify edit (${simplifyToleranceLabel(toleranceKm)}). Vertices now ${before} → ${after}.`);
-  }catch(err){console.error(err);alert('Simplify failed: '+(err.message||err));}
-}
 function runSmooth(){
   const r=currentTargetOrError(); if(!r)return;
   const iterations=askNumber('Smooth iterations. 1 is gentle, 2 is stronger.',1);
@@ -4990,17 +4510,6 @@ function runSmooth(){
     renderAll();setDirty(true);logOperation('smooth',{featureId:r.feature.id,iterations});
     setStatus('Added non-destructive Smooth edit.');
   }catch(err){console.error(err);alert('Smooth failed: '+(err.message||err));}
-}
-function runRepair(){
-  const r=currentTargetOrError(); if(!r)return;
-  const before=vertexCount(r.feature.geometry);
-  const repaired=repairGeometryObject(r.feature.geometry);
-  if(!repaired){setStatus('Repair found no valid polygon geometry.','error');return}
-  pushHistory();
-  addEdit(r.feature,'repair',{});
-  const after=vertexCount(getDisplayGeometry(r.feature));
-  renderAll();setDirty(true);logOperation('repair',{featureId:r.feature.id,before,after});
-  setStatus(`Added non-destructive Repair edit. Vertices: ${before} → ${after}.`);
 }
 function fillHolesActive(){
   const r=currentTargetOrError(); if(!r)return;
@@ -5295,18 +4804,6 @@ function truncateGeometryObject(geom,decimals=6){
   }
   return clone(geom);
 }
-function activeCuttersForPreview(){
-  const targetRef=ref(project.selectedFeatureId);
-  const cutterIds=(project.mergeIds||[]).filter(id=>id!==project.selectedFeatureId);
-  const cutters=cutterIds.map(id=>ref(id)?.feature).filter(Boolean);
-  return {targetRef,cutterIds,cutters};
-}
-function unionCutterGeometry(cutters){
-  if(!cutters.length)return null;
-  if(cutters.length===1)return featureGeom(cutters[0]);
-  const u=unionFeatures(cutters);
-  return u?.geometry||null;
-}
 function geometryOpConfig(action){
   const configs={
     movePolygon:{title:'Move selected polygon',description:'Drag the whole selected polygon without changing its shape. Hold Shift while dragging to constrain movement to 0°, 45°, or 90°.',preview:false},
@@ -5317,18 +4814,9 @@ function geometryOpConfig(action){
     truncate:{title:'Truncate precision active',description:'Rounds the selected polygon coordinates to a fixed decimal precision. This cleans exports and removes tiny coordinate noise.',preview:true,controls:[
       {id:'decimals',label:'Decimals',type:'range-number',min:0,max:12,step:1,value:6}
     ]},
-    merge:{title:'Merge selected',description:'Combines all picked polygons into a single polygon or multipolygon. This operation changes the selected features immediately when applied.',preview:true},
-    cut:{title:'Cut active with selected',description:'Removes the picked polygon area from the active polygon. The cutter polygons are not changed.',preview:true},
-    intersect:{title:'Intersect / keep overlap',description:'Keeps only the overlap between the active polygon and the picked polygon(s).',preview:true},
-    clip:{title:'Clip selected to active',description:'Uses the active polygon as a boundary and trims the picked polygons to fit inside it.',preview:true},
-    erase:{title:'Erase active from selected',description:'Uses the active polygon as an eraser and removes its area from each picked polygon.',preview:true},
-    simplify:{title:'Simplify active',description:'Reduces vertices while keeping the shape roughly similar. Tolerance is measured in kilometres. The slider uses a logarithmic scale, giving equal space to metres, hundreds of metres, kilometres and large regional tolerances.',preview:true,controls:[
-      simplifyControlConfig()
-    ]},
     smooth:{title:'Smooth active',description:'Rounds jagged edges. Smoothing can increase vertex count.',preview:true,controls:[
       {id:'iterations',label:'Iterations',type:'range-number',min:1,max:3,step:1,value:1}
     ]},
-    repair:{title:'Repair active',description:'Closes rings and removes duplicate or invalid vertices.',preview:true},
     drawHole:{title:'Draw hole in active',description:'Click Run to start drawing a hole inside the active polygon.',preview:false},
     fillHoles:{title:'Fill all holes in active',description:'Removes every inner ring from the active polygon.',preview:true},
     splitLine:{title:'Split active by drawn line',description:'Starts split-line drawing. After drawing, a width value controls the cutting gap.',preview:false,controls:[
@@ -5513,7 +5001,6 @@ function updateGeometryPreview(){
   }
 }
 function computeGeometryPreview(action){
-  const {targetRef,cutters}=activeCuttersForPreview();
   if(action==='movePolygon'){
     const r=currentTargetOrError();
     if(!r)return {disabled:true,summary:'Select one polygon first.'};
@@ -5540,69 +5027,16 @@ function computeGeometryPreview(action){
     const after=vertexCount(result);
     return {items:[{geometry:result,kind:'result'}],summary:`Preview: coordinates rounded to ${decimals} decimal place${decimals===1?'':'s'} · ${before.toLocaleString()} → ${after.toLocaleString()} vertices.`,result};
   }
-  if(action==='merge'){
-    const selected=(project.mergeIds||[]).map(id=>ref(id)?.feature).filter(Boolean);
-    if(selected.length<2)return {disabled:true,summary:'Pick at least two polygons using Ctrl/Shift-click.'};
-    const u=unionFeatures(selected);
-    if(!u?.geometry)return {disabled:true,summary:'Merge preview failed.'};
-    return {items:[{geometry:u.geometry,kind:'result'}],summary:`Preview: ${selected.length} polygons merged into ${u.geometry.type}.`,result:u.geometry};
-  }
-  if(['cut','intersect'].includes(action)){
-    if(!targetRef||!cutters.length)return {disabled:true,summary:'Select an active polygon, then Ctrl/Shift-click one or more cutter/overlap polygons.'};
-    const cutterGeom=unionCutterGeometry(cutters);
-    if(!cutterGeom)return {disabled:true,summary:'Could not prepare selected cutter polygons.'};
-    let result=null;
-    if(action==='cut')result=turf.difference({type:'FeatureCollection',features:[featJSON(targetRef.feature),{type:'Feature',properties:{},geometry:cutterGeom}]});
-    else result=turf.intersect({type:'FeatureCollection',features:[featJSON(targetRef.feature),{type:'Feature',properties:{},geometry:cutterGeom}]});
-    if(!result?.geometry)return {disabled:true,summary:action==='cut'?'Cut removes the entire active polygon.':'No overlap found.'};
-    return {items:[{geometry:result.geometry,kind:'result'},{geometry:cutterGeom,kind:'cutter'}],summary:`Preview: ${action==='cut'?'active polygon after cut':'overlap area'} · ${vertexCount(result.geometry)} vertices.`,result:result.geometry,cutterGeometry:cutterGeom};
-  }
-  if(action==='clip'){
-    const boundary=ref(project.selectedFeatureId)?.feature;
-    const selected=selectedFeaturesExceptActive();
-    if(!boundary||!selected.length)return {disabled:true,summary:'Select clipping boundary as active, then Ctrl/Shift-click polygons to clip.'};
-    const items=[];let changed=0,removed=0;
-    for(const f of selected){
-      const result=turf.intersect({type:'FeatureCollection',features:[featJSON(f),featJSON(boundary)]});
-      if(result?.geometry){items.push({geometry:result.geometry,kind:'result',featureId:f.id});changed++}else removed++;
-    }
-    if(!items.length)return {disabled:true,summary:'No selected polygons overlap the active boundary.'};
-    items.push({geometry:featureGeom(boundary),kind:'cutter'});
-    return {items,summary:`Preview: ${changed} clipped polygon${changed===1?'':'s'}${removed?`; ${removed} would be removed`:''}.`,changed,removed};
-  }
-  if(action==='erase'){
-    const eraser=ref(project.selectedFeatureId)?.feature;
-    const selected=selectedFeaturesExceptActive();
-    if(!eraser||!selected.length)return {disabled:true,summary:'Select eraser polygon as active, then Ctrl/Shift-click polygons to erase from.'};
-    const items=[];let changed=0,removed=0;
-    for(const f of selected){
-      const result=turf.difference({type:'FeatureCollection',features:[featJSON(f),featJSON(eraser)]});
-      if(result?.geometry){items.push({geometry:result.geometry,kind:'result',featureId:f.id});changed++}else removed++;
-    }
-    if(!items.length)return {disabled:true,summary:'Eraser removes all selected polygons.'};
-    items.push({geometry:featureGeom(eraser),kind:'cutter'});
-    return {items,summary:`Preview: ${changed} erased polygon${changed===1?'':'s'}${removed?`; ${removed} would be fully removed`:''}.`,changed,removed};
-  }
-  if(['simplify','smooth','repair','fillHoles'].includes(action)){
+  if(['smooth','fillHoles'].includes(action)){
     const r=currentTargetOrError();
     if(!r)return {disabled:true,summary:'Select one active polygon first.'};
     const before=vertexCount(getDisplayGeometry(r.feature));
-    let result=null;
-    if(action==='simplify'){
-      const toleranceKm=geomParam('tolerance',0.01);
-      result=applyEditToGeometry(getDisplayGeometry(r.feature),{type:'simplify',params:{toleranceKm}},r.feature);
-    }else if(action==='smooth'){
-      const iterations=geomParam('iterations',1);
-      result=applyEditToGeometry(getDisplayGeometry(r.feature),{type:'smooth',params:{iterations}},r.feature);
-    }else if(action==='repair'){
-      result=applyEditToGeometry(getDisplayGeometry(r.feature),{type:'repair',params:{}},r.feature);
-    }else if(action==='fillHoles'){
-      result=applyEditToGeometry(getDisplayGeometry(r.feature),{type:'fillHoles',params:{}},r.feature);
-    }
+    const result=action==='smooth'
+      ?applyEditToGeometry(getDisplayGeometry(r.feature),{type:'smooth',params:{iterations:geomParam('iterations',1)}},r.feature)
+      :applyEditToGeometry(getDisplayGeometry(r.feature),{type:'fillHoles',params:{}},r.feature);
     if(!result)return {disabled:true,summary:'No valid result.'};
     const after=vertexCount(result);
-    const toleranceText=action==='simplify'?` · tolerance ${simplifyToleranceLabel(geomParam('tolerance',0.01))}`:'';
-    return {items:[{geometry:result,kind:'result'}],summary:`Preview: ${before} → ${after} vertices${toleranceText}.`,result};
+    return {items:[{geometry:result,kind:'result'}],summary:`Preview: ${before} → ${after} vertices.`,result};
   }
   if(action==='drawHole')return {items:[],summary:'Click Run, then draw the hole inside the active polygon. Click the first point or press Enter to finish.'};
   if(action==='splitLine')return {items:[],summary:`Split line width ${geomParam('widthMetres',0.5)} m · Result: ${geomParamText('splitOutput','one')==='separate'?'separate polygon features':'one feature/multipolygon'}. Click Run, draw the split line, then press Enter.`};
@@ -5624,21 +5058,11 @@ function applyGeometryOpFromModal(){
       const decimals=Math.max(0,Math.min(12,Math.round(geomParam('decimals',6))));
       pushHistory(); addEdit(r.feature,'truncate',{decimals}); renderAll(); setDirty(true); logOperation('truncate',{featureId:r.feature.id,decimals}); setStatus(`Coordinate precision truncated to ${decimals} decimal place${decimals===1?'':'s'}.`);
     }
-    else if(action==='merge')mergePicked();
-    else if(action==='cut')cutSelectedFromActive();
-    else if(action==='intersect')runIntersect();
-    else if(action==='clip')runClip();
-    else if(action==='erase')runEraseMultiple();
-    else if(action==='simplify'){
-      const r=currentTargetOrError(); if(!r)return;
-      const toleranceKm=geomParam('tolerance',0.01);
-      pushHistory(); addEdit(r.feature,'simplify',{toleranceKm}); renderAll(); setDirty(true); logOperation('simplify',{featureId:r.feature.id,toleranceKm}); setStatus(`Added non-destructive Simplify edit (${simplifyToleranceLabel(toleranceKm)}).`);
-    }else if(action==='smooth'){
+    else if(action==='smooth'){
       const r=currentTargetOrError(); if(!r)return;
       const iterations=geomParam('iterations',1);
       pushHistory(); addEdit(r.feature,'smooth',{iterations}); renderAll(); setDirty(true); logOperation('smooth',{featureId:r.feature.id,iterations}); setStatus('Added non-destructive Smooth edit.');
-    }else if(action==='repair')runRepair();
-    else if(action==='fillHoles')fillHolesActive();
+    }else if(action==='fillHoles')fillHolesActive();
     else if(action==='drawHole'){closeGeometryOpModal();closeInlineGeometryPreview();startDrawHole();return;}
     else if(action==='splitLine'){GEOMETRY_OP.splitWidthMetres=geomParam('widthMetres',0.5);GEOMETRY_OP.splitOutput=geomParamText('splitOutput','one');closeGeometryOpModal();closeInlineGeometryPreview();startSplitLine();return;}
     closeGeometryOpModal();closeInlineGeometryPreview();
@@ -5664,45 +5088,10 @@ const GEOMETRY_HELP={
     text:'Rounds coordinates to a fixed number of decimal places to clean noisy imports and reduce export size.',
     setup:'Choose decimal precision, preview, then apply. Six decimal places is generally sub-metre precision.'
   },
-  merge:{
-    title:'Merge selected',
-    text:'Combines the selected polygons into one polygon or multipolygon.',
-    setup:'Use Ctrl/Shift-click to pick two or more polygons, then run Merge selected.'
-  },
-  cut:{
-    title:'Cut active with selected',
-    text:'Uses the picked polygon(s) to remove area from the active polygon. This can create a hole.',
-    setup:'Click the polygon to modify first, then Ctrl/Shift-click the cutter polygon(s).'
-  },
-  intersect:{
-    title:'Intersect / keep overlap',
-    text:'Keeps only the area where the active polygon overlaps the picked polygon(s).',
-    setup:'Click the polygon to modify first, then Ctrl/Shift-click overlapping polygon(s).'
-  },
-  clip:{
-    title:'Clip selected to active',
-    text:'Uses the active polygon as a boundary and trims the picked polygons to fit inside it.',
-    setup:'Click the clipping boundary first, then Ctrl/Shift-click polygons to clip.'
-  },
-  erase:{
-    title:'Erase active from selected',
-    text:'Uses the active polygon as an eraser and removes its area from each picked polygon.',
-    setup:'Click the eraser polygon first, then Ctrl/Shift-click polygons to erase from.'
-  },
-  simplify:{
-    title:'Simplify active',
-    text:'Reduces the number of vertices while keeping the shape roughly the same. Useful for large imported KMZ/KML polygons.',
-    setup:'Click one polygon, run Simplify, then use the logarithmic tolerance slider. The number box remains an exact kilometre value.'
-  },
   smooth:{
     title:'Smooth active',
     text:'Rounds jagged polygon edges using smoothing iterations. It can increase vertex count.',
     setup:'Click one polygon, run Smooth, then choose 1 or 2 iterations.'
-  },
-  repair:{
-    title:'Repair active',
-    text:'Cleans the selected polygon by closing rings, removing invalid/duplicate points, and dropping broken rings.',
-    setup:'Click one polygon, then run Repair active.'
   },
   drawHole:{
     title:'Draw hole in active',
@@ -5746,70 +5135,6 @@ function runGeometryAction(){
   ensureInlineGeometryPreview(action);
   applyGeometryOpFromModal();
 }
-
-function cutSelectedFromActive(){
-  const targetRef=ref(project.selectedFeatureId);
-  if(!targetRef){
-    setStatus('Select the polygon you want to cut first.','error');
-    return;
-  }
-
-  const cutterIds=(project.mergeIds||[]).filter(id=>id!==targetRef.feature.id);
-  if(!cutterIds.length){
-    setStatus('Ctrl/Shift-click one or more cutter polygons first.','error');
-    return;
-  }
-
-  const cutters=cutterIds.map(id=>ref(id)?.feature).filter(Boolean);
-  if(!cutters.length){
-    setStatus('No valid cutter polygons selected.','error');
-    return;
-  }
-
-  try{
-    const targetFeature=featJSON(targetRef.feature);
-    const cutterFeatures=cutters.map(featJSON);
-
-    let cutterGeom=null;
-    if(cutterFeatures.length===1){
-      cutterGeom=cutterFeatures[0].geometry;
-    }else{
-      const unioned=turf.union({type:'FeatureCollection',features:cutterFeatures});
-      if(!unioned||!unioned.geometry){
-        setStatus('Could not union cutter polygons.','error');
-        return;
-      }
-      cutterGeom=unioned.geometry;
-    }
-
-    const diff=turf.difference({
-      type:'FeatureCollection',
-      features:[
-        targetFeature,
-        {type:'Feature',properties:{},geometry:cutterGeom}
-      ]
-    });
-
-    if(!diff||!diff.geometry){
-      if(!confirm('The cutter polygon removes the whole selected polygon. Delete the selected polygon instead?')) return;
-      deletePolygon();
-      return;
-    }
-
-    pushHistory();
-    addEdit(targetRef.feature,'cut',{cutterGeometry:cutterGeom});
-    project.mergeIds=project.mergeIds.filter(id=>id!==targetRef.feature.id);
-    renderAll();
-    setDirty(true);
-    logOperation('polygon-cut',{targetId:targetRef.feature.id,cutterCount:cutters.length});
-    setStatus(`Added non-destructive Cut edit using ${cutters.length} cutter polygon${cutters.length===1?'':'s'}.`);
-  }catch(err){
-    console.error(err);
-    setStatus('Cut failed: '+(err.message||err),'error');
-    alert('Cut failed: '+(err.message||err));
-  }
-}
-
 
 function zoomFeature(fid){
   const r=ref(fid);
@@ -7247,7 +6572,7 @@ async function saveProject(){
   try{
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
     setStatus('Compressing EditPolygon project…');
-    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.0.4'});
+    const archive=await window.EditPolygonProjectFormat.createArchive(payload,{appVersion:'1.56.1'});
     downloadBlob('editpolygon_project.epz',archive.blob);
     setDirty(false);
     writeAutosaveNow('manual-save');
@@ -7641,18 +6966,12 @@ function initUxRehaul(){
     {id:'draw-freehand',icon:'SM',title:'Draw freehand polygon',hint:'Draw · Press and drag to sketch; release to finish the raw sketch',kbd:'',run:()=>startDrawTool('freehand')},
     {id:'draw-buffer',icon:'▰',title:'Draw buffer corridor',hint:'Draw · Click centreline points, set width, then finish to create a corridor polygon',kbd:'',run:()=>startDrawTool('buffer')},
     {id:'coords',icon:'⌖',title:'Add polygon by coordinates',hint:'Draw · Paste latitude/longitude or longitude/latitude points',kbd:'',run:()=>$('coordPolygonBtn').click()},
-    {id:'merge',icon:'⌁',title:'Merge / dissolve picked polygons',hint:'Cut / combine · Combine active and picked polygons into one polygon or multipolygon',kbd:'',run:()=>{$('geometryActionSelect').value='merge';runGeometryAction();}},
-    {id:'cut',icon:'CT',title:'Cut active with picked polygons',hint:'Cut / combine · Subtract picked cutter polygon area from the active polygon',kbd:'',run:()=>{$('geometryActionSelect').value='cut';runGeometryAction();}},
-    {id:'erase',icon:'⊖',title:'Erase active from picked polygons',hint:'Cut / combine · Use the active polygon as an eraser against picked polygons',kbd:'',run:()=>{$('geometryActionSelect').value='erase';runGeometryAction();}},
-    {id:'intersect',icon:'∩',title:'Intersect / keep overlap',hint:'Cut / combine · Keep only overlapping area between active and picked polygons',kbd:'',run:()=>{$('geometryActionSelect').value='intersect';runGeometryAction();}},
-    {id:'clip',icon:'▣',title:'Clip picked to active',hint:'Cut / combine · Trim picked polygons to the active polygon boundary',kbd:'',run:()=>{$('geometryActionSelect').value='clip';runGeometryAction();}},
+    {id:'processing',icon:'GIS',title:'Processing Toolbox',hint:'GIS · Run buffer, overlay, dissolve, spatial analysis, selection and geometry maintenance tools',kbd:'',run:()=>{const r=ref();const fileId=r?.file?.id||project.selectedFileId||project.files?.[0]?.id;if(fileId)window.EditPolygonGISDataTools?.openProcessing?.(fileId,'','selected');else setStatus('Add or select a GIS layer first.','error');}},
     {id:'split',icon:'╱',title:'Split active by drawn line',hint:'Cut / combine · Click Run, draw a line through the active polygon, then press Enter',kbd:'',run:()=>{$('geometryActionSelect').value='splitLine';ensureInlineGeometryPreview('splitLine');}},
     {id:'hole-draw',icon:'◉',title:'Draw hole in active polygon',hint:'Holes · Click Run, then draw an inner ring inside the active polygon',kbd:'',run:()=>{$('geometryActionSelect').value='drawHole';runGeometryAction();}},
     {id:'hole-manager',icon:'◎',title:'Hole manager',hint:'Holes · Inspect, zoom, delete individual holes, or convert a hole to a polygon',kbd:'',run:()=>openHoleManagerPanel()},
     {id:'polygon-to-hole',icon:'⊖',title:'Convert picked polygons to holes',hint:'Holes · Use picked polygons as inner rings inside the active polygon',kbd:'',run:()=>convertPickedPolygonsToHoles()},
     {id:'fill-holes',icon:'●',title:'Fill all holes in active polygon',hint:'Holes · Remove every inner ring from the active polygon',kbd:'',run:()=>{$('geometryActionSelect').value='fillHoles';ensureInlineGeometryPreview('fillHoles');}},
-    {id:'repair',icon:'R',title:'Repair active polygon',hint:'Clean · Close rings and remove duplicate/invalid vertices from the active polygon',kbd:'',run:()=>{$('geometryActionSelect').value='repair';runGeometryAction();}},
-    {id:'simplify',icon:'SM',title:'Simplify active polygon',hint:'Clean · Reduce vertex count using a tolerance preview',kbd:'',run:()=>{$('geometryActionSelect').value='simplify';ensureInlineGeometryPreview('simplify');}},
     {id:'smooth',icon:'≈',title:'Smooth active polygon',hint:'Clean · Round jagged edges; can increase vertex count',kbd:'',run:()=>{$('geometryActionSelect').value='smooth';ensureInlineGeometryPreview('smooth');}},
     {id:'copy-style',icon:'◧',title:'Copy polygon style',hint:'Style / layers · Copy fill, stroke, weight and opacity from the selected polygon',kbd:'',run:()=>copyStyleFromFeature()},
     {id:'paste-style',icon:'◨',title:'Paste polygon style',hint:'Style / layers · Paste copied style to selected or picked polygons',kbd:'',run:()=>pasteStyleToPickedOrSelected()},
@@ -8837,7 +8156,7 @@ function renderDrawOverlay(){
   if(!D.active)return;
   const ov=overlay();
   const pts=D.points.slice();
-  // v1.56.0.4: OpenLayers' transient vector overlay is the sole authority for
+  // v1.56.1: OpenLayers' transient vector overlay is the sole authority for
   // live sketch linework/fill. The historical SVG paths remain in the DOM for
   // compatibility with the vertex/lasso overlay, but are deliberately kept
   // empty while drawing. Rendering the same cursor-linked geometry in both
@@ -8960,7 +8279,7 @@ overlay().addEventListener('pointermove',handleShapePointerMove,true);
 overlay().addEventListener('pointerup',handleShapePointerUp,true);
 overlay().addEventListener('pointercancel',e=>{if(D.dragging&&DRAW_DRAG_KINDS.has(D.kind)){D.dragging=false;D.points=[];D.cursor=null;renderOverlay();updateButtons();}},true);
 
-// v1.56.0.4: cursor-linked draw preview state is screen-pixel anchored across view movement.
+// v1.56.1: cursor-linked draw preview state is screen-pixel anchored across view movement.
 // v1.55.7.2: click-based drawing no longer owns the full map interaction
 // surface. OpenLayers receives drag/wheel gestures directly, while these
 // normalized map events add vertices only after a genuine click. Freehand
@@ -9527,7 +8846,7 @@ function syncFullscreenButton(){
 }
 document.addEventListener('fullscreenchange',syncFullscreenButton);
 $('fullscreenEditorBtn')?.addEventListener('click',toggleFullscreenEditor);
-function geometryActionNeedsPicked(action){return ['merge','cut','intersect','clip','erase','polygonToHole'].includes(action);}
+function geometryActionNeedsPicked(action){return action==='polygonToHole';}
 function geometryActionNeedsHoles(action){return action==='fillHoles';}
 function refreshGeometryToolAvailability(){
   const sel=$('geometryActionSelect'); if(!sel)return;
@@ -9543,7 +8862,7 @@ function refreshGeometryToolAvailability(){
     if(geometryActionNeedsHoles(o.value))disabled=disabled||holeCount<1;
     if(o.value==='drawHole')disabled=!selectedPoly;
     if(o.value==='splitLine')disabled=!selectedPoly;
-    if(o.value==='offset'||o.value==='truncate'||o.value==='simplify'||o.value==='smooth'||o.value==='repair')disabled=!selectedPoly;
+    if(o.value==='offset'||o.value==='truncate'||o.value==='smooth')disabled=!selectedPoly;
     o.disabled=!!disabled;
   });
   if(sel.value&&sel.selectedOptions?.[0]?.disabled){sel.value='';}
@@ -9631,11 +8950,6 @@ applyGeometryOpFromModal=function(){
 Object.assign(GEOMETRY_HELP,{
   offset:{title:'Offset / inset active',text:'Expands or shrinks the selected polygon boundary by a real-world distance. This offsets edges; it is not centre scaling.',setup:'Select one unlocked polygon. Use positive metres to expand outward or negative metres to inset inward, then preview and apply.'},
   truncate:{title:'Truncate precision active',text:'Rounds coordinates to a fixed number of decimal places to clean noisy imports and make exports smaller.',setup:'Select one polygon. Six decimals is generally sub-metre precision; use fewer only if you are comfortable simplifying the coordinates.'},
-  merge:{title:'Merge / dissolve selected',text:'Combines the active polygon and picked polygons into one polygon or multipolygon.',setup:'Click the main polygon, then Ctrl/Shift-click at least one more polygon before running this.'},
-  cut:{title:'Cut active with picked',text:'Subtracts picked polygon area from the active polygon. The picked cutters remain unchanged.',setup:'Click the polygon to modify first, then Ctrl/Shift-click one or more cutter polygons.'},
-  clip:{title:'Clip picked to active',text:'Uses the active polygon as a boundary and trims picked polygons to fit inside it.',setup:'Click the boundary polygon first, then Ctrl/Shift-click polygons that should be clipped.'},
-  erase:{title:'Erase active from picked',text:'Uses the active polygon as an eraser and removes its area from each picked polygon.',setup:'Click the eraser polygon first, then Ctrl/Shift-click polygons to erase from.'},
-  simplify:{title:'Simplify active',text:'Reduces vertex count while preserving the general shape. Best for large imported KML/KMZ polygons.',setup:'Select one polygon, choose a tolerance on the logarithmic scale, preview the vertex count change, then apply.'},
   smooth:{title:'Smooth active',text:'Rounds jagged edges. It can change exact boundaries and may increase vertex count.',setup:'Use one iteration first. Preview before applying.'},
   drawHole:{title:'Draw hole in active',text:'Starts a temporary draw mode for creating an inner ring inside the active polygon.',setup:'Select the receiving polygon, click Run, draw the hole, then press Enter or click the first point to finish.'},
   holeManager:{title:'Hole manager active',text:'Opens hole-level controls for the active polygon: zoom, delete, or convert individual holes to polygons.',setup:'Select a polygon that already has holes. Purple hole handles in vertex mode also open this manager.'},
@@ -9809,7 +9123,7 @@ renderSelected=function(){
     <div class="v53-control"><label>Move behaviour</label><select id="polygonMoveBehaviorSelect"><option value="screen" ${(project.polygonMoveBehavior||'screen')==='screen'?'selected':''}>Map shape / visual</option><option value="geographic" ${(project.polygonMoveBehavior||'screen')==='geographic'?'selected':''}>Geographic area</option></select><div class="v53-section-note">Standard mode keeps the polygon visually the same on the map. Geographic area mode keeps real-world size/area meaningfully stable.</div></div>
     <div class="v53-control"><label>Scale from centre</label><div class="v53-export-format"><input id="v53ScalePercent" type="number" min="1" step="1" value="100"><button id="v53ScaleApply">Apply %</button></div></div>
     <div class="v53-actions"><button id="v53ScaleDown">Scale 95%</button><button id="v53ScaleUp">Scale 105%</button></div>`:`
-    <div class="v53-action-grid"><button id="panelEditVertices" class="primary">Edit polygon</button><button id="v53OffsetBtn">Offset / inset</button><button id="v53TruncateBtn">Truncate precision</button><button id="v53RepairBtn">Repair active</button><button id="v53SimplifyBtn">Simplify</button><button id="v53SmoothBtn">Smooth</button></div>
+    <div class="v53-action-grid"><button id="panelEditVertices" class="primary">Edit polygon</button><button id="v53OffsetBtn">Offset / inset</button><button id="v53TruncateBtn">Truncate precision</button><button id="v53SmoothBtn">Smooth</button></div>
     <div class="v53-control"><label>Move behaviour</label><select id="polygonMoveBehaviorSelect"><option value="screen" ${(project.polygonMoveBehavior||'screen')==='screen'?'selected':''}>Map shape / visual</option><option value="geographic" ${(project.polygonMoveBehavior||'screen')==='geographic'?'selected':''}>Geographic area</option></select><div class="v53-section-note">Map shape / visual is the standard move mode and keeps the polygon looking the same on the map projection. Geographic area keeps the real-world size/area meaningfully stable, so the visible map shape may change slightly when moved far north/south.</div></div>
     <div class="v53-section-note">To move the whole polygon, click <strong>Edit polygon</strong> and drag the centre cross-handle. Hold Shift while dragging to constrain movement to 0° / 45° / 90°.</div>`;
   const styleBody=`
@@ -9852,8 +9166,6 @@ renderSelected=function(){
     $('panelEditVertices')?.addEventListener('click',VStart);
     v53GeometryToolButton('offset','v53OffsetBtn');
     v53GeometryToolButton('truncate','v53TruncateBtn');
-    v53GeometryToolButton('repair','v53RepairBtn');
-    v53GeometryToolButton('simplify','v53SimplifyBtn');
     v53GeometryToolButton('smooth','v53SmoothBtn');
   }
   ['v53StyleFill','v53StyleStroke','v53StyleFillOpacity','v53StyleOpacity','v53StyleWeight'].forEach(id=>$(id)?.addEventListener('input',v53PreviewSwatchFromInputs));
@@ -10055,11 +9367,11 @@ function v54RenderBulkBar(){
   const picked=v54PickedRefs();
   if(!picked.length){bar.classList.remove('active');bar.innerHTML='';return;}
   bar.classList.add('active');
-  bar.innerHTML=`<strong>${picked.length} picked</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">${mergeActionLabel(picked)}</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo picked</button><button class="danger" data-v54-bulk="delete">Delete picked</button>`;
+  bar.innerHTML=`<strong>${picked.length} picked</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="process">Process selected</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo picked</button><button class="danger" data-v54-bulk="delete">Delete picked</button>`;
   bar.querySelectorAll('[data-v54-bulk]').forEach(btn=>btn.onclick=e=>{e.preventDefault();e.stopPropagation();
     const a=btn.dataset.v54Bulk;
     if(a==='clear'){project.mergeIds=[];if(STEP3_LAYERS.pickedSolo)clearSolo();else renderAll();setStatus('Picked feature selection cleared.');}
-    else if(a==='merge')mergePicked();
+    else if(a==='process'&&picked[0])window.EditPolygonGISDataTools?.openProcessing?.(picked[0].file.id,'','selected');
     else if(a==='copy'){const first=picked[0];if(first)copyStyleFromFeature(first.feature.id);}
     else if(a==='paste')pasteStyleToPickedOrSelected();
     else if(a==='export')v54ExportPicked();
@@ -10135,7 +9447,7 @@ showFeatureLayerMenu=function(e,featureId){
     ${v54MenuGroup('Selection',`<button data-a="pickfeat">${picked?'Unpick feature':'Pick for bulk actions'}</button><button data-a="clearpicks">Clear all picks</button>`)}
     ${v54MenuGroup('Edit',`<button data-a="renamefeat">Rename…</button><button data-a="duplicate">Duplicate</button><button data-a="featlock">${f.locked?'Unlock feature':'Lock feature'}</button><button data-a="featfront">Bring to front</button><button data-a="featback">Send to back</button><button data-a="featup">Move up</button><button data-a="featdown">Move down</button><button data-a="delete" class="danger">Delete</button>`)}
     ${v54MenuGroup('Style',`<button data-a="copystyle">Copy style</button><button data-a="pastestyle" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-a="pasteselected" ${haveCopiedStyle()?'':'disabled'}>Paste to picked/selected</button><div class="layer-menu-row"><span class="subtle">Opacity</span><input type="range" min="0.05" max="1" step="0.05" value="${op}" data-a="featopacity"></div>`)}
-    ${polygonSupported(getDisplayGeometry(f)?.type)?v54MenuGroup('Geometry',`<button data-a="repairfeat">Repair</button><button data-a="simplifyfeat">Simplify…</button><button data-a="smoothfeat">Smooth…</button><button data-a="exportfeat">Export GeoJSON</button>`):''}`;
+    ${polygonSupported(getDisplayGeometry(f)?.type)?v54MenuGroup('Geometry',`<button data-a="processingfeat">Processing…</button><button data-a="smoothfeat">Smooth…</button><button data-a="exportfeat">Export GeoJSON</button>`):''}`;
   positionLayerMenu(e);m.classList.add('active');
   m.querySelector('[data-a="zoomfeat"]')?.addEventListener('click',()=>{closeLayerMenu();zoomFeature(featureId);});
   m.querySelector('[data-a="featsolo"]')?.addEventListener('click',()=>{closeLayerMenu();isSoloFeatureId(f.id)?clearSolo():soloFeature(f.id);});
@@ -10155,8 +9467,7 @@ showFeatureLayerMenu=function(e,featureId){
   m.querySelector('[data-a="pastestyle"]')?.addEventListener('click',()=>{closeLayerMenu();pasteStyleToFeature(featureId);});
   m.querySelector('[data-a="pasteselected"]')?.addEventListener('click',()=>{closeLayerMenu();pasteStyleToPickedOrSelected();});
   m.querySelector('[data-a="featopacity"]')?.addEventListener('input',ev=>setFeatureOpacity(featureId,ev.target.value));
-  m.querySelector('[data-a="repairfeat"]')?.addEventListener('click',()=>{closeLayerMenu();selectFeature(featureId);v53SetGeometryTool('repair',true);});
-  m.querySelector('[data-a="simplifyfeat"]')?.addEventListener('click',()=>{closeLayerMenu();selectFeature(featureId);v53SetGeometryTool('simplify',true);});
+  m.querySelector('[data-a="processingfeat"]')?.addEventListener('click',()=>{closeLayerMenu();selectFeature(featureId);window.EditPolygonGISDataTools?.openProcessing?.(r.file.id,'','selected');});
   m.querySelector('[data-a="smoothfeat"]')?.addEventListener('click',()=>{closeLayerMenu();selectFeature(featureId);v53SetGeometryTool('smooth',true);});
   m.querySelector('[data-a="exportfeat"]')?.addEventListener('click',()=>{closeLayerMenu();const fc={type:'FeatureCollection',features:[featJSON(f)]};downloadCollectionAsFormat(fc,(f.name||'selected_polygon'),'geojson');});
 };
@@ -10266,11 +9577,9 @@ function step4SelectedPickedRefs(){
 function step4PreviewBeforeGeoms(action){
   const active=ref(project.selectedFeatureId);
   const pickedRefs=step4SelectedPickedRefs().filter(r=>r.feature.id!==project.selectedFeatureId);
-  if(['offset','truncate','simplify','smooth','repair','fillHoles','drawHole','splitLine','cut','intersect'].includes(action)){
+  if(['offset','truncate','smooth','fillHoles','drawHole','splitLine'].includes(action)){
     return active?[featureGeom(active.feature)]:[];
   }
-  if(action==='merge')return step4SelectedPickedFeatures().map(featureGeom);
-  if(action==='clip'||action==='erase')return pickedRefs.map(r=>featureGeom(r.feature));
   if(action==='polygonToHole')return [active?.feature,...pickedRefs.map(r=>r.feature)].filter(Boolean).map(featureGeom);
   return active?[featureGeom(active.feature)]:[];
 }
@@ -10309,14 +9618,11 @@ function step4ImpactMessages(action,before,after,preview){
   const messages=[];
   if(preview?.disabled)return messages;
   if(after.validClass==='warn')messages.push({kind:'warn',text:`Result should be checked: ${[...new Set(after.validDetails)].join(' · ')||'possible geometry issue'}.`});
-  if(action==='merge'&&before.features>1)messages.push({kind:'info',text:`Run will replace ${before.features} picked polygons with one ${after.type.toLowerCase()} feature.`});
-  if(action==='clip'&&Number.isFinite(preview?.removed)&&preview.removed>0)messages.push({kind:'warn',text:`${preview.removed} picked polygon${preview.removed===1?'':'s'} would be removed because they do not overlap the active boundary.`});
-  if(action==='erase'&&Number.isFinite(preview?.removed)&&preview.removed>0)messages.push({kind:'warn',text:`${preview.removed} picked polygon${preview.removed===1?'':'s'} would be fully erased.`});
   if(action==='fillHoles'&&before.holes>0)messages.push({kind:'warn',text:`Apply removes ${before.holes} hole${before.holes===1?'':'s'} from the active polygon.`});
   if(action==='polygonToHole'&&before.features>1)messages.push({kind:'warn',text:`Apply adds picked rings as holes and removes the picked source polygon${before.features-1===1?'':'s'}.`});
-  if(after.parts>before.parts&&['cut','erase','clip','splitLine'].includes(action))messages.push({kind:'info',text:`Result has ${after.parts} separate part${after.parts===1?'':'s'}; check the map preview for slivers.`});
+  if(after.parts>before.parts&&action==='splitLine')messages.push({kind:'info',text:`Result has ${after.parts} separate part${after.parts===1?'':'s'}; check the map preview for slivers.`});
   const delta=step4AreaDelta(before,after);
-  if(delta&&Number.isFinite(delta.pct)&&Math.abs(delta.pct)>25&&['simplify','smooth','repair','truncate'].includes(action))messages.push({kind:'warn',text:`Area changes by ${step4Percent(delta.pct)}. Review carefully before applying.`});
+  if(delta&&Number.isFinite(delta.pct)&&Math.abs(delta.pct)>25&&['smooth','truncate'].includes(action))messages.push({kind:'warn',text:`Area changes by ${step4Percent(delta.pct)}. Review carefully before applying.`});
   if(['drawHole','splitLine'].includes(action))messages.push({kind:'info',text:action==='drawHole'?'Run starts hole drawing; final stats are available after the hole is drawn.':'Run starts split-line drawing; draw the line through the active polygon, then press Enter.'});
   return messages;
 }
@@ -12919,12 +12225,6 @@ initUxRehaul();
   phase3ModeMessage=function(){
     if(V.active){const refs=vertexEditRefs(),lines=refs.filter(r=>lineSupported(getDisplayGeometry(r.feature).type)).length;return {kind:'vertex',title:V.moveDrag?(lines?'Moving feature':'Moving polygon'):(V.edgeDrag?'Moving segment':'Editing vertices'),hint:'Drag centre cross-handle to move the whole feature · red vertices edit points · green controls insert vertices · Esc exits'};}
     return v116BasePhase3ModeMessage();
-  };
-
-  const v116BaseRepairGeometryObject=repairGeometryObject;
-  repairGeometryObject=function(geom){
-    if(lineSupported(geom?.type))return lineToPolygonGeometry(geom).geometry;
-    return v116BaseRepairGeometryObject(geom);
   };
 
   // ---------- Active feature conversion / preview ----------
@@ -18511,11 +17811,11 @@ showAutosaveRecoveryIfAvailable();
     const anyHidden=selected.some(r=>r.file.visible===false||r.feature.visible===false);
     const allLocked=selected.every(r=>isLocked(r.file,r.feature));
     bar.classList.add('active');
-    bar.innerHTML=`<strong>${selected.length} selected</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="merge">${mergeActionLabel(selected)}</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="visibility">${anyHidden?'Show selected':'Hide selected'}</button><button data-v54-bulk="lock">${allLocked?'Unlock selected':'Lock selected'}</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo selected</button><button class="danger" data-v54-bulk="delete">Delete selected</button>`;
+    bar.innerHTML=`<strong>${selected.length} selected</strong><button data-v54-bulk="clear">Clear</button><button class="primary" data-v54-bulk="process">Process selected</button><button data-v54-bulk="copy">Copy first style</button><button data-v54-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v54-bulk="visibility">${anyHidden?'Show selected':'Hide selected'}</button><button data-v54-bulk="lock">${allLocked?'Unlock selected':'Lock selected'}</button><button data-v54-bulk="export">Export GeoJSON</button><button data-v54-bulk="solo">Solo selected</button><button class="danger" data-v54-bulk="delete">Delete selected</button>`;
     bar.querySelectorAll('[data-v54-bulk]').forEach(btn=>btn.onclick=e=>{
       e.preventDefault();e.stopPropagation();const action=btn.dataset.v54Bulk;
       if(action==='clear')window.__editPolygonLayersV133?.clear?.();
-      else if(action==='merge')mergePicked();
+      else if(action==='process'&&selected[0])window.EditPolygonGISDataTools?.openProcessing?.(selected[0].file.id,'','selected');
       else if(action==='copy'){if(selected[0])copyStyleFromFeature(selected[0].feature.id);}
       else if(action==='paste')pasteStyleToPickedOrSelected();
       else if(action==='export')v54ExportPicked();
@@ -19527,7 +18827,6 @@ function geometryActionLabel(action){return geometryOpConfig(action)?.title||GEO
 function circleRefsForGeometryAction(action){
   const ids=[];const add=id=>{if(id&&!ids.includes(id))ids.push(id);};
   add(project.selectedFeatureId);
-  if(['merge','cut','intersect','clip','erase'].includes(action))for(const id of project.mergeIds||[])add(id);
   return ids.map(id=>ref(id)).filter(r=>r&&isParametricCircleFeature(r.feature));
 }
 let V137_CONVERSION_CONTINUE=null;
@@ -19574,8 +18873,6 @@ runGeometryAction=function(){
   if(circles.length)return requestCircleConversion(action,circles,()=>v137BaseRunGeometryAction());
   return v137BaseRunGeometryAction();
 };
-const v137BaseMergePicked=mergePicked;
-mergePicked=function(){const circles=circleRefsForGeometryAction('merge');if(circles.length)return requestCircleConversion('merge',circles,()=>v137BaseMergePicked());return v137BaseMergePicked();};
 if($('runGeometryBtn'))$('runGeometryBtn').onclick=runGeometryAction;
 
 
@@ -21202,17 +20499,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const matches=core.selectByAttribute(candidates,rule);applySelectionMode(matches,mode,`${matches.length} feature${matches.length===1?'':'s'} matched the attribute query.`);return matches;
   }
   function relationMatches(targetFeature,comparisonFeature,predicate,distance,units){
-    const a=featJSON(targetFeature),b=featJSON(comparisonFeature);
+    const a=featJSON(targetFeature),b=featJSON(comparisonFeature),spatial=window.EditPolygonGISSpatialCore;
     try{
-      if(predicate==='within')return turf.booleanWithin(a,b);
-      if(predicate==='contains')return turf.booleanContains(a,b);
-      if(predicate==='touches')return turf.booleanTouches(a,b);
-      if(predicate==='disjoint')return turf.booleanDisjoint(a,b);
       if(predicate==='within-distance'){
-        const amount=Number(distance||0);if(!(amount>=0))return false;if(turf.booleanIntersects(a,b))return true;
-        const buffered=turf.buffer(b,amount,{units:units||'kilometers',steps:12});return !!buffered&&turf.booleanIntersects(a,buffered);
+        const amount=Number(distance||0);if(!(amount>=0))return false;if(spatial?.relation?.(turf,a,b,'intersects')??turf.booleanIntersects(a,b))return true;
+        const buffered=turf.buffer(b,amount,{units:units||'kilometers',steps:12});return !!buffered&&(spatial?.relation?.(turf,a,buffered,'intersects')??turf.booleanIntersects(a,buffered));
       }
-      return turf.booleanIntersects(a,b);
+      return spatial?.relation?.(turf,a,b,predicate)??(predicate==='disjoint'?turf.booleanDisjoint(a,b):turf.booleanIntersects(a,b));
     }catch(_){return false;}
   }
   function expandBboxForDistance(bbox,distance,units){
@@ -21777,13 +21070,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     const anyHidden=selected.some(r=>r.file.visible===false||r.feature.visible===false);
     const allLocked=selected.every(r=>isLocked(r.file,r.feature));
     bar.classList.add('active');
-    bar.innerHTML=`<div class="v149-bulk-head"><strong>${selected.length} selected</strong><button data-v149-bulk="clear">Clear</button><button class="primary" data-v149-bulk="merge">${mergeActionLabel(selected)}</button></div>
+    bar.innerHTML=`<div class="v149-bulk-head"><strong>${selected.length} selected</strong><button data-v149-bulk="clear">Clear</button><button class="primary" data-v149-bulk="process">Process selected</button></div>
       <div class="v149-bulk-actions"><button data-v149-bulk="visibility">${anyHidden?'Show':'Hide'}</button><button data-v149-bulk="lock">${allLocked?'Unlock':'Lock'}</button><button data-v149-bulk="export">Export</button><details class="v149-bulk-more"><summary>More</summary><div class="v149-bulk-menu"><button data-v149-bulk="copy">Copy first style</button><button data-v149-bulk="paste" ${haveCopiedStyle()?'':'disabled'}>Paste style</button><button data-v149-bulk="solo">Solo selected</button><button class="danger" data-v149-bulk="delete">Delete selected</button></div></details></div>`;
     bar.querySelectorAll('[data-v149-bulk]').forEach(button=>button.addEventListener('click',event=>{
       event.preventDefault();event.stopPropagation();
       const action=button.dataset.v149Bulk;
       if(action==='clear')window.__editPolygonLayersV133?.clear?.();
-      else if(action==='merge')mergePicked();
+      else if(action==='process'&&selected[0])window.EditPolygonGISDataTools?.openProcessing?.(selected[0].file.id,'','selected');
       else if(action==='copy'&&selected[0])copyStyleFromFeature(selected[0].feature.id);
       else if(action==='paste')pasteStyleToPickedOrSelected();
       else if(action==='visibility'){for(const r of selected)r.feature.visible=!!anyHidden;renderMap();renderSidebar();renderSelected();setDirty(true);setStatus(`${anyHidden?'Shown':'Hidden'} ${selected.length} selected feature${selected.length===1?'':'s'}.`);}
@@ -22438,97 +21731,40 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 
 
 
-/* v1.56.0.4 — Processing Toolbox application bridge.
-   Processing requests are declarative and validated by gis-processing-core.js.
-   Expensive geometry work runs in one cancellable worker and project mutation
-   occurs only after a complete result has returned. */
+/* v1.56.1 — Processing Toolbox application bridge.
+   Processing is declarative and engine-neutral. The application bridge only
+   resolves project inputs, runs the cancellable worker, and commits the
+   completed result as a layer, in-place maintenance operation, or selection. */
 (function(){
   'use strict';
-  const PROCESSING_VERSION='1.56.0.4';
+  const PROCESSING_VERSION='1.56.1';
+  const PROCESSING_KEY='20260816-v1561-processing-consolidation';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;
   const processingClone=value=>value==null?value:JSON.parse(JSON.stringify(value));
   function processingLayers(){return (window.EditPolygonGIS?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}
-  function processingSelectionIds(){
-    const ids=window.EditPolygonGIS?.getSelection?.().ids;
-    return Array.isArray(ids)?ids:[];
-  }
-  function previewProcessingRequest(request={}){
-    const core=processingCore();if(!core)throw Error('The Processing Toolbox core is unavailable.');
-    return core.preflight(request,{layers:processingLayers(),selectionIds:processingSelectionIds()});
-  }
-  function processingScopedFeatures(file,scope='all'){
-    const selected=new Set(processingSelectionIds());
-    return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:true);
-  }
-  function processingTask(preflight){
-    const source=gisEditableFile(preflight.request.inputs.source.layerId);if(!source)throw Error('Input layer not found.');
-    const sourceFeatures=processingScopedFeatures(source,preflight.request.inputs.source.scope).map(feature=>{const raw=featJSON(feature);raw.id=feature.id;return raw;});
-    const overlay=preflight.overlay?gisEditableFile(preflight.overlay.id):null;
-    const overlayFeatures=overlay?processingScopedFeatures(overlay,preflight.request.inputs.overlay.scope).map(feature=>{const raw=featJSON(feature);raw.id=feature.id;return raw;}):[];
-    return {toolId:preflight.tool.id,features:sourceFeatures,overlayFeatures,parameters:processingClone(preflight.request.parameters)};
-  }
-  function processingOutputFeature(raw,index,name,color,source=null,inheritStyle=false){
-    const properties=processingClone(raw?.properties||{});properties.name=String(properties.name||`${name} ${index+1}`);
-    const model=normalize({type:'Feature',properties,geometry:processingClone(raw.geometry)},properties.name);if(!model)return null;
-    const sourceFeature=inheritStyle&&raw?.id!=null?(source?.features||[]).find(feature=>feature.id===raw.id):null;
-    model.id=uid('feat');model.visible=true;model.locked=false;model.style=canonicalEditableFeatureStyle(model.geometry,color);
-    if(sourceFeature){model.style=processingClone(sourceFeature.style||model.style);model.styleOverride=processingClone(sourceFeature.styleOverride||null);model.opacity=sourceFeature.opacity;}
-    return model;
-  }
+  function processingSelectionIds(){const ids=window.EditPolygonGIS?.getSelection?.().ids;return Array.isArray(ids)?ids:[];}
+  function previewProcessingRequest(request={}){const core=processingCore();if(!core)throw Error('The Processing Toolbox core is unavailable.');return core.preflight(request,{layers:processingLayers(),selectionIds:processingSelectionIds()});}
+  function processingScopedFeatures(file,scope='all'){const selected=new Set(processingSelectionIds());return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:true);}
+  function processingTask(preflight){const inputs={},inputSchemas={},allFeatures=[];for(const definition of preflight.tool.inputs||[]){const layer=preflight.inputs?.[definition.id],file=layer?gisEditableFile(layer.id):null;if(!file)throw Error(`${definition.label||definition.id} not found.`);const features=processingScopedFeatures(file,preflight.request.inputs[definition.id].scope).map(feature=>{const raw=featJSON(feature);raw.id=feature.id;return raw;});inputs[definition.id]=features;inputSchemas[definition.id]=processingClone(file.gisSchema||null);allFeatures.push(...features);}return {toolId:preflight.tool.id,inputs,inputSchemas,parameters:processingClone(preflight.request.parameters),output:processingClone(preflight.request.output),currentSelectionIds:processingSelectionIds(),processingCrs:processingCore().resolveProcessingCrs(preflight.tool,allFeatures,window.EditPolygonCRS)};}
+  function processingOutputFeature(raw,index,name,color,source=null,inheritStyle=false){const properties=processingClone(raw?.properties||{});properties.name=String(properties.name||`${name} ${index+1}`);const model=normalize({type:'Feature',properties,geometry:processingClone(raw.geometry)},properties.name);if(!model)return null;const sourceFeature=inheritStyle&&raw?.id!=null?(source?.features||[]).find(feature=>feature.id===raw.id):null;model.id=uid('feat');model.visible=true;model.locked=false;model.style=canonicalEditableFeatureStyle(model.geometry,color);if(sourceFeature){model.style=processingClone(sourceFeature.style||model.style);model.styleOverride=processingClone(sourceFeature.styleOverride||null);model.opacity=sourceFeature.opacity;}return model;}
   function processingDerivedColor(source,tool){return tool?.stylePolicy==='inherit'?(source?.color||'#1664d6'):(COLORS[(project.files||[]).length%COLORS.length]||'#7c3aed');}
-  function createProcessingOutput(preflight,result,{worker=true}={}){
-    const source=gisEditableFile(preflight.source.id);if(!source)throw Error('The source layer is no longer available.');
-    if(!Array.isArray(result?.features)||!result.features.length)throw Error('The operation completed but produced no output geometry. The project was not changed.');
-    const name=String(preflight.request.output.name||processingCore().defaultOutputName(preflight.tool,preflight.source)).trim()||'Processing result';
-    const color=processingDerivedColor(source,preflight.tool),inheritStyle=preflight.tool.stylePolicy==='inherit',models=result.features.map((feature,index)=>processingOutputFeature(feature,index,name,color,source,inheritStyle)).filter(Boolean);
-    if(models.length!==result.features.length)throw Error(`${result.features.length-models.length} output feature${result.features.length-models.length===1?'':'s'} could not be normalised. No output layer was created.`);
-    const summary=processingCore().resultSummary({sourceCount:preflight.counts.source,outputCount:models.length,failures:result.failures||[]});
-    const provenance=processingCore().createProvenance(preflight,{processingCrs:'EPSG:4326',engine:'Turf.js 7.2.0',worker,result:{summary,failures:processingClone(result.failures||[])}});
-    const preserveSchema=preflight.tool.execution==='per-feature'||preflight.tool.execution==='overlay';
-    pushHistory();
-    const file={
-      id:uid('file'),name,sourceFormat:'processing',visible:true,color,opacity:source.opacity,features:models,
-      gisCrs:source.gisCrs||'EPSG:4326',gisStorageCrs:'EPSG:4326',gisSourceCrs:source.gisSourceCrs||source.gisCrs||'EPSG:4326',gisExportCrs:source.gisExportCrs||source.gisCrs||'EPSG:4326',gisProcessingCrs:'EPSG:4326',
-      gisSchema:preserveSchema?processingClone(source.gisSchema||null):null,gisSavedFilters:[],gisFilter:null,
-      simpleStyle:inheritStyle?processingClone(source.simpleStyle||null):null,gisStyle:inheritStyle?processingClone(source.gisStyle||null):null,styleMode:inheritStyle?(source.styleMode||'simple'):'simple',gisLabels:inheritStyle?processingClone(source.gisLabels||{enabled:false,field:''}):{enabled:false,field:''},gisDisplayField:source.gisDisplayField||'name',gisProcessing:provenance
-    };
-    project.files.push(file);sidebarState.collapsedFiles.delete(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0]?.id||null;project.mergeIds=[];
-    try{window.__editPolygonGISSchema?.ensureSchema?.(file);window.__editPolygonGISSchema?.applyTypedFilter?.(file);}catch(_){ }
-    window.EditPolygonGIS?.invalidateSpatialIndex?.(file.id);window.EditPolygonGIS?.invalidateRenderCache?.(file.id);renderAll();setDirty(true);gisNotify();
-    logOperation('gis-processing-output',{outputFileId:file.id,name,count:models.length,tool:preflight.tool.id,sourceFileId:source.id,sourceScope:preflight.request.inputs.source.scope,failed:summary.failed});
-    return {output:window.EditPolygonGIS.getEditableLayer(file.id),summary,failures:processingClone(result.failures||[]),provenance};
-  }
-  function cancelProcessing(){
-    if(PROCESSING_RUNTIME.worker){try{PROCESSING_RUNTIME.worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;}
-    if(PROCESSING_RUNTIME.job){PROCESSING_RUNTIME.job.reject(Error('Processing cancelled. No project data was changed.'));PROCESSING_RUNTIME.job=null;}
-    return true;
-  }
-  function processingWorker(task,onProgress=()=>{}){
-    const core=processingCore();
-    if(typeof Worker==='undefined')return Promise.resolve().then(()=>core.executeWithTurf(task,{turf,onProgress})).then(result=>({result,worker:false}));
-    cancelProcessing();const worker=new Worker('assets/gis-processing-worker.js?v=20260812-v15603-processing-tool-list-ui');PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;
-    return new Promise((resolve,reject)=>{
-      PROCESSING_RUNTIME.job={id,reject};
-      worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){try{onProgress({stage:message.stage||'Processing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(90,Math.round((Number(message.percent)||0)*.9)))});}catch(_){ }return;}try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}resolve({result:message.result||{features:[],failures:[]},worker:true});};
-      worker.onerror=event=>{try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;reject(Error(event.message||'The processing worker failed.'));};
-      worker.postMessage({id,task});
-    });
-  }
-  async function runProcessingRequest(request={},onProgress=()=>{}){
-    const preflight=previewProcessingRequest(request);if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');
-    const task=processingTask(preflight);onProgress({stage:'Preparing input',done:0,total:task.features.length,percent:0});
-    const execution=await processingWorker(task,onProgress);onProgress({stage:'Validating output',done:task.features.length,total:task.features.length,percent:94});
-    const created=createProcessingOutput(preflight,execution.result,{worker:execution.worker});onProgress({stage:'Creating output layer',done:task.features.length,total:task.features.length,percent:100});return created;
-  }
+  function processingProvenance(preflight,result,worker){return processingCore().createProvenance(preflight,{processingCrs:result.processingCrs||'EPSG:4326',engine:result.engine||preflight.tool.engine||'browser',worker,result:{summary:processingClone(result.summary||{}),failures:processingClone(result.failures||[])}});}
+  function createProcessingLayer(preflight,result,{worker=true}={}){const source=gisEditableFile(preflight.source.id);if(!source)throw Error('The source layer is no longer available.');if(!Array.isArray(result?.features)||!result.features.length)throw Error('The operation completed but produced no output geometry. The project was not changed.');const name=String(preflight.request.output.name||processingCore().defaultOutputName(preflight.tool,preflight.source)).trim()||'Processing result',color=processingDerivedColor(source,preflight.tool),inheritStyle=preflight.tool.stylePolicy==='inherit',models=result.features.map((feature,index)=>processingOutputFeature(feature,index,name,color,source,inheritStyle)).filter(Boolean);if(models.length!==result.features.length)throw Error(`${result.features.length-models.length} output feature${result.features.length-models.length===1?'':'s'} could not be normalised. No output layer was created.`);const summary=result.summary||processingCore().resultSummary({sourceCount:preflight.counts.source,outputCount:models.length,failures:result.failures||[]}),provenance=processingProvenance(preflight,{...result,summary},worker),preserveSchema=preflight.tool.schemaPolicy==='preserve';pushHistory();const file={id:uid('file'),name,sourceFormat:'processing',visible:true,color,opacity:source.opacity,features:models,gisCrs:'EPSG:4326',gisStorageCrs:'EPSG:4326',gisSourceCrs:'EPSG:4326',gisExportCrs:source.gisExportCrs||source.gisCrs||'EPSG:4326',gisProcessingCrs:result.processingCrs||'EPSG:4326',gisSchema:preserveSchema?processingClone(source.gisSchema||null):null,gisSavedFilters:[],gisFilter:null,simpleStyle:inheritStyle?processingClone(source.simpleStyle||null):null,gisStyle:inheritStyle?processingClone(source.gisStyle||null):null,styleMode:inheritStyle?(source.styleMode||'simple'):'simple',gisLabels:inheritStyle?processingClone(source.gisLabels||{enabled:false,field:''}):{enabled:false,field:''},gisDisplayField:source.gisDisplayField||'name',gisProcessing:provenance};project.files.push(file);sidebarState.collapsedFiles.delete(file.id);project.selectedFileId=file.id;project.selectedFeatureId=models[0]?.id||null;project.mergeIds=[];try{window.__editPolygonGISSchema?.ensureSchema?.(file);window.__editPolygonGISSchema?.applyTypedFilter?.(file);}catch(_){ }window.EditPolygonGIS?.invalidateSpatialIndex?.(file.id);window.EditPolygonGIS?.invalidateRenderCache?.(file.id);renderAll();setDirty(true);gisNotify();logOperation('gis-processing-output',{outputFileId:file.id,name,count:models.length,tool:preflight.tool.id,sourceFileId:source.id});return {kind:'layer',output:window.EditPolygonGIS.getEditableLayer(file.id),summary,failures:processingClone(result.failures||[]),provenance};}
+  function modifyProcessingSource(preflight,result,{worker=true}={}){const source=gisEditableFile(preflight.source.id);if(!source)throw Error('The source layer is no longer available.');if(!Array.isArray(result?.features))throw Error('The operation did not return replacement geometry. The source layer was not changed.');const processedIds=new Set(processingScopedFeatures(source,preflight.request.inputs.source.scope).map(feature=>feature.id)),untouched=(source.features||[]).filter(feature=>!processedIds.has(feature.id)),replacement=[];for(let index=0;index<result.features.length;index++){const raw=result.features[index],properties=processingClone(raw.properties||{}),old=(source.features||[]).find(feature=>feature.id===raw.id),model=normalize({type:'Feature',properties,geometry:processingClone(raw.geometry)},properties.name||old?.name||`Feature ${index+1}`);if(!model)throw Error('A replacement feature could not be normalised. The source layer was not changed.');model.id=old?.id||uid('feat');model.visible=old?.visible!==false;model.locked=!!old?.locked;model.style=processingClone(old?.style||canonicalEditableFeatureStyle(model.geometry,source.color));model.styleOverride=processingClone(old?.styleOverride||null);model.opacity=old?.opacity;replacement.push(model);}const summary=result.summary||processingCore().resultSummary({sourceCount:preflight.counts.source,outputCount:replacement.length,failures:result.failures||[]}),provenance=processingProvenance(preflight,{...result,summary},worker);pushHistory();source.features=[...untouched,...replacement];source.gisProcessingCrs=result.processingCrs||'EPSG:4326';source.gisProcessing=provenance;source.gisProcessingHistory=[...(Array.isArray(source.gisProcessingHistory)?source.gisProcessingHistory:[]),provenance].slice(-25);try{window.__editPolygonGISSchema?.ensureSchema?.(source);window.__editPolygonGISSchema?.applyTypedFilter?.(source);}catch(_){ }window.EditPolygonGIS?.invalidateSpatialIndex?.(source.id);window.EditPolygonGIS?.invalidateRenderCache?.(source.id);project.selectedFileId=source.id;project.selectedFeatureId=replacement[0]?.id||untouched[0]?.id||null;project.mergeIds=[];renderAll();setDirty(true);gisNotify();logOperation('gis-processing-modify',{fileId:source.id,tool:preflight.tool.id,count:replacement.length});return {kind:'layer',output:{...window.EditPolygonGIS.getEditableLayer(source.id),modified:true},summary,failures:processingClone(result.failures||[]),provenance};}
+  function applyProcessingSelection(preflight,result){const ids=Array.isArray(result.selectionIds)?result.selectionIds:[];window.EditPolygonGIS?.setSelection?.(ids,ids.at(-1)||null);const summary=result.summary||{input:preflight.counts.source,processed:preflight.counts.source,output:ids.length,failed:0,partial:false};setStatus(`${ids.length} feature${ids.length===1?'':'s'} selected.`);return {kind:'selection',output:{kind:'selection',count:ids.length},summary,failures:[]};}
+  function commitProcessingResult(preflight,result,options){if(result?.kind==='selection'||preflight.tool.resultKind==='selection')return applyProcessingSelection(preflight,result);if(preflight.request.output.mode==='modify-source')return modifyProcessingSource(preflight,result,options);return createProcessingLayer(preflight,result,options);}
+  function cancelProcessing(){if(PROCESSING_RUNTIME.worker){try{PROCESSING_RUNTIME.worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;}if(PROCESSING_RUNTIME.job){PROCESSING_RUNTIME.job.reject(Error('Processing cancelled. No project data was changed.'));PROCESSING_RUNTIME.job=null;}return true;}
+  function processingWorker(task,onProgress=()=>{}){if(typeof Worker==='undefined'){const engine=window.EditPolygonGISProcessingEngine;if(!engine)throw Error('The processing engine is unavailable.');return Promise.resolve(engine.execute(task,{turf,crs:window.EditPolygonCRS,onProgress})).then(result=>({result,worker:false}));}cancelProcessing();const worker=new Worker(`assets/gis-processing-worker.js?v=${PROCESSING_KEY}`);PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;return new Promise((resolve,reject)=>{PROCESSING_RUNTIME.job={id,reject};worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){try{onProgress({stage:message.stage||'Processing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(92,Math.round((Number(message.percent)||0)*.92)))});}catch(_){ }return;}try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}resolve({result:message.result||{kind:'layer',features:[],failures:[]},worker:true});};worker.onerror=event=>{try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;reject(Error(event.message||'The processing worker failed.'));};worker.postMessage({id,task});});}
+  async function runProcessingRequest(request={},onProgress=()=>{}){const preflight=previewProcessingRequest(request);if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');const task=processingTask(preflight);onProgress({stage:'Preparing input',done:0,total:task.inputs.source?.length||0,percent:0});const execution=await processingWorker(task,onProgress);onProgress({stage:'Validating output',done:preflight.counts.source,total:preflight.counts.source,percent:96});const committed=commitProcessingResult(preflight,execution.result,{worker:execution.worker});onProgress({stage:'Committing result',done:preflight.counts.source,total:preflight.counts.source,percent:100});return committed;}
   function zoomProcessingLayer(fileId){const file=gisEditableFile(fileId);if(!file)return false;try{zoomFile(fileId);return true;}catch(_){return false;}}
   function processingCatalog(){return {version:PROCESSING_VERSION,categories:processingRegistry()?.getCategories?.()||[],tools:processingRegistry()?.getTools?.()||[]};}
   Object.assign(window.EditPolygonGIS,{processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer});
   window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing};
 })();
 
-/* v1.56.0.4 — runtime authority boundary.
+/* v1.56.1 — runtime authority boundary.
    OpenLayers is the sole native map runtime. From this boundary onward there are
    no feature patches or monkey-patches: these are the final runtime identities
    exercised by parity tests. Future work should change the authoritative
@@ -22538,7 +21774,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 // any temporary bootstrap-era render state before the browser can paint.
 renderAll();
 const EDITPOLYGON_RUNTIME_AUTHORITY=Object.freeze({
-  version:'1.56.0.4',
+  version:'1.56.1',
   renderMap,renderAll,renderSidebar,renderSelected,renderOverlay,
   updateButtons,updateStatus,selectFeature,selectFeatureMulti,clearSelection,
   undo,redo,deletePolygon,showFileLayerMenu,showFeatureLayerMenu,

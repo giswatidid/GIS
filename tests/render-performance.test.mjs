@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260812-v15603-processing-tool-list-ui/);
+  assert.match(html,/editpolygon-app\.js\?v=20260816-v1561-processing-consolidation/);
 });
 
 

@@ -1,6 +1,6 @@
 # EditPolygon architecture
 
-This document describes the current application architecture as of **v1.56.0.4**.
+This document describes the current application architecture as of **v1.56.1**.
 
 ## Runtime authority
 
@@ -26,21 +26,30 @@ Application code talks to the map only through `MAP_RUNTIME` / `EditPolygonMap`.
 
 ## Processing Toolbox boundary
 
-v1.56.0 introduced a dedicated processing subsystem; v1.56.0.4 keeps that architecture and fixes the application bridge selection contract. Processing is deliberately split into declarative metadata, engine-neutral validation/execution, worker orchestration and UI rather than adding more processing branches to the historical application file.
+v1.56.1 completes the first full **Processing Toolbox** architecture. Processing is a first-class application subsystem rather than a collection of GIS buttons embedded in `editpolygon-app.js`.
 
-- `docs/assets/gis-processing-registry.js` is the canonical catalogue. It declares tool identity, category, searchable metadata, geometry compatibility, parameters, output kind, execution class, CRS policy and style policy. The v1.56.0.4 catalogue is Buffer, Centroids, Point on surface, Convex hull, Bounding rectangle, Clip, Intersection and Dissolve.
-- `docs/assets/gis-processing-core.js` owns request normalisation, **All / Filtered / Selected** scope semantics, pre-flight validation, provenance/result contracts and shared Turf execution. It has no DOM or OpenLayers dependency.
-- `docs/assets/gis-processing-worker.js` is the sole Toolbox worker. It loads the shared registry/core and delegates execution to the same core; the retired `gis-analysis-worker.js` must not return.
-- `docs/assets/gis-processing.js` owns the searchable Toolbox UI, dynamic parameter forms, progress/cancel state and result presentation.
-- `editpolygon-app.js` is only the application bridge: it supplies canonical project features to validated requests, starts/cancels the worker and commits a completed output as one project/history operation.
+- `docs/assets/gis-processing-registry.js` is the canonical, searchable catalogue. It declares tool identity, category, input roles, compatible geometry families, parameter controls, execution engine, result kind, mutation policy, CRS policy, schema/style policy and failure policy.
+- `docs/assets/gis-processing-core.js` owns generic request normalisation, **All / Filtered / Selected** scope semantics, pre-flight validation, output policy, provenance/result contracts and processing-CRS resolution. It has no DOM or OpenLayers dependency.
+- `docs/assets/gis-processing-engine.js` is the engine-neutral algorithm router. It contains the shared high-level implementations for geometry conversion, overlay coordination, aggregation, selection, spatial analysis and maintenance. Application code does not reimplement these algorithms.
+- `docs/assets/gis-spatial-core.js` owns reusable spatial indexing, exact relationship matching, nearest-candidate handling and aggregations. The Toolbox and Join & Summarize use this same spatial core.
+- `docs/assets/gis-geos-adapter.js` is the sole low-level GEOS-WASM boundary. Geometry Health and Processing share the same adapter for validity/MakeValid and robust topology/maintenance operations.
+- `docs/assets/gis-processing-worker.js` is the sole Toolbox worker. It loads only the engines required by the selected tool and delegates execution to `gis-processing-engine.js`; the retired `gis-analysis-worker.js` must not return.
+- `docs/assets/gis-processing.js` owns the searchable desktop/mobile Toolbox UI, dynamic input/parameter forms, output choices, progress/cancel state and result presentation.
+- `editpolygon-app.js` remains only the project bridge: it supplies canonical project features and typed schemas to a validated request, starts/cancels the worker, and commits the completed result as one history operation.
 
-Processing membership is independent from presentation visibility. `all` includes every feature in the chosen layer, `filtered` follows the active record filter, and `selected` follows EditPolygon's selection model. A hidden feature remains in `all` and can remain in `selected`. This prevents map presentation choices from silently altering analytical results.
+The v1.56.1 catalogue contains **32 tools** across Vector geometry, Overlay, Aggregation, Geometry conversion, Selection, Spatial analysis and Geometry maintenance. Selection tools return selection state rather than manufacturing a layer. Maintenance tools can declare `new-or-modify`; tools that change geometry cardinality or schema remain new-layer only.
 
-The worker operates on cloned canonical WGS 84 GeoJSON in v1.56.0.4. `gisProcessingCrs` and provenance therefore record `EPSG:4326` rather than claiming a projected CRS that was not actually used. Buffer uses Turf's geodesic distance handling; robust projected/GEOS topology is a v1.56.1 concern.
+Processing membership is independent from presentation visibility. `all` includes every feature in the chosen layer, `filtered` follows the active record filter, and `selected` follows EditPolygon's canonical selection model. A hidden feature remains in `all` and can remain in `selected`.
 
-Project mutation occurs only after a complete worker result returns and output geometry has been normalised successfully. Cancellation, worker errors and zero-output jobs create no file and no history entry. A successful run creates one editable output layer and one history transaction. Per-feature failures are explicitly reported; aggregate jobs that would be misleading if incomplete fail atomically.
+Robust planar topology and metric maintenance use GEOS-WASM after cloned canonical WGS 84 input is transformed into a suitable metric processing CRS. The result is transformed back to canonical `EPSG:4326` before project commit. Geodesic tools such as Buffer remain geographic where that algorithm is appropriate. Provenance records the CRS and engine actually used rather than inferring them from project display state.
 
-Each output stores `gisProcessing` provenance (tool/version, source and overlay layer IDs/names, scopes, parameters, processing CRS, engine/worker metadata, input counts, summary and failures). This survives `.epz` persistence and is intended to become the later re-run/Model Builder contract.
+Project mutation occurs only after a complete worker result has returned and been normalised. Cancellation and worker errors leave the project unchanged. New-layer outputs are committed as one undoable history transaction; permitted in-place maintenance is also one history transaction; selection tools update only the canonical selection. Aggregate operations that would be misleading if partial fail atomically, while per-feature operations report explicit feature-level failures.
+
+Each derived/modified result stores `gisProcessing` provenance (tool/version, all input layers/scopes, parameters, output policy, processing CRS, engine/worker metadata, counts, summary and failures). This survives `.epz` persistence and is the intended future re-run/Model Builder contract.
+
+### Shared-operation rule
+
+v1.56.1 enforces **one operation, one implementation**. Join & Summarize no longer owns an independent dissolve or spatial-index/relationship engine; it consumes shared Processing/Spatial primitives. Typed Select by Attribute uses the schema/filter predicate engine. Geometry Health remains the authoritative diagnostic/repair workflow and Processing `Fix geometries` reuses that health/GEOS infrastructure. The Simple Editor keeps interactive editing conveniences but no longer exposes independent Merge/Dissolve, Cut/Difference, Intersection, Clip, Erase, Repair or Simplify processing kernels. Feature and multi-selection actions open the authoritative Processing Toolbox with the selected scope preconfigured.
 
 ## OpenLayers adapter ownership
 
@@ -179,18 +188,18 @@ Mobile invariants include:
 
 ## Runtime authority boundary
 
-The end of `editpolygon-app.js` contains the **v1.56.0.4 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
+The end of `editpolygon-app.js` contains the **v1.56.1 runtime-authority boundary**. No later feature monkey-patches may be appended after that point.
 
 Public high-risk functions such as `renderMap`, selection, history and vertex-editor shutdown use stable identities/delegates. Repository audits fail if critical functions gain another late reassignment.
 
 ## Historical binding debt
 
-The application remains a large historically layered file. v1.56.0.4 audits currently allow at most:
+The application remains a large historically layered file. v1.56.1 audits currently allow at most:
 
-- **198** duplicated function-binding names;
-- **371** extra historical binding sites.
+- **196** duplicated function-binding names;
+- **369** extra historical binding sites.
 
-Those are ceilings, not targets. The binding audit currently sees **1,686 named bindings**, with **0 application engine branches**, **0 application native-map calls** and **0 native-map escapes**. New work should reduce historical wrapper chains through extraction/modularisation rather than adding more.
+Those are ceilings, not targets. The binding audit reports the current named-binding count at release time, with **0 application engine branches**, **0 application native-map calls** and **0 native-map escapes**. New work should reduce historical wrapper chains through extraction/modularisation rather than adding more.
 
 ## Quality gates
 
@@ -204,4 +213,4 @@ Node unit tests cover the canonical models and adapter contract. Browser smoke s
 
 ## Next architecture step
 
-v1.56.0.4 establishes the **Processing Toolbox foundation**. The next processing step is v1.56.1 robust GEOS-backed topology, followed by geometry conversion/maintenance and spatial-analysis phases. Large-dataset virtualisation remains the v1.57 performance milestone.
+v1.56.1 completes the planned **v1.56 Processing Toolbox consolidation**. The next architecture milestone is **v1.57 large-data performance**: virtualised tables/lists, worker-based data operations, broader spatial indexing, reduced cloning and tighter memory management for much larger datasets.

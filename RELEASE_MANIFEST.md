@@ -1,70 +1,79 @@
-# EditPolygon v1.56.0.4 release manifest
+# EditPolygon v1.56.1 release manifest
 
-v1.56.0.4 is a focused **EPZ project-open history hotfix** on the accepted v1.56.0.2 Processing Toolbox baseline.
+v1.56.1 is the pre-release **full Processing Toolbox consolidation**. Because EditPolygon has not yet been publicly deployed, this release intentionally removes redundant development-era processing paths rather than carrying compatibility code forward.
 
-## Toolbox architecture
+## Processing architecture
 
-New runtime modules:
+Authoritative runtime modules:
 
-- `docs/assets/gis-processing-registry.js` — declarative tool catalogue and search metadata.
-- `docs/assets/gis-processing-core.js` — request normalisation, scopes, validation, provenance, result contracts and shared execution.
-- `docs/assets/gis-processing-worker.js` — sole cancellable Toolbox worker.
-- `docs/assets/gis-processing.js` — desktop/mobile Toolbox controller and result UI.
-- `docs/assets/gis-processing.css` — responsive Toolbox layout.
+- `docs/assets/gis-processing-registry.js` — 32-tool declarative catalogue and parameter/input metadata.
+- `docs/assets/gis-processing-core.js` — generic request normalisation, scopes, validation, output/provenance contracts and processing-CRS resolution.
+- `docs/assets/gis-processing-engine.js` — shared high-level algorithm router.
+- `docs/assets/gis-spatial-core.js` — shared indexing, relationships, nearest and aggregation primitives.
+- `docs/assets/gis-geos-adapter.js` — sole low-level GEOS-WASM adapter, shared with Geometry Health.
+- `docs/assets/gis-processing-worker.js` — sole cancellable Processing worker.
+- `docs/assets/gis-processing.js` / `gis-processing.css` — responsive Toolbox UI.
 
-Retired file:
+Retired/forbidden architecture:
 
-- `docs/assets/gis-analysis-worker.js`
+- `docs/assets/gis-analysis-worker.js` must remain absent.
+- Independent Simple Editor batch Clip, Erase, Repair and Simplify entry points must not return.
+- Join & Summarize must not reintroduce its own dissolve or spatial-index/relationship engine.
 
-The historical Process tab now hosts the new Processing Toolbox rather than its own implementation. Layer **GIS → Processing** opens the same Toolbox with that layer preselected.
+## Tool catalogue
 
-## v1.56.0.4 tools
+**Vector geometry:** Buffer; Centroids; Point on surface; Convex hull; Bounding geometry; Points along line.
 
-- Buffer
-- Centroids
-- Point on surface
-- Convex hull
-- Bounding rectangle
-- Clip
-- Intersection
-- Dissolve
+**Overlay:** Union; Intersection; Difference; Symmetric difference; Clip.
 
-The overlay set in this release deliberately preserves the existing Turf behaviour. Robust GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve-by-field and Make Valid belong to v1.56.1.
+**Aggregation:** Dissolve; Singlepart → multipart.
+
+**Geometry conversion:** Multipart → singlepart; Polygon → line; Line → points.
+
+**Selection:** Select by attribute; Select by location; Invert selection; Select duplicates; Select invalid geometry.
+
+**Spatial analysis:** Nearest feature; Distance to nearest; Count points in polygon; Join attributes by location; Spatial summary.
+
+**Geometry maintenance:** Fix geometries; Remove duplicate vertices; Remove duplicate features; Snap; Simplify; Densify.
 
 ## Processing contract
 
-- Explicit **All / Filtered / Selected** input and overlay scopes. Hidden visibility state never changes processing membership.
-- Pre-flight geometry/parameter validation before execution.
-- Stage-aware progress and one active cancellable job.
-- Project mutation only after a complete result is returned and normalised.
-- Cancellation, worker error and zero output leave the project untouched.
-- Successful output creation is one history transaction.
-- Per-feature errors are reported; unsafe partial aggregate outputs fail atomically.
-- Per-feature/overlay outputs preserve compatible schema, layer style/labels and feature style overrides.
-- Output layers store `.epz`-persistent `gisProcessing` provenance.
-- v1.56.0.4 records its actual processing CRS as `EPSG:4326`.
+- Inputs are declared generically per tool rather than hard-coded as source + optional overlay.
+- Every layer input supports **All / Filtered / Selected** where applicable; presentation visibility never changes analysis membership.
+- Parameter controls are generated from registry metadata, including field/fields/select/number/boolean/text controls.
+- Result kinds are layer or selection. Maintenance tools may declare **new layer or modify input**; cardinality/schema-changing tools remain new-layer only.
+- One active worker job is cancellable. Worker failure/cancellation creates no partial project state.
+- New-layer and in-place mutations are one undoable history transaction.
+- Processing requests carry authoritative layer schemas to typed operations.
+- Provenance stores all inputs/scopes, parameters, output policy, actual processing CRS, engine, counts and failures.
 
-All local deployment assets use the `20260812-v15603-processing-tool-list-ui` cache key, including the worker's local registry/core imports.
+## Shared engines
 
-## Automated gate
+- GEOS-WASM backs robust Difference, Intersection, Union, Symmetric difference, Dissolve, Snap, Simplify, Densify, distance and MakeValid-related processing through one adapter.
+- Projected/metric operations transform cloned canonical geometry into a suitable processing CRS and back to `EPSG:4326` before commit.
+- Join & Summarize uses the same shared spatial core and Processing dissolve primitive.
+- Select by Attribute uses the same typed schema/filter semantics as the attribute-table filtering system.
+- Fix geometries reuses Geometry Health and the existing GEOS MakeValid boundary.
 
-Before packaging, the release must pass:
+## Quality gate
+
+Before packaging:
 
 ```bash
 npm run check
 npm run test:browser-smoke
 ```
 
-Final automated verification: **291/291 Node tests**, **9/9 browser smoke suites**, **1,706 named bindings / 198 duplicate names / 371 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+An additional network-dependent test is available as:
 
-## Targeted live validation
+```bash
+npm run test:browser-processing-execution
+```
 
-1. Open **GIS → Processing** on a polygon layer. Confirm the layer is preselected, all eight tools are searchable, and every left-menu tool title/description is left-aligned inside its own row with no horizontal scrollbar.
-2. Hide one feature and verify **All features** still counts it; apply a filter and verify **Filtered features** changes independently.
-3. Select a subset and run **Centroids** or **Buffer** with Selected features. Confirm only the selected records produce output and the source layer is unchanged.
-4. Undo once: the complete processing output layer should disappear. Redo once: it should return.
-5. Run **Clip** or **Intersection** with a polygon overlay and confirm both source and overlay scopes are available.
-6. Run **Dissolve** on a simple polygon layer and inspect the result/provenance.
-7. Start a non-trivial job and press **Cancel**. No partial output layer should appear.
-8. Save/reopen `.epz` and confirm the processing output and `gisProcessing` provenance remain present. Immediately after reopening, Ctrl+Z/Ctrl+Y must do nothing until a new edit is made.
-9. Repeat a simple run on a phone-sized interface to confirm the same Toolbox remains usable.
+It executes real worker + GEOS-WASM processing when the test environment is permitted to load the pinned CDN module, and reports a skip when that external import is administratively blocked.
+
+Automated release verification for this package: **304/304 Node tests**, **9/9 browser smoke suites**, **1,670 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+
+## Next milestone
+
+v1.57 is the large-data performance release: virtualisation, worker-based tabular operations, broader spatial indexing, reduced cloning/memory pressure, progressive import and larger editable datasets.

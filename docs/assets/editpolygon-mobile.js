@@ -1,4 +1,4 @@
-/* EditPolygon mobile parity controller · v1.56.0.4
+/* EditPolygon mobile parity controller · v1.56.1
    The same application capabilities are exposed on touch devices through a
    map-first shell, full-width drawers, a dedicated project sheet and compact
    context controls. The historical v151-* class namespace is retained to avoid
@@ -6,7 +6,7 @@
 (()=>{
   'use strict';
 
-  const VERSION='1.56.0.4';
+  const VERSION='1.56.1';
   const MOBILE_QUERY='(max-width: 860px), (pointer: coarse) and (max-width: 1024px)';
   const mq=window.matchMedia?window.matchMedia(MOBILE_QUERY):null;
   const $=id=>document.getElementById(id);

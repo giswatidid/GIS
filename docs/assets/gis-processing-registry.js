@@ -1,67 +1,86 @@
 (function(global){
 'use strict';
 
-const VERSION='1.56.0.4';
+const VERSION='1.56.1';
+const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const categories=Object.freeze([
-  Object.freeze({id:'geometry',title:'Vector geometry',description:'Create derived geometry from one input layer.'}),
-  Object.freeze({id:'overlay',title:'Overlay',description:'Compare or trim one layer using polygon geometry from another layer.'}),
-  Object.freeze({id:'aggregation',title:'Aggregation',description:'Combine multiple source features into a derived result.'})
-]);
+  {id:'geometry',title:'Vector geometry',description:'Create derived geometry from one layer.'},
+  {id:'overlay',title:'Overlay',description:'Combine or compare geometry from two layers.'},
+  {id:'aggregation',title:'Aggregation',description:'Combine features by geometry or attribute.'},
+  {id:'conversion',title:'Geometry conversion',description:'Convert between vector geometry structures.'},
+  {id:'selection',title:'Selection',description:'Create or modify feature selections without creating a layer.'},
+  {id:'spatial',title:'Spatial analysis',description:'Relate features by location and distance.'},
+  {id:'maintenance',title:'Geometry maintenance',description:'Repair, clean and reshape existing geometry.'}
+].map(Object.freeze));
+
+const source=(families=['point','line','polygon'],extra={})=>Object.freeze({id:'source',label:'Input layer',required:true,families,scopes:['all','filtered','selected'],...extra});
+const overlay=(label='Overlay layer',families=['point','line','polygon'],extra={})=>Object.freeze({id:'overlay',label,required:true,families,scopes:['all','filtered','selected'],...extra});
+const p=(id,label,type,extra={})=>Object.freeze({id,label,type,...extra});
+const selectionMode=()=>p('selectionMode','Selection mode','select',{default:'replace',options:[
+  {value:'replace',label:'Replace selection'},{value:'add',label:'Add to selection'},{value:'remove',label:'Remove from selection'},{value:'intersect',label:'Keep only already-selected matches'}
+]});
+const relation=()=>p('relation','Spatial relationship','select',{default:'intersects',options:[
+  {value:'intersects',label:'Intersects'},{value:'within',label:'Within'},{value:'contains',label:'Contains'},{value:'touches',label:'Touches'},{value:'overlaps',label:'Overlaps'},{value:'disjoint',label:'Disjoint'}
+]});
+const units=()=>p('units','Units','select',{default:'meters',options:[{value:'meters',label:'metres'},{value:'kilometers',label:'kilometres'},{value:'miles',label:'miles'}]});
+const layerTool=(value)=>Object.freeze({resultKind:'layer',mutationPolicy:'new-layer',failurePolicy:'per-feature',stylePolicy:'inherit',schemaPolicy:'preserve',...value,inputs:Object.freeze(value.inputs||[source()]),parameters:Object.freeze(value.parameters||[])});
+const selectTool=(value)=>Object.freeze({resultKind:'selection',mutationPolicy:'selection',failurePolicy:'atomic',stylePolicy:'none',schemaPolicy:'none',...value,inputs:Object.freeze(value.inputs||[source()]),parameters:Object.freeze(value.parameters||[])});
 
 const tools=Object.freeze([
-  Object.freeze({
-    id:'buffer',title:'Buffer',category:'geometry',keywords:['distance','corridor','zone','radius'],
-    description:'Create polygon buffers around every input feature.',sourceFamilies:['point','line','polygon'],outputGeometry:'Polygon',execution:'per-feature',crsPolicy:'geodesic',stylePolicy:'derived',
-    parameters:Object.freeze([
-      Object.freeze({id:'distance',label:'Distance',type:'number',required:true,default:1,nonZero:true,min:0,step:.1}),
-      Object.freeze({id:'units',label:'Units',type:'select',default:'kilometers',options:Object.freeze([{value:'meters',label:'metres'},{value:'kilometers',label:'kilometres'},{value:'miles',label:'miles'}])}),
-      Object.freeze({id:'steps',label:'Curve detail',type:'integer',default:16,min:8,max:64,step:1,advanced:true,help:'Segments per quarter circle. Higher values create smoother buffers.'})
-    ])
-  }),
-  Object.freeze({
-    id:'centroid',title:'Centroids',category:'geometry',keywords:['centre','center','point','middle'],
-    description:'Create one centroid point for each input feature.',sourceFamilies:['point','line','polygon'],outputGeometry:'Point',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'point-on-feature',title:'Point on surface',category:'geometry',keywords:['inside','representative','point','surface'],
-    description:'Create a representative point guaranteed to lie on each input feature where possible.',sourceFamilies:['point','line','polygon'],outputGeometry:'Point',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'convex-hull',title:'Convex hull',category:'geometry',keywords:['hull','envelope','extent','boundary'],
-    description:'Create the smallest convex polygon enclosing all input coordinates.',sourceFamilies:['point','line','polygon'],outputGeometry:'Polygon',execution:'aggregate',crsPolicy:'canonical',stylePolicy:'derived',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'bbox',title:'Bounding rectangle',category:'geometry',keywords:['bbox','bounding box','extent','rectangle'],
-    description:'Create one rectangular polygon covering the full input extent.',sourceFamilies:['point','line','polygon'],outputGeometry:'Polygon',execution:'aggregate',crsPolicy:'canonical',stylePolicy:'derived',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'clip',title:'Clip',category:'overlay',keywords:['trim','mask','inside','crop'],
-    description:'Keep the portions of the source features inside the polygon overlay layer.',sourceFamilies:['point','line','polygon'],overlayFamilies:['polygon'],outputGeometry:'Same as input',execution:'overlay',crsPolicy:'canonical',stylePolicy:'inherit',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'intersection',title:'Intersection',category:'overlay',keywords:['overlap','intersect','common','overlay'],
-    description:'Create source geometry where it overlaps the polygon overlay. v1.56.0.4 retains source attributes; full two-layer attribute overlay is planned for v1.56.1.',sourceFamilies:['point','line','polygon'],overlayFamilies:['polygon'],outputGeometry:'Same as input',execution:'overlay',crsPolicy:'canonical',stylePolicy:'inherit',parameters:Object.freeze([])
-  }),
-  Object.freeze({
-    id:'dissolve',title:'Dissolve',category:'aggregation',keywords:['merge','combine','boundaries','internal boundaries'],
-    description:'Merge polygon features and remove internal boundaries to create one polygon or multipolygon result.',sourceFamilies:['polygon'],outputGeometry:'Polygon',execution:'aggregate',crsPolicy:'canonical',stylePolicy:'derived',parameters:Object.freeze([])
-  })
+  layerTool({id:'buffer',title:'Buffer',category:'geometry',keywords:['distance','corridor','zone','radius'],description:'Create polygon buffers around input features.',inputs:[source()],outputGeometry:'Polygon',engine:'turf',execution:'per-feature',crsPolicy:'geodesic',stylePolicy:'derived',parameters:[p('distance','Distance','number',{required:true,default:1,min:0,nonZero:true,step:.1}),units(),p('steps','Curve detail','integer',{default:16,min:8,max:64,step:1,advanced:true,help:'Segments per quarter circle.'})]}),
+  layerTool({id:'centroid',title:'Centroids',category:'geometry',keywords:['centre','center','middle','point'],description:'Create one centroid point for each input feature.',inputs:[source()],outputGeometry:'Point',engine:'turf',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived'}),
+  layerTool({id:'point-on-surface',title:'Point on surface',category:'geometry',keywords:['inside','representative','label point'],description:'Create a representative point that lies on each feature where possible.',inputs:[source()],outputGeometry:'Point',engine:'turf',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived'}),
+  layerTool({id:'convex-hull',title:'Convex hull',category:'geometry',keywords:['hull','envelope'],description:'Create the smallest convex polygon enclosing all scoped input coordinates.',inputs:[source()],outputGeometry:'Polygon',engine:'turf',execution:'aggregate',failurePolicy:'atomic',crsPolicy:'canonical',stylePolicy:'derived',schemaPolicy:'derived'}),
+  layerTool({id:'bounding-geometry',title:'Bounding geometry',category:'geometry',keywords:['bbox','extent','bounds','envelope'],description:'Create a bounding geometry for the scoped input.',inputs:[source()],outputGeometry:'Polygon',engine:'turf',execution:'aggregate',failurePolicy:'atomic',crsPolicy:'canonical',stylePolicy:'derived',schemaPolicy:'derived',parameters:[p('mode','Geometry','select',{default:'extent',options:[{value:'extent',label:'Extent rectangle'},{value:'convex-hull',label:'Convex hull'}]})]}),
+  layerTool({id:'points-along-line',title:'Points along line',category:'geometry',keywords:['interval','chainage','distance'],description:'Create regularly spaced points along line features.',inputs:[source(['line'])],outputGeometry:'Point',engine:'turf',execution:'per-feature',crsPolicy:'geodesic',stylePolicy:'derived',parameters:[p('interval','Interval','number',{required:true,default:1000,min:0,nonZero:true,step:1}),units(),p('includeEnds','Include line endpoints','boolean',{default:true})]}),
+
+  layerTool({id:'union',title:'Union',category:'overlay',keywords:['combine','overlay','merge layers'],description:'Create the topological union of two polygon layers and preserve attributes from both inputs.',inputs:[source(['polygon']),overlay('Second polygon layer',['polygon'])],outputGeometry:'Polygon',engine:'geos',execution:'overlay',failurePolicy:'atomic',crsPolicy:'projected-metric',schemaPolicy:'combine'}),
+  layerTool({id:'intersection',title:'Intersection',category:'overlay',keywords:['overlap','common'],description:'Create geometry where features from two layers overlap, with attributes from both inputs.',inputs:[source(),overlay('Overlay layer',['polygon'])],outputGeometry:'Same as input',engine:'geos',execution:'overlay',failurePolicy:'atomic',crsPolicy:'projected-metric',schemaPolicy:'combine'}),
+  layerTool({id:'difference',title:'Difference',category:'overlay',keywords:['erase','subtract','minus'],description:'Subtract the overlay polygons from the input features.',inputs:[source(),overlay('Erase layer',['polygon'])],outputGeometry:'Same as input',engine:'geos',execution:'overlay',failurePolicy:'atomic',crsPolicy:'projected-metric'}),
+  layerTool({id:'symmetric-difference',title:'Symmetric difference',category:'overlay',keywords:['xor','exclusive','non-overlap'],description:'Keep geometry that belongs to either polygon layer but not both.',inputs:[source(['polygon']),overlay('Second polygon layer',['polygon'])],outputGeometry:'Polygon',engine:'geos',execution:'overlay',failurePolicy:'atomic',crsPolicy:'projected-metric',schemaPolicy:'combine'}),
+  layerTool({id:'clip',title:'Clip',category:'overlay',keywords:['trim','mask','inside','crop'],description:'Keep portions of the input features inside the polygon mask. Mask attributes are not copied.',inputs:[source(),overlay('Clip mask',['polygon'])],outputGeometry:'Same as input',engine:'geos',execution:'overlay',failurePolicy:'atomic',crsPolicy:'projected-metric'}),
+
+  layerTool({id:'dissolve',title:'Dissolve',category:'aggregation',keywords:['merge','combine','boundaries','group'],description:'Remove internal polygon boundaries, optionally grouping by an attribute.',inputs:[source(['polygon'])],outputGeometry:'Polygon',engine:'geos',execution:'aggregate',failurePolicy:'atomic',crsPolicy:'projected-metric',stylePolicy:'derived',schemaPolicy:'aggregate',parameters:[p('field','Dissolve field','field',{input:'source',allowBlank:true,blankLabel:'All features'})]}),
+  layerTool({id:'singlepart-to-multipart',title:'Singlepart → multipart',category:'aggregation',keywords:['group','multipart','combine'],description:'Group features into multipart features without dissolving boundaries.',inputs:[source()],outputGeometry:'Same family',engine:'pure',execution:'aggregate',failurePolicy:'atomic',crsPolicy:'canonical',stylePolicy:'derived',schemaPolicy:'aggregate',parameters:[p('field','Group field','field',{input:'source',allowBlank:true,blankLabel:'All features'})]}),
+
+  layerTool({id:'multipart-to-singlepart',title:'Multipart → singlepart',category:'conversion',keywords:['explode','parts','split multipart'],description:'Split multipart geometry into individual features while copying attributes.',inputs:[source()],outputGeometry:'Singlepart',engine:'pure',execution:'per-feature',crsPolicy:'canonical'}),
+  layerTool({id:'polygon-to-line',title:'Polygon → line',category:'conversion',keywords:['boundary','rings','outline'],description:'Convert polygon boundaries and holes to line geometry.',inputs:[source(['polygon'])],outputGeometry:'LineString',engine:'pure',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived'}),
+  layerTool({id:'line-to-points',title:'Line → points',category:'conversion',keywords:['vertices','nodes'],description:'Create a point feature for every line vertex.',inputs:[source(['line'])],outputGeometry:'Point',engine:'pure',execution:'per-feature',crsPolicy:'canonical',stylePolicy:'derived'}),
+
+  selectTool({id:'select-by-attribute',title:'Select by attribute',category:'selection',keywords:['query','field','value'],description:'Select features whose attribute values match a typed condition.',inputs:[source(undefined,{scopes:['all','filtered']})],engine:'schema',execution:'selection',parameters:[p('field','Field','field',{input:'source',required:true}),p('operator','Operator','select',{default:'eq',options:[{value:'eq',label:'Equals'},{value:'neq',label:'Does not equal'},{value:'contains',label:'Contains'},{value:'notcontains',label:'Does not contain'},{value:'starts',label:'Starts with'},{value:'ends',label:'Ends with'},{value:'gt',label:'Greater than'},{value:'gte',label:'Greater than or equal'},{value:'lt',label:'Less than'},{value:'lte',label:'Less than or equal'},{value:'between',label:'Between'},{value:'empty',label:'Is empty'},{value:'notempty',label:'Is not empty'}]}),p('value','Value','text',{default:''}),p('value2','Second value','text',{default:'',advanced:true}),selectionMode()]}),
+  selectTool({id:'select-by-location',title:'Select by location',category:'selection',keywords:['spatial query','intersects','within'],description:'Select input features using their spatial relationship to another layer.',inputs:[source(undefined,{scopes:['all','filtered']}),overlay('Comparison layer',undefined)],engine:'spatial',execution:'selection',parameters:[relation(),selectionMode()]}),
+  selectTool({id:'invert-selection',title:'Invert selection',category:'selection',keywords:['inverse','opposite'],description:'Invert the current selection inside the chosen input scope.',inputs:[source(undefined,{scopes:['all','filtered']})],engine:'pure',execution:'selection'}),
+  selectTool({id:'select-duplicates',title:'Select duplicates',category:'selection',keywords:['duplicate geometry','identical'],description:'Select every feature that belongs to an exact duplicate-geometry group.',inputs:[source(undefined,{scopes:['all','filtered']})],engine:'geometry-health',execution:'selection',parameters:[selectionMode()]}),
+  selectTool({id:'select-invalid',title:'Select invalid geometry',category:'selection',keywords:['invalid','geometry health','repair'],description:'Select features with structural or robust topology problems.',inputs:[source(undefined,{scopes:['all','filtered']})],engine:'geometry-health',execution:'selection',parameters:[selectionMode()]}),
+
+  layerTool({id:'nearest-feature',title:'Nearest feature',category:'spatial',keywords:['closest','near'],description:'Attach the nearest feature ID and selected attributes from another layer.',inputs:[source(),overlay('Candidate layer')],outputGeometry:'Same as input',engine:'spatial',execution:'spatial',crsPolicy:'projected-metric',parameters:[p('fields','Fields to copy','fields',{input:'overlay',allowBlank:true})]}),
+  layerTool({id:'distance-to-nearest',title:'Distance to nearest',category:'spatial',keywords:['closest','distance'],description:'Calculate the metric distance from each input feature to its nearest feature in another layer.',inputs:[source(),overlay('Candidate layer')],outputGeometry:'Same as input',engine:'spatial',execution:'spatial',crsPolicy:'projected-metric',parameters:[p('distanceField','Distance field','text',{default:'nearest_distance_m'})]}),
+  layerTool({id:'count-points-in-polygon',title:'Count points in polygon',category:'spatial',keywords:['point count','within','aggregate'],description:'Count points from another layer inside each polygon.',inputs:[source(['polygon']),overlay('Point layer',['point'])],outputGeometry:'Polygon',engine:'spatial',execution:'spatial',crsPolicy:'canonical',parameters:[p('countField','Count field','text',{default:'point_count'})]}),
+  layerTool({id:'join-by-location',title:'Join attributes by location',category:'spatial',keywords:['spatial join','attributes','intersects'],description:'Copy attributes from spatially matching features into the input layer.',inputs:[source(),overlay('Join layer')],outputGeometry:'Same as input',engine:'spatial',execution:'spatial',crsPolicy:'canonical',schemaPolicy:'combine',parameters:[relation(),p('fields','Fields to copy','fields',{input:'overlay',allowBlank:true}),p('matchMode','Multiple matches','select',{default:'first',options:[{value:'first',label:'Use first match'},{value:'expand',label:'Create one output per match'}]})]}),
+  layerTool({id:'spatial-summary',title:'Spatial summary',category:'spatial',keywords:['aggregate','statistics','summarise'],description:'Summarise matching features onto each input feature.',inputs:[source(),overlay('Summary layer')],outputGeometry:'Same as input',engine:'spatial',execution:'spatial',crsPolicy:'canonical',schemaPolicy:'combine',parameters:[relation(),p('field','Summary field','field',{input:'overlay',allowBlank:true,blankLabel:'Feature count'}),p('operation','Statistic','select',{default:'count',options:[{value:'count',label:'Count'},{value:'sum',label:'Sum'},{value:'mean',label:'Mean'},{value:'min',label:'Minimum'},{value:'max',label:'Maximum'}]}),p('outputField','Output field','text',{default:'spatial_summary'})]}),
+
+  layerTool({id:'fix-geometries',title:'Fix geometries',category:'maintenance',keywords:['repair','make valid','geometry health'],description:'Apply safe Geometry Health cleanup and robust MakeValid where required.',inputs:[source()],outputGeometry:'Same family',engine:'geometry-health',execution:'per-feature',crsPolicy:'canonical',mutationPolicy:'new-or-modify'}),
+  layerTool({id:'remove-duplicate-vertices',title:'Remove duplicate vertices',category:'maintenance',keywords:['repeated points','clean vertices'],description:'Remove consecutive duplicate coordinates without changing feature meaning.',inputs:[source()],outputGeometry:'Same as input',engine:'pure',execution:'per-feature',crsPolicy:'canonical',mutationPolicy:'new-or-modify'}),
+  layerTool({id:'remove-duplicate-features',title:'Remove duplicate features',category:'maintenance',keywords:['dedupe','identical geometry'],description:'Keep the first feature from each exact duplicate-geometry group.',inputs:[source()],outputGeometry:'Same as input',engine:'geometry-health',execution:'aggregate',crsPolicy:'canonical',mutationPolicy:'new-or-modify',failurePolicy:'atomic'}),
+  layerTool({id:'snap',title:'Snap',category:'maintenance',keywords:['align','tolerance','reference'],description:'Snap input geometry to nearby geometry in a reference layer.',inputs:[source(),overlay('Reference layer')],outputGeometry:'Same as input',engine:'geos',execution:'per-feature',crsPolicy:'projected-metric',mutationPolicy:'new-or-modify',parameters:[p('tolerance','Tolerance (metres)','number',{required:true,default:1,min:0,nonZero:true,step:.1})]}),
+  layerTool({id:'simplify',title:'Simplify',category:'maintenance',keywords:['reduce vertices','generalise'],description:'Reduce vertex count while preserving topology.',inputs:[source(['line','polygon'])],outputGeometry:'Same as input',engine:'geos',execution:'per-feature',crsPolicy:'projected-metric',mutationPolicy:'new-or-modify',parameters:[p('tolerance','Tolerance (metres)','number',{required:true,default:1,min:0,nonZero:true,step:.1})]}),
+  layerTool({id:'densify',title:'Densify',category:'maintenance',keywords:['add vertices','segment length'],description:'Insert vertices so no segment exceeds the requested metric length.',inputs:[source(['line','polygon'])],outputGeometry:'Same as input',engine:'geos',execution:'per-feature',crsPolicy:'projected-metric',mutationPolicy:'new-or-modify',parameters:[p('maxSegmentLength','Maximum segment length (metres)','number',{required:true,default:100,min:0,nonZero:true,step:1})]})
 ]);
 
 const byId=new Map(tools.map(tool=>[tool.id,tool]));
 const categoryById=new Map(categories.map(category=>[category.id,category]));
-const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 function getTool(id){const tool=byId.get(String(id||''));return tool?clone(tool):null;}
 function getCategory(id){const category=categoryById.get(String(id||''));return category?clone(category):null;}
 function getTools(){return clone(tools);}
 function getCategories(){return clone(categories);}
+function getInput(toolOrId,id){const tool=typeof toolOrId==='string'?byId.get(toolOrId):toolOrId;const input=tool?.inputs?.find(item=>item.id===id);return input?clone(input):null;}
+function requiresInput(toolOrId,id='overlay'){return !!getInput(toolOrId,id);}
+function requiresOverlay(toolOrId){return requiresInput(toolOrId,'overlay');}
 function search(query=''){
   const terms=String(query||'').trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   if(!terms.length)return getTools();
   return tools.filter(tool=>{const category=categoryById.get(tool.category);const haystack=[tool.title,tool.description,category?.title,...(tool.keywords||[])].join(' ').toLocaleLowerCase();return terms.every(term=>haystack.includes(term));}).map(clone);
 }
-function requiresOverlay(toolOrId){const tool=typeof toolOrId==='string'?byId.get(toolOrId):toolOrId;return !!tool?.overlayFamilies?.length;}
 
-const api={version:VERSION,getTool,getCategory,getTools,getCategories,search,requiresOverlay};
-global.EditPolygonGISProcessingRegistry=Object.freeze(api);
+global.EditPolygonGISProcessingRegistry=Object.freeze({version:VERSION,getTool,getCategory,getTools,getCategories,getInput,requiresInput,requiresOverlay,search});
 })(typeof window!=='undefined'?window:globalThis);

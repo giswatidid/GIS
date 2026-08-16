@@ -10,17 +10,26 @@ function fakeGeos({invalidReason='Self-intersection[1 1]',makeValidGeometry={typ
   const allocString=value=>{const ptr=next++;strings.set(ptr,String(value));return ptr;};
   const allocGeometry=value=>{const ptr=next++;geometries.set(ptr,JSON.parse(JSON.stringify(value)));return ptr;};
   const api={
-    Module:{_malloc:()=>next++,_free:ptr=>strings.delete(ptr),stringToUTF8:(value,ptr)=>strings.set(ptr,String(value)),UTF8ToString:ptr=>strings.get(ptr)||''},
+    Module:{_malloc:()=>next++,_free:ptr=>strings.delete(ptr),stringToUTF8:(value,ptr)=>strings.set(ptr,String(value)),UTF8ToString:ptr=>strings.get(ptr)||'',HEAPF64:new Float64Array(128)},
     GEOSGeoJSONReader_create:()=>1,GEOSGeoJSONReader_destroy:()=>null,
     GEOSGeoJSONReader_readGeometry:(_reader,ptr)=>allocGeometry(JSON.parse(strings.get(ptr))),
     GEOSGeoJSONWriter_create:()=>2,GEOSGeoJSONWriter_destroy:()=>null,
     GEOSGeoJSONWriter_writeGeometry:(_writer,geom)=>allocString(JSON.stringify(geometries.get(geom))),
     GEOSGeom_destroy:ptr=>geometries.delete(ptr),GEOSFree:ptr=>strings.delete(ptr),
     GEOSisValidReason:geom=>allocString(geometries.get(geom)?.type==='GeometryCollection'?'Valid Geometry':invalidReason),
-    GEOSMakeValid:()=>allocGeometry(makeValidGeometry),
+    GEOSMakeValid:geom=>allocGeometry(geometries.get(geom)),
+    GEOSIntersection:(a,b)=>allocGeometry(geometries.get(a)),
+    GEOSDifference:(a,b)=>allocGeometry(geometries.get(a)),
+    GEOSSymDifference:(a,b)=>allocGeometry(geometries.get(a)),
+    GEOSUnion:(a,b)=>allocGeometry(geometries.get(a)),
+    GEOSUnaryUnion:a=>allocGeometry(geometries.get(a)),
+    GEOSTopologyPreserveSimplify:(a,t)=>allocGeometry(geometries.get(a)),
+    GEOSDensify:(a,t)=>allocGeometry(geometries.get(a)),
+    GEOSSnap:(a,b,t)=>allocGeometry(geometries.get(a)),
+    GEOSDistance:(a,b,ptr)=>{api.Module.HEAPF64[ptr>>3]=12.5;return 1;},
     __strings:strings,__geometries:geometries
   };
-  return api;
+  const originalMakeValid=api.GEOSMakeValid;api.GEOSMakeValid=geom=>allocGeometry(makeValidGeometry||geometries.get(geom));return api;
 }
 
 test('GEOS adapter exposes the pinned robust engine version',()=>{
@@ -46,4 +55,18 @@ test('GEOS MakeValid keeps polygonal output and reports discarded lower-dimensio
   assert.equal(result.engine.name,'GEOS MakeValid');
   assert.equal(result.validAfter,true);
   assert.equal(geos.__geometries.size,0,'all GEOS geometry pointers should be destroyed');
+});
+
+
+test('GEOS adapter routes robust overlay and maintenance operations through the low-level API',()=>{
+  const adapter=load(),geos=fakeGeos(),a={type:'Polygon',coordinates:[[[0,0],[2,0],[2,2],[0,0]]]},b={type:'Polygon',coordinates:[[[1,0],[3,0],[3,2],[1,0]]]};
+  for(const result of [adapter.intersection(geos,a,b),adapter.difference(geos,a,b),adapter.symDifference(geos,a,b),adapter.union(geos,a,b),adapter.simplify(geos,a,1),adapter.densify(geos,a,1),adapter.snap(geos,a,b,1)])assert.equal(result.type,'Polygon');
+  assert.equal(adapter.unaryUnion(geos,[a,b]).type,'GeometryCollection');
+  assert.equal(geos.__geometries.size,0,'temporary GEOS pointers should be destroyed');
+});
+
+test('GEOS adapter reads metric distance from WASM floating-point memory',()=>{
+  const adapter=load(),geos=fakeGeos(),a={type:'Point',coordinates:[0,0]},b={type:'Point',coordinates:[1,1]};
+  assert.equal(adapter.distance(geos,a,b),12.5);
+  assert.equal(geos.__geometries.size,0);
 });

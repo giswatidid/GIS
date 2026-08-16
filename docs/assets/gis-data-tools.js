@@ -27,6 +27,8 @@ let joinPreview=null;
 let joinRunning=false;
 let joinProgress=null;
 let joinExternalSource=null;
+let processingInitialTool='';
+let processingInitialScope='';
 
 function api(){return window.EditPolygonGIS;}
 function core(){return window.EditPolygonGISDataCore;}
@@ -77,9 +79,11 @@ function resetStyleState(layer){
   styleCodeDraft=styleSavedCode;
   stylePreviewActive=false;
 }
-function open(id,initialTab='table'){
+function open(id,initialTab='table',options={}){
   if(layerId&&stylePreviewActive)api()?.clearStylePreview?.(layerId);
   layerId=id;
+  processingInitialTool=String(options?.processingTool||processingInitialTool||'');
+  processingInitialScope=String(options?.processingScope||processingInitialScope||'');
   selected.clear();
   const globalSelection=new Set(api()?.getSelection?.().ids||[]);
   const openingLayer=layers().find(item=>item.id===id);
@@ -114,7 +118,7 @@ function render(which=tab()){
   $('gisDataSummary').textContent=`${layer.features.length.toLocaleString()} ${layer.tableOnly?'rows':'features'} · ${layer.tableOnly?'non-spatial table':layer.crs}`;
   updateFilterTabState(layer);
   $('gisDataBody').innerHTML=which==='select'?selectionView(layer):which==='filter'?filterView(layer):which==='style'?styleView(layer):which==='fields'?fieldsView(layer):which==='join'?joinView(layer):which==='crs'?crsView(layer):which==='process'?'<div id="gisProcessingHost"></div>':tableView(layer);
-  if(which==='process'){const host=$('gisProcessingHost');if(!processingUI()||!host){host.innerHTML='<section class="gis-tool-card"><h3>Processing Toolbox unavailable</h3><p>The processing interface did not load correctly. Refresh the page and try again.</p></section>';}else processingUI().mount(host,{layerId,api:api(),status,onOpenOutput:output=>{layerId=output.id;selected.clear();resetStyleState(output);render('table');}});}
+  if(which==='process'){const host=$('gisProcessingHost');if(!processingUI()||!host){host.innerHTML='<section class="gis-tool-card"><h3>Processing Toolbox unavailable</h3><p>The processing interface did not load correctly. Refresh the page and try again.</p></section>';}else {const initialTool=processingInitialTool,initialScope=processingInitialScope;processingInitialTool='';processingInitialScope='';processingUI().mount(host,{layerId,toolId:initialTool,sourceScope:initialScope,api:api(),status,onOpenOutput:output=>{layerId=output.id;selected.clear();resetStyleState(output);render('table');}});}}
   if(which==='style')requestAnimationFrame(()=>{updateStyleControlVisibility();updateStyleCodeFeedback();});
 }
 
@@ -577,7 +581,7 @@ function initialise(){
   }
 }
 
-window.EditPolygonGISDataTools=Object.freeze({open,openLayer:open,ensureButtons:queueEnsureButtons});
+window.EditPolygonGISDataTools=Object.freeze({open,openLayer:open,openProcessing:(id,toolId='',scope='')=>open(id,'process',{processingTool:toolId,processingScope:scope}),ensureButtons:queueEnsureButtons});
 window.addEventListener('editpolygon:gis-changed',queueEnsureButtons);
 window.addEventListener('editpolygon:gis-rendered',queueEnsureButtons);
 window.addEventListener('editpolygon:gis-selection-changed',()=>{if($('gisDataModal')?.classList.contains('active')&&tab()==='select')render('select');});

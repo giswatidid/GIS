@@ -25,6 +25,11 @@ function compare(value,op,target,target2){
 }
 function selectByAttribute(features,rule){
   if(!rule?.field)return [];
+  const schemaCore=global.EditPolygonGISSchemaCore;
+  if(schemaCore?.inferSchema&&schemaCore?.matchesFilter){
+    const inferred=schemaCore.inferSchema(features||[]),filter={logic:'and',conditions:[{field:rule.field,op:rule.op||'eq',value:rule.value??'',value2:rule.value2??''}]};
+    return (features||[]).filter(feature=>schemaCore.matchesFilter(feature,filter,inferred)).map(feature=>feature.id);
+  }
   return (features||[]).filter(feature=>compare(feature.properties?.[rule.field],rule.op||'eq',rule.value,rule.value2)).map(feature=>feature.id);
 }
 function median(sorted){const n=sorted.length;if(!n)return null;const i=Math.floor(n/2);return n%2?sorted[i]:(sorted[i-1]+sorted[i])/2;}

@@ -45,7 +45,7 @@ this.createOutput=gisCreateOutputFile;`,context);
 test('legacy analysis outputs remain list-safe while v1.56 processing uses dedicated provenance metadata',()=>{
   assert.match(app,/sourceFormat:'processing'/);
   assert.match(app,/gisProcessing:provenance/);
-  assert.match(app,/gisProcessingCrs:'EPSG:4326'/);
+  assert.match(app,/gisProcessingCrs:result\.processingCrs/);
   assert.match(app,/sourceFormat:'analysis'/);
   assert.match(app,/file\.sourceFormat=file\.sourceFormat\|\|\(file\.gisProcessing\?'analysis':'geojson'\)/);
   assert.match(app,/String\(file\.sourceFormat\|\|'project'\)\.toUpperCase\(\)/);

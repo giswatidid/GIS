@@ -1,33 +1,35 @@
 'use strict';
 
-let modulesReady=false;
-function ensureModules(needsTurf=false){
+const GEOS_ESM_URL='https://cdn.jsdelivr.net/npm/geos-wasm@3.1.1/build/package/geos.esm.js';
+let modulesReady=false,geosPromise=null;
+function ensureModules(needsTurf=false,needsGeos=false){
   if(!self.EditPolygonGISJoinCore)importScripts('gis-join-core.js');
-  if(!self.EditPolygonGISAnalysisCore)importScripts('gis-analysis-core.js');
+  if(!self.EditPolygonGISSpatialCore)importScripts('gis-spatial-core.js');
   if(needsTurf&&!self.turf)importScripts('https://unpkg.com/@turf/turf@7.2.0/turf.min.js');
-  if(!self.EditPolygonGISJoinCore)throw new Error('Join engine could not be loaded.');
+  if(needsGeos&&!self.EditPolygonGeosAdapter)importScripts('gis-geos-adapter.js');
+  if(needsGeos&&!self.EditPolygonGISProcessingEngine)importScripts('gis-processing-engine.js');
+  if(!self.EditPolygonGISJoinCore||!self.EditPolygonGISSpatialCore)throw new Error('Join/spatial engine could not be loaded.');
   if(needsTurf&&!self.turf)throw new Error('Geometry engine could not be loaded.');
+  if(needsGeos&&(!self.EditPolygonGeosAdapter||!self.EditPolygonGISProcessingEngine))throw new Error('Shared GEOS processing engine could not be loaded.');
   modulesReady=true;
 }
+function ensureGeos(){if(!geosPromise)geosPromise=import(GEOS_ESM_URL).then(mod=>{if(typeof mod?.default!=='function')throw new Error('GEOS-WASM did not expose its browser initializer.');return mod.default();}).then(geos=>{self.EditPolygonGeosAdapter.assertGeos(geos);return geos;}).catch(error=>{geosPromise=null;throw error;});return geosPromise;}
 const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
 const feature=value=>({type:'Feature',id:value.id,properties:clone(value.properties||{}),geometry:clone(value.geometry||null)});
 const collection=features=>({type:'FeatureCollection',features:(features||[]).filter(Boolean)});
 const propertiesOf=record=>record?.properties||{};
 function geometryUsable(record){
   const geometry=record?.geometry;if(!geometry||!geometry.type)return false;
-  try{return typeof self.turf?.booleanValid==='function'?self.turf.booleanValid(feature(record)):!!self.EditPolygonGISAnalysisCore.bboxOfGeometry(geometry);}catch(_){return false;}
+  try{return typeof self.turf?.booleanValid==='function'?self.turf.booleanValid(feature(record)):!!self.EditPolygonGISSpatialCore.bboxOfGeometry(geometry);}catch(_){return false;}
 }
 function geometryTypes(records){return [...new Set((records||[]).map(record=>record?.geometry?.type).filter(Boolean))];}
 
-function dissolveFeatures(records,onProgress){
+async function dissolveFeatures(records){
+  ensureModules(false,true);
   const polygons=(records||[]).map(feature).filter(item=>['Polygon','MultiPolygon'].includes(item.geometry?.type));
   if(!polygons.length)return clone((records||[]).find(record=>record.geometry)?.geometry||null);
-  let current=polygons[0];
-  for(let index=1;index<polygons.length;index++){
-    try{current=self.turf.union(collection([current,polygons[index]]))||current;}catch(_){ }
-    if(index%5===0)onProgress(index,polygons.length);
-  }
-  return clone(current?.geometry||null);
+  const geos=await ensureGeos();
+  return clone(self.EditPolygonGISProcessingEngine.dissolveGeometry(polygons.map(item=>item.geometry),geos));
 }
 
 function runAttribute(task,progress){
@@ -37,70 +39,34 @@ function runAttribute(task,progress){
   return {kind:'attribute',...result};
 }
 
-function runSummary(task,progress){
-  const needsTurf=task.config?.geometryMode==='dissolve';ensureModules(needsTurf);
-  if(needsTurf){
+async function runSummary(task,progress){
+  const needsDissolve=task.config?.geometryMode==='dissolve';ensureModules(false,needsDissolve);
+  let geos=null;
+  if(needsDissolve){
+    geos=await ensureGeos();
     const spatial=(task.records||[]).filter(record=>record.geometry);
-    const invalid=spatial.filter(record=>!geometryUsable(record));
     const nonPolygon=spatial.filter(record=>!['Polygon','MultiPolygon'].includes(record.geometry?.type));
+    const invalid=spatial.filter(record=>{try{return !self.EditPolygonGeosAdapter.validity(geos,record.geometry).valid;}catch(_){return true;}});
     if(!spatial.length)throw new Error('Dissolved summaries require polygon geometry. Choose a non-spatial table output instead.');
     if(nonPolygon.length)throw new Error('Dissolved summaries can only use polygon or multipolygon records.');
     if(invalid.length)throw new Error(`${invalid.length} polygon record${invalid.length===1?' is':'s are'} invalid. Repair the geometry before dissolving a summary.`);
   }
   progress('Grouping records',12,0,task.records?.length||0);
   const result=self.EditPolygonGISJoinCore.executeGroupSummary(task.records||[],task.config||{});
-  if(task.config?.geometryMode==='dissolve'){
-    result.rows.forEach((row,index)=>{
-      row.geometry=dissolveFeatures(row.sourceRecords||[],()=>{});
+  if(needsDissolve){
+    for(let index=0;index<result.rows.length;index++){
+      const row=result.rows[index];
+      row.geometry=await dissolveFeatures(row.sourceRecords||[]);
       delete row.sourceRecords;
       progress('Dissolving group geometry',15+Math.round((index+1)/Math.max(1,result.rows.length)*75),index+1,result.rows.length);
-    });
+    }
   }else for(const row of result.rows)delete row.sourceRecords;
   progress('Creating summary',95,result.rows.length,result.rows.length);
   return {kind:'summary',...result};
 }
 
-function bboxFor(record){return self.EditPolygonGISAnalysisCore.bboxOfGeometry(record?.geometry);}
-function representativePoint(record){
-  const f=feature(record);if(!f.geometry)return null;
-  try{if(f.geometry.type==='Point')return f;return self.turf.pointOnFeature(f);}catch(_){try{return self.turf.centroid(f);}catch(__){return null;}}
-}
-function distanceKm(a,b){
-  const pa=representativePoint(a),pb=representativePoint(b);if(!pa||!pb)return null;
-  try{return self.turf.distance(pa,pb,{units:'kilometers'});}catch(_){return null;}
-}
-function exactRelation(target,source,predicate){
-  const a=feature(target),b=feature(source);if(!a.geometry||!b.geometry)return false;
-  try{
-    if(predicate==='point-in-polygon')return a.geometry.type==='Point'&&['Polygon','MultiPolygon'].includes(b.geometry.type)&&self.turf.booleanPointInPolygon(a,b,{ignoreBoundary:false});
-    if(predicate==='within')return self.turf.booleanWithin(a,b);
-    if(predicate==='contains')return self.turf.booleanContains(a,b);
-    if(predicate==='touches')return self.turf.booleanTouches(a,b);
-    if(predicate==='overlaps')return self.turf.booleanOverlap(a,b);
-    return self.turf.booleanIntersects(a,b);
-  }catch(_){return false;}
-}
-function expandedBbox(point,radiusKm){
-  const coordinates=point?.geometry?.coordinates;if(!coordinates)return null;
-  const lon=Number(coordinates[0]),lat=Number(coordinates[1]),dy=radiusKm/110.574,dx=radiusKm/(111.320*Math.max(.05,Math.cos(lat*Math.PI/180)));
-  return [lon-dx,lat-dy,lon+dx,lat+dy];
-}
-function nearestCandidates(target,sourceRecords,index){
-  if(sourceRecords.length<=1500)return sourceRecords;
-  const point=representativePoint(target);if(!point)return [];
-  let radius=.5,candidateIds=[];
-  for(let step=0;step<12&&!candidateIds.length;step++){
-    candidateIds=self.EditPolygonGISAnalysisCore.querySpatialIndex(index,expandedBbox(point,radius));radius*=2;
-  }
-  if(!candidateIds.length)return sourceRecords;
-  const byId=new Map(sourceRecords.map(record=>[record.id,record]));let candidates=candidateIds.map(id=>byId.get(id)).filter(Boolean),best=Infinity;
-  for(const source of candidates){const distance=distanceKm(target,source);if(distance!=null&&distance<best)best=distance;}
-  if(Number.isFinite(best)){
-    const ids=self.EditPolygonGISAnalysisCore.querySpatialIndex(index,expandedBbox(point,Math.max(best*1.05,.05)));
-    candidates=ids.map(id=>byId.get(id)).filter(Boolean);
-  }
-  return candidates.length?candidates:sourceRecords;
-}
+function bboxFor(record){return self.EditPolygonGISSpatialCore.bboxOfGeometry(record?.geometry);}
+function exactRelation(target,source,predicate){return self.EditPolygonGISSpatialCore.relation(self.turf,target,source,predicate);}
 function aggregateMatches(matches,aggregations,sourceSchema){
   const core=self.EditPolygonGISJoinCore,properties={};
   for(const item of aggregations||[]){
@@ -110,7 +76,7 @@ function aggregateMatches(matches,aggregations,sourceSchema){
 }
 function runSpatial(task,progress){
   ensureModules(true);
-  const core=self.EditPolygonGISJoinCore,analysis=self.EditPolygonGISAnalysisCore,allTargets=task.targetRecords||[],allSources=task.sourceRecords||[],config=clone(task.config||{}),predicate=config.predicate||'intersects';
+  const core=self.EditPolygonGISJoinCore,analysis=self.EditPolygonGISSpatialCore,allTargets=task.targetRecords||[],allSources=task.sourceRecords||[],config=clone(task.config||{}),predicate=config.predicate||'intersects';
   if(!allTargets.length)throw new Error('No target records are available in this scope.');if(!allSources.length)throw new Error('No source records are available in this scope.');
   const invalidTargets=allTargets.filter(record=>!geometryUsable(record)),invalidSources=allSources.filter(record=>!geometryUsable(record));
   const targets=allTargets.filter(record=>geometryUsable(record)),sources=allSources.filter(record=>geometryUsable(record));
@@ -138,18 +104,15 @@ function runSpatial(task,progress){
   const rows=[];let matchedTargets=0,unmatchedTargets=0,multipleTargets=0,totalMatches=0,skippedTargets=0;
   eligibleTargets.forEach((target,targetIndex)=>{
     if(!target.geometry){skippedTargets++;return;}
-    let candidates=[];
-    if(predicate==='nearest')candidates=nearestCandidates(target,eligibleSources,index);
-    else{
-      const bbox=bboxFor(target),ids=bbox?analysis.querySpatialIndex(index,bbox):[];candidates=ids.map(id=>sourceById.get(id)).filter(Boolean);
-    }
     let matches=[];
     if(predicate==='nearest'){
-      for(const source of candidates){const distance=distanceKm(target,source);if(distance!=null)matches.push({record:source,distance});}
-      matches.sort((a,b)=>a.distance-b.distance);
-      if(matches.length)matches=[matches[0]];
+      const nearest=analysis.nearestFeature(self.turf,target,eligibleSources,{index});
+      if(nearest)matches=[{record:nearest.feature,distance:nearest.distance/1000}];
       if(matches.length&&Number(config.maxDistanceKm)>0&&matches[0].distance>Number(config.maxDistanceKm))matches=[];
-    }else for(const source of candidates)if(exactRelation(target,source,predicate))matches.push({record:source,distance:null});
+    }else{
+      const bbox=bboxFor(target),ids=bbox?analysis.querySpatialIndex(index,bbox):[],candidates=ids.map(id=>sourceById.get(id)).filter(Boolean);
+      for(const source of candidates)if(exactRelation(target,source,predicate))matches.push({record:source,distance:null});
+    }
     if(matches.length){matchedTargets++;totalMatches+=matches.length;if(matches.length>1)multipleTargets++;}else unmatchedTargets++;
     const base=clone(propertiesOf(target));
     if(config.matchMode==='expand'){
@@ -166,17 +129,17 @@ function runSpatial(task,progress){
   return {kind:'spatial',rows,schema,diagnostics:{valid:true,errors:[],warnings,targetCount:allTargets.length,sourceCount:allSources.length,eligibleTargetCount:eligibleTargets.length,eligibleSourceCount:eligibleSources.length,matchedTargets,unmatchedTargets:unmatchedTargets+(allTargets.length-eligibleTargets.length),multipleTargets,totalMatches,skippedTargets:skippedTargets+invalidTargets.length+(targets.length-eligibleTargets.length),skippedSources:invalidSources.length+(sources.length-eligibleSources.length),expectedOutput:rows.length,predicate,matchMode:config.matchMode||'summarize',targetGeometryTypes:targetTypes,sourceGeometryTypes:sourceTypes,distanceMethod:predicate==='nearest'?'geodesic representative-point distance':null,sample:rows.slice(0,10).map(row=>row.properties)}};
 }
 
-function run(task,progress){
+async function run(task,progress){
   if(task.operation==='attributeJoin')return runAttribute(task,progress);
-  if(task.operation==='groupSummary')return runSummary(task,progress);
+  if(task.operation==='groupSummary')return await runSummary(task,progress);
   if(task.operation==='spatialJoin')return runSpatial(task,progress);
   throw new Error(`Unsupported join operation: ${task.operation}`);
 }
 
-self.onmessage=event=>{
+self.onmessage=async event=>{
   const {id,task}=event.data||{};
   try{
-    const result=run(task,(stage,percent,done,total)=>self.postMessage({id,type:'progress',stage,percent,done,total}));
+    const result=await run(task,(stage,percent,done,total)=>self.postMessage({id,type:'progress',stage,percent,done,total}));
     self.postMessage({id,type:'result',result});
   }catch(error){self.postMessage({id,type:'error',message:error?.message||String(error),stack:error?.stack||''});}
 };

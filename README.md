@@ -5,11 +5,11 @@
 The application runs as a static website. Local files, geometry edits, attribute operations, processing outputs, autosave and exports remain in the browser. No EditPolygon account or application backend is required.
 
 **Live application:** [editpolygon.com](https://editpolygon.com/)  
-**Current application baseline:** v1.56.0.4
+**Current application baseline:** v1.56.1
 
 The v1.54 **Geometry Health** release replaces the old polygon-only validation workflow with guided validation and repair for point, line, polygon and multipart vector geometry. It separates safe cleanup from consequential repairs, links issues back to the map, verifies polygon topology with GEOS-WASM when available, previews make-valid results before they are accepted, and materialises repairs as normal undoable GIS layers with provenance. v1.54.1 integrated the workflow into the normal Inspector column. v1.54.2 incorporates the first live-testing refinement pass: advanced rules are staged until an explicit rerun, rule choices are geometry-aware, import warnings use Geometry Health diagnoses, repair previews fold in harmless normalisation, invalid before/after metrics are labelled not comparable, repaired-layer warning badges are recalculated consistently, and repeated dangling endpoints are condensed for readability.
 
-The v1.55 map-runtime migration is complete and **v1.56.0 introduced the Processing Toolbox roadmap on the stable v1.55.7.4 OpenLayers foundation; v1.56.0.4 is the project-open history hotfix baseline**. OpenLayers remains the sole native map runtime behind `EditPolygonMap`; the drawing/navigation, repeated-world, mobile, large-vector and `.epz` parity work is unchanged. v1.56.0.4 replaces scattered layer-processing controls with one declarative browser-local Processing Toolbox, one validated request model and one cancellable worker lifecycle. Application code remains map-library-neutral; native OpenLayers implementation details stay isolated in `editpolygon-map-adapter.js`. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
+The v1.55 map-runtime migration is complete and **v1.56.1 completes the first full Processing Toolbox milestone on the stable v1.55.7.4 OpenLayers foundation**. OpenLayers remains the sole native 2D map runtime behind `EditPolygonMap`. v1.56.1 consolidates processing behind one declarative catalogue, generic request/result contract, one cancellable worker lifecycle, shared spatial/schema engines and the existing GEOS-WASM boundary instead of adding more one-off GIS branches to the historical application file. See [`ARCHITECTURE.md`](ARCHITECTURE.md), [`QUALITY_BASELINE.md`](QUALITY_BASELINE.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## What EditPolygon is for
 
@@ -169,24 +169,27 @@ Individual features can also receive a deliberate style override and later retur
 
 ### Processing Toolbox
 
-**GIS → Processing** opens the v1.56 browser-local Processing Toolbox. The layer used to open the toolbox is preselected, but the input can be changed before running.
+**GIS → Processing** opens the browser-local Processing Toolbox. The layer used to open it is preselected, but every declared input and scope can be changed before running.
 
-The v1.56.0.4 foundation ships with:
+v1.56.1 ships **32 tools**:
 
-- Buffer
-- Centroids
-- Point on surface
-- Convex hull
-- Bounding rectangle
-- Clip
-- Intersection
-- Dissolve
+- **Vector geometry:** Buffer, Centroids, Point on surface, Convex hull, Bounding geometry and Points along line.
+- **Overlay:** Union, Intersection, Difference, Symmetric difference and Clip.
+- **Aggregation:** Dissolve and Singlepart → multipart.
+- **Geometry conversion:** Multipart → singlepart, Polygon → line and Line → points.
+- **Selection:** Select by attribute, Select by location, Invert selection, Select duplicates and Select invalid geometry.
+- **Spatial analysis:** Nearest feature, Distance to nearest, Count points in polygon, Join attributes by location and Spatial summary.
+- **Geometry maintenance:** Fix geometries, Remove duplicate vertices, Remove duplicate features, Snap, Simplify and Densify.
 
-Each job uses an explicit input scope: **All features**, **Filtered features** or **Selected features**. Hiding a layer or individual feature is only a presentation choice and does not silently remove it from processing. Overlay tools expose the same scope controls for their polygon mask layer.
+Each layer input uses an explicit **All / Filtered / Selected** scope. Hiding a layer or feature is presentation state and never silently changes analytical membership. Parameters are declared by the tool catalogue, so layer/field/select/numeric/boolean/text controls use one generic UI rather than one-off dialogs.
 
-The Toolbox validates geometry and parameters before running, executes expensive work in a cancellable browser Worker, reports meaningful stages/failures, and only mutates the project after a complete result has returned. Successful runs create a normal editable output layer as a single undoable history transaction. Cancellation, worker failure or an empty output leave the project unchanged. Output layers preserve processing provenance inside `.epz`; per-feature/overlay tools also preserve compatible source schema and styling.
+The worker routes operations through shared engines. Robust topology and metric maintenance use the existing GEOS-WASM adapter with a real processing CRS; spatial matching/indexing is shared with Join & Summarize; typed attribute predicates are shared with the schema/filter system; and Fix geometries reuses Geometry Health rather than creating another repair engine. Results are transformed back to canonical WGS 84 before commit.
 
-The v1.56.0.4 overlay implementation deliberately migrates the existing Turf behaviour into the new framework. **v1.56.1** is the robust topology phase: GEOS-backed Difference, Symmetric difference, true two-layer Union, dissolve by attribute and Make Valid.
+Output policy is tool-specific. Derived/overlay/conversion/spatial tools create a new layer. Geometry-maintenance tools can create a new layer or deliberately modify the input layer. Selection tools update the canonical selection and create no layer. Every project mutation is one undoable history transaction; cancellation and worker failure create no partial project state.
+
+Output/modified layers preserve machine-readable `gisProcessing` provenance inside `.epz`, including all inputs/scopes, parameters, real processing CRS, engine metadata, result counts and failures. This contract is intentionally suitable for future re-run and Model Builder work.
+
+The Simple Editor remains deliberately smaller. Direct graphical editing conveniences such as Cut, Intersect, Split, holes, Smooth, Offset and interactive snapping remain available, while independent batch Clip, Erase, Repair and Simplify implementations have been removed rather than maintained in parallel with Advanced GIS.
 
 ### Geometry Health validation and repair
 
@@ -404,7 +407,7 @@ Install Node.js, then run:
 npm run check
 ```
 
-This runs repository integration checks, the v1.56.0.4 single-runtime/Processing-Toolbox audit, the binding/architecture no-growth audit and the JavaScript test suite.
+This runs repository integration checks, the v1.56.1 single-runtime/Processing-Toolbox audit, the binding/architecture no-growth audit and the JavaScript test suite.
 
 Run the browser smoke matrix with:
 
@@ -432,23 +435,20 @@ For deployment-specific notes, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Current roadmap
 
-The map-runtime migration and its single-runtime cleanup are complete. **v1.56.0.4 is the Processing Toolbox foundation release**, built on the stable v1.55.7.4 map/drawing baseline.
+The map-runtime migration and **v1.56 Processing Toolbox** are complete. The next milestone is the large-data architecture.
 
-1. **v1.56 — Processing Toolbox:** v1.56.0.4 establishes the registry/core/worker/UI and first eight tools; v1.56.1–v1.56.3 add robust GEOS topology, conversion/maintenance and spatial-analysis tools.
-2. **v1.57 — Large-data performance:** virtualised tables/lists, worker-based data operations, spatial indexing and larger-dataset architecture.
-3. **v1.58 — Professional styling and labels:** rule/expression styling, scale-dependent symbology and stronger cartographic label placement.
-4. **v1.59 — Advanced formats:** GeoPackage, FlatGeobuf, GeoParquet and GPX, plus format hardening.
-5. **v1.60 — Viewer / Presenter:** read-only viewer mode, configurable presentation controls and scene-based spatial storytelling.
-6. **v1.61 — 3D visualisation:** synchronized 2D/3D viewing, terrain, camera bookmarks and attribute-driven extrusion.
-7. **v1.62 — Data source management:** persistent remote source definitions, refresh/reconnect, service discovery and source health.
-8. **v1.63 — Portable projects and snapshots:** richer `.epz` assets, named restore points, project dependencies and portability.
-9. **v1.64 — Print layouts:** map composition and publication-quality PDF/high-resolution export.
-10. **v1.65 — Raster GIS:** raster inspection, calculations, clipping/resampling/reprojection and DEM tools.
-11. **v1.66 — Advanced 3D GIS:** local terrain/DEM integration, 3D Tiles/models/point clouds and advanced 3D analysis.
+1. **v1.57 — Large-data performance:** virtualised attribute tables/lists, worker-based sorting/filtering/calculation, spatial indexes, reduced geometry cloning, tighter memory management, faster multi-feature selection, batched rendering, progressive import and cancellation for large operations. DuckDB-WASM remains the leading browser-local SQL candidate for joins/grouping/aggregation/CSV/Parquet work.
+2. **v1.58 — Professional styling and labels:** rule/expression styling, advanced graduated/categorical symbology, scale-dependent styles and labels, data-driven visual variables and stronger cartographic placement.
+3. **v1.59 — Advanced formats:** GeoPackage, FlatGeobuf, GeoParquet and GPX, plus hardening of Shapefile, GeoTIFF metadata, KML/KMZ, GML and CSV coordinate detection.
+4. **v1.60 — Viewer / Presenter:** a deliberate non-destructive viewer, configurable project exposure and scene-based spatial storytelling.
+5. **v1.61 — 3D visualisation:** synchronized 2D/3D viewing, terrain, camera bookmarks and attribute-driven extrusion.
+6. **v1.62 — Data source management:** persistent remote source definitions, refresh/reconnect, service discovery and source health.
+7. **v1.63 — Portable projects and snapshots:** richer `.epz` assets, named restore points, project dependencies and portability.
+8. **v1.64 — Print layouts:** map composition and publication-quality PDF/high-resolution export.
+9. **v1.65 — Raster GIS:** raster inspection, calculations, clipping/resampling/reprojection and DEM tools.
+10. **v1.66 — Advanced 3D GIS:** local terrain/DEM integration, 3D Tiles/models/point clouds and advanced 3D analysis.
 
-Temporal GIS, Model Builder, extensibility and server-assisted heavy processing remain later candidates after the core roadmap is established.
-
-The migration preserves the existing project, geometry, CRS, schema, history and analysis models rather than rebuilding the application around the map library.
+Temporal GIS, Model Builder, extensibility and server-assisted heavy processing remain later candidates after the scheduled core roadmap. Normal GIS processing remains browser-local wherever reasonably possible.
 
 ## Feedback
 

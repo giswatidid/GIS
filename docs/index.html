@@ -168,13 +168,13 @@ html.v121-app-ready body{
 </script>
 
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
-<link rel="stylesheet" href="assets/editpolygon.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/gis-processing.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260812-v15603-processing-tool-list-ui"/>
-<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260812-v15603-processing-tool-list-ui"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/gis-processing.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260816-v1561-processing-consolidation"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260816-v1561-processing-consolidation"/>
 
 
 
@@ -319,12 +319,7 @@ html.v121-app-ready body{
 <option title="Expand or inset the selected polygon by a real-world distance." value="offset">Offset / inset active</option>
 <option title="Round selected polygon coordinates to a fixed decimal precision." value="truncate">Truncate precision active</option>
 </optgroup>
-<optgroup label="Cut / combine">
-<option title="Combines picked polygons into one polygon/multipolygon." value="merge">Merge / dissolve selected</option>
-<option title="Removes picked polygon area from the active polygon." value="cut">Cut active with picked</option>
-<option title="Keeps only overlapping area between active and picked polygons." value="intersect">Intersect / keep overlap</option>
-<option title="Trims picked polygons to inside the active polygon." value="clip">Clip picked to active</option>
-<option title="Uses active polygon to erase from picked polygons." value="erase">Erase active from picked</option>
+<optgroup label="Shape editing">
 <option title="Cuts active polygon with a drawn line." value="splitLine">Split active by drawn line</option>
 </optgroup>
 <optgroup label="Holes">
@@ -333,9 +328,7 @@ html.v121-app-ready body{
 <option title="Convert picked polygon(s) into hole rings inside the active polygon." value="polygonToHole">Convert picked polygons to holes</option>
 <option title="Removes all holes from the active polygon." value="fillHoles">Fill all holes in active</option>
 </optgroup>
-<optgroup label="Clean / repair">
-<option title="Repairs rings, duplicate vertices, and broken geometry." value="repair">Repair active</option>
-<option title="Reduces vertex count on the active polygon." value="simplify">Simplify active</option>
+<optgroup label="Shape cleanup">
 <option title="Rounds jagged edges on the active polygon." value="smooth">Smooth active</option>
 </optgroup>
 </select>
@@ -700,33 +693,36 @@ html.v121-app-ready body{
 </div>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.9.0/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js"></script>
-<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260812-v15603-processing-tool-list-ui">
-<script src="assets/editpolygon-map-adapter.js?v=20260812-v15603-processing-tool-list-ui"></script>
+<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260816-v1561-processing-consolidation">
+<script src="assets/editpolygon-map-adapter.js?v=20260816-v1561-processing-consolidation"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="assets/editpolygon-project-format.js?v=20260812-v15603-processing-tool-list-ui"></script>
+<script src="assets/editpolygon-project-format.js?v=20260816-v1561-processing-consolidation"></script>
 <script src="https://unpkg.com/@tmcw/togeojson@6.0.1/dist/togeojson.umd.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
 <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="assets/gis-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-data-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-schema-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-analysis-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-processing-registry.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-processing-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-join-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-style-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-crs-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-remote-source.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-geometry-health-core.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/editpolygon-app.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-workspace.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-processing.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-data-tools.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-ui-integration.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/gis-geometry-health.js?v=20260812-v15603-processing-tool-list-ui"></script>
-<script src="assets/editpolygon-mobile.js?v=20260812-v15603-processing-tool-list-ui"></script>
+<script src="assets/gis-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-data-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-schema-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-analysis-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-spatial-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-processing-registry.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-processing-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-join-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-style-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-crs-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-remote-source.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-geos-adapter.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-processing-engine.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/editpolygon-app.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-workspace.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-processing.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-data-tools.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-ui-integration.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/gis-geometry-health.js?v=20260816-v1561-processing-consolidation"></script>
+<script src="assets/editpolygon-mobile.js?v=20260816-v1561-processing-consolidation"></script>
 
 
 
