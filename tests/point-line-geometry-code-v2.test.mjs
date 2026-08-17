@@ -33,7 +33,7 @@ test('retry is a separate Point/Line module and does not wrap renderSelected',()
   assert.deepEqual(plain(api.supportedTypes),['Point','MultiPoint','LineString','MultiLineString']);
   assert.doesNotMatch(moduleCode,/renderSelected\s*=/);
   assert.doesNotMatch(moduleCode,/window\.renderSelected/);
-  assert.match(moduleCode,/new MutationObserver\(queueEnsure\)/);
+  assert.match(moduleCode,/new MutationObserver\(plgceQueueEnsure\)/);
   assert.match(moduleCode,/data-plgce-section="code"/);
 });
 
