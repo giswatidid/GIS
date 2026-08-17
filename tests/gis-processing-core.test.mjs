@@ -23,7 +23,7 @@ test('generic preflight validates multiple inputs, geometry, fields, scopes and 
   const buffer=core.preflight({toolId:'buffer',inputs:{source:{layerId:'poly',scope:'all'}},parameters:{distance:0,units:'kilometers'}},{layers,selectionIds:[]});
   assert.equal(buffer.valid,false);assert.match(buffer.errors.join(' '),/must not be zero/);
   const dissolvePoints=core.preflight({toolId:'dissolve',inputs:{source:{layerId:'points',scope:'all'}}},{layers,selectionIds:[]});
-  assert.equal(dissolvePoints.valid,false);assert.match(dissolvePoints.errors.join(' '),/does not support point/);
+  assert.equal(dissolvePoints.valid,false);assert.match(dissolvePoints.errors.join(' '),/contains no polygon geometry/);
   const differenceMissing=core.preflight({toolId:'difference',inputs:{source:{layerId:'poly',scope:'all'},overlay:{layerId:'',scope:'all'}}},{layers,selectionIds:[]});
   assert.equal(differenceMissing.valid,false);assert.match(differenceMissing.errors.join(' '),/erase layer/i);
   const badField=core.preflight({toolId:'dissolve',inputs:{source:{layerId:'poly',scope:'all'}},parameters:{field:'missing'}},{layers,selectionIds:[]});
@@ -32,6 +32,22 @@ test('generic preflight validates multiple inputs, geometry, fields, scopes and 
   assert.equal(selected.valid,true);assert.equal(selected.counts.source,1);assert.match(selected.warnings.join(' '),/Only 1 selected feature/);
 });
 
+
+test('geometry-constrained inputs use compatible features inside mixed-geometry layers',()=>{
+  const {core}=load();
+  const mixed={id:'mixed',name:'Mixed features',features:[
+    feature('poly-a','Polygon'),feature('poly-b','Polygon'),
+    feature('point-a','Point'),feature('point-b','Point')
+  ]};
+  const pf=core.preflight({toolId:'count-points-in-polygon',inputs:{source:{layerId:'mixed',scope:'all'},overlay:{layerId:'mixed',scope:'all'}},parameters:{countField:'point_count'}},{layers:[mixed],selectionIds:[]});
+  assert.equal(pf.valid,true);
+  assert.equal(pf.counts.source,2);
+  assert.equal(pf.counts.overlay,2);
+  assert.deepEqual(Array.from(pf.inputFeatures.source,feature=>feature.id),['poly-a','poly-b']);
+  assert.deepEqual(Array.from(pf.inputFeatures.overlay,feature=>feature.id),['point-a','point-b']);
+  assert.match(pf.warnings.join(' '),/compatible.*ignored/i);
+  assert.match(pf.warnings.join(' '),/same mixed layer/i);
+});
 
 
 test('same-layer nearest preflight explains self-exclusion instead of silently producing self matches',()=>{

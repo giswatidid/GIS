@@ -8,7 +8,7 @@ const dataTools=fs.readFileSync(new URL('../docs/assets/gis-data-tools.js',impor
 const ui=fs.readFileSync(new URL('../docs/assets/gis-processing.js',import.meta.url),'utf8');
 const worker=fs.readFileSync(new URL('../docs/assets/gis-processing-worker.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../docs/assets/gis-processing.css',import.meta.url),'utf8');
-const KEY='20260817-v1561-field-picker-hotfix';
+const KEY='20260817-v1561-mixed-geometry-hotfix';
 
 test('Processing Toolbox modules load in dependency order and the retired worker is gone',()=>{
   const order=['gis-spatial-core.js','gis-processing-registry.js','gis-processing-core.js','gis-processing-engine.js','editpolygon-app.js','gis-processing.js','gis-data-tools.js'].map(name=>html.indexOf(name));
@@ -28,6 +28,8 @@ test('application bridge exposes generic layer, in-place and selection commits b
   assert.match(bridge,/const inputs=\{\},inputSchemas=\{\},inputLayerIds=\{\},allFeatures=\[\]/);
   assert.match(bridge,/inputSchemas\[definition\.id\]=processingClone\(file\.gisSchema\|\|null\)/);
   assert.match(bridge,/inputLayerIds\[definition\.id\]=file\.id/);
+  assert.match(bridge,/preflight\.inputFeatures\?\.\[definition\.id\]/);
+  assert.match(bridge,/const processedIds=new Set\(\(preflight\.inputFeatures\?\.source\|\|\[\]\)\.map/);
   assert.doesNotMatch(bridge,/\bselectedIds\(\)/);
   assert.match(bridge,/new Worker\(`assets\/gis-processing-worker\.js\?v=\$\{PROCESSING_KEY\}`\)/);
   assert.match(bridge,/function createProcessingLayer/);

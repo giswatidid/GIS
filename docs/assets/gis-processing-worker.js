@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-field-picker-hotfix';
+const KEY='20260817-v1561-mixed-geometry-hotfix';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,

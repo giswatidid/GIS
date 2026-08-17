@@ -2,6 +2,8 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Geometry-constrained Processing tools now accept mixed-geometry EditPolygon layers and process only the compatible features for each input role; scope labels and pre-flight warnings report compatible/excluded counts instead of rejecting the whole layer.
+- Processing tasks and in-place maintenance commits now use the exact compatibility-filtered pre-flight feature set, preserving unrelated geometry in mixed layers; switching tools or parameters also clears stale completion/result state from the previous configuration.
 - Replaces raw browser multi-select boxes for Processing `fields` parameters with an explicit checkbox field picker, selected-count summary, **Select all** and **Clear** actions, including mobile/touch layout coverage.
 - Fixes `Distance to nearest` / `Nearest feature` metric reads to use the GEOS-WASM supported `Module.getValue(..., 'double')` output-pointer path, with a safe typed-memory fallback.
 - Same-layer nearest-neighbour searches now exclude the input feature itself instead of returning a guaranteed zero-distance self match, and pre-flight explains that behaviour.

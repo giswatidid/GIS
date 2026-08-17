@@ -31,7 +31,13 @@ with sync_playwright() as p:
           {id:'filtered-b',name:'Filtered B',geometryType:'Polygon',properties:{name:'Filtered B'},filtered:true,visible:true},
           {id:'visible-c',name:'Visible C',geometryType:'Polygon',properties:{name:'Visible C'},filtered:false,visible:true}
         ]},
-        {id:'overlay',name:'Overlay polygons',tableOnly:false,features:[{id:'mask',name:'Mask',geometryType:'Polygon',properties:{drawKind:'polygon',name:'Mask'},filtered:false,visible:true}]}
+        {id:'overlay',name:'Overlay polygons',tableOnly:false,features:[{id:'mask',name:'Mask',geometryType:'Polygon',properties:{drawKind:'polygon',name:'Mask'},filtered:false,visible:true}]},
+        {id:'mixed',name:'Mixed features',tableOnly:false,features:[
+          {id:'mix-poly-a',name:'Mixed polygon A',geometryType:'Polygon',properties:{name:'Mixed polygon A'},filtered:false,visible:true},
+          {id:'mix-poly-b',name:'Mixed polygon B',geometryType:'Polygon',properties:{name:'Mixed polygon B'},filtered:false,visible:true},
+          {id:'mix-point-a',name:'Mixed point A',geometryType:'Point',properties:{name:'Mixed point A'},filtered:false,visible:true},
+          {id:'mix-point-b',name:'Mixed point B',geometryType:'Point',properties:{name:'Mixed point B'},filtered:false,visible:true}
+        ]}
       ];
       window.__statuses=[];window.__cancelCount=0;window.__slow=false;window.__pendingReject=null;
     </script></body></html>''')
@@ -101,6 +107,21 @@ with sync_playwright() as p:
     assert page.locator('[data-processing-input="overlay"]').input_value()=='overlay'
     assert '1 overlay feature' in page.locator('.gis-processing-preflight').inner_text()
 
+    # Geometry-specific tools can use compatible features from a mixed-geometry layer.
+    page.locator('[data-processing-tool="count-points-in-polygon"]').click()
+    source_options=page.locator('[data-processing-input="source"] option').all_inner_texts()
+    point_options=page.locator('[data-processing-input="overlay"] option').all_inner_texts()
+    assert 'Mixed features' in source_options,source_options
+    assert 'Mixed features' in point_options,point_options
+    page.locator('[data-processing-input="source"]').select_option('mixed')
+    page.locator('[data-processing-input="overlay"]').select_option('mixed')
+    assert '2 compatible of 4' in page.locator('[data-processing-scope="source"] option[value="all"]').inner_text()
+    assert '2 compatible of 4' in page.locator('[data-processing-scope="overlay"] option[value="all"]').inner_text()
+    mixed_pf=page.locator('.gis-processing-preflight').inner_text()
+    assert '2 source features' in mixed_pf and '2 overlay features' in mixed_pf,mixed_pf
+    assert 'same mixed layer' in mixed_pf.lower(),mixed_pf
+    assert page.locator('[data-processing-action="run"]').is_enabled()
+
     # Field-driven and selection tools use the same generic parameter/input contract.
     page.locator('[data-processing-tool="dissolve"]').click()
     assert page.locator('[data-processing-param="field"]').count()==1
@@ -111,6 +132,8 @@ with sync_playwright() as p:
 
     # Multi-field parameters use a checkbox picker rather than a native Ctrl/Shift multi-select.
     page.locator('[data-processing-tool="nearest-feature"]').click()
+    page.locator('[data-processing-input="source"]').select_option('source')
+    page.locator('[data-processing-input="overlay"]').select_option('overlay')
     picker=page.locator('[data-processing-fields="fields"]')
     assert picker.count()==1
     assert page.locator('select[multiple][data-processing-param="fields"]').count()==0
@@ -155,8 +178,13 @@ with sync_playwright() as p:
     assert page.evaluate('window.__opened')=='out'
     assert page.evaluate('window.__zoomed')=='out'
 
+    # Changing tools after a completed run clears result/progress from the previous configuration.
+    page.locator('[data-processing-tool="centroid"]').click()
+    assert page.locator('.gis-processing-result').count()==0
+    assert page.locator('.gis-processing-progress').count()==0
+    page.locator('[data-processing-tool="buffer"]').click()
+
     # Cancellation is atomic at the UI contract: cancel is delegated and the user is told nothing changed.
-    page.locator('[data-processing-action="run-again"]').click()
     page.evaluate('window.__slow=true')
     page.locator('[data-processing-action="run"]').click()
     page.wait_for_selector('[data-processing-action="cancel"]:not([disabled])')
