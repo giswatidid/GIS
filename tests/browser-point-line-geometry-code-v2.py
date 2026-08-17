@@ -85,6 +85,15 @@ with sync_playwright() as p:
     ''')
     page.add_script_tag(content=POLYGON_EDITOR)
     page.add_script_tag(content=POINT_LINE_EDITOR)
+    page.evaluate("""()=>{
+      window.__delegatedInspectorSummaryClicks=0;
+      document.getElementById('selectedPanel').addEventListener('click',event=>{
+        if(event.target.closest('[data-plgce-section=\"code\"] summary')){
+          window.__delegatedInspectorSummaryClicks++;
+          window.renderSelected();
+        }
+      });
+    }""")
 
     # Polygon regression must remain exactly usable with the new module present.
     page.evaluate("__setFeature('polygon-1',{type:'Polygon',coordinates:[[[153,-27],[154,-27],[154,-28],[153,-27]]]})")
@@ -115,6 +124,7 @@ with sync_playwright() as p:
     page.locator('[data-plgce-section="code"] summary').click()
     page.wait_for_selector('.plgce-code')
     assert page.locator('.plgce-code').is_visible()
+    assert page.evaluate('__delegatedInspectorSummaryClicks') == 0
     page.locator('.plgce-code').fill('{"type":"Point","coordinates":[154,-28]}')
     page.locator('[data-plgce="apply"]').click()
     page.wait_for_function('__feature.geometry.type==="Point" && __feature.geometry.coordinates[0]===154 && __feature.geometry.coordinates[1]===-28')
@@ -132,6 +142,10 @@ with sync_playwright() as p:
 
     # Line follows the same independent path and preserves line family.
     page.evaluate("__setFeature('line-1',{type:'LineString',coordinates:[[153,-27],[154,-28]]})")
+    page.wait_for_selector('[data-plgce-section="code"]')
+    page.evaluate("window.renderSelected()")
+    assert page.locator('[data-plgce-section="code"]').count() == 0
+    page.evaluate("window.__pointLineGeometryCodeV2.ensureNow()")
     page.wait_for_selector('[data-plgce-section="code"]')
     assert page.locator('[data-v53-section="code"]').count() == 0
     page.locator('[data-plgce-section="code"] summary').click()

@@ -13202,7 +13202,7 @@ showAutosaveRecoveryIfAvailable();
 /* v126-point-line-geometry-code-v2:start */
 (function(){
   'use strict';
-  const PLGCE_VERSION='1.0.1';
+  const PLGCE_VERSION='1.0.2';
   const PLGCE_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString']);
   const PLGCE_TYPE_SET=new Set(PLGCE_TYPES);
   const PLGCE_OPEN_STATE=new Map();
@@ -13360,13 +13360,26 @@ showAutosaveRecoveryIfAvailable();
     const existing=panel.querySelector('[data-plgce-section="code"]');if(existing)return existing;
     const details=document.createElement('details');
     details.className='inspector-card plgce-section';details.dataset.plgceSection='code';
-    const stateKey=plgceKey(r);details.open=PLGCE_OPEN_STATE.get(stateKey)===true;
+    const stateKey=plgceKey(r);details.dataset.plgceFeatureKey=stateKey;details.open=PLGCE_OPEN_STATE.get(stateKey)===true;
     details.innerHTML='<summary><strong>Geometry code</strong><span>GeoJSON · edit</span></summary><div class="plgce-body"><div class="plgce-note">Open this section to edit the selected point or line as GeoJSON.</div></div>';
     const summary=details.querySelector('summary');
-    summary?.addEventListener('click',()=>{PLGCE_OPEN_STATE.set(stateKey,!details.open);});
+    summary?.addEventListener('click',event=>{
+      // The production Inspector has delegated click handlers that can rebuild the
+      // selected panel. Own this accordion interaction so a Point/Line section is
+      // not destroyed between the summary click and the native <details> toggle.
+      event.preventDefault();
+      event.stopPropagation();
+      const opening=!details.open;
+      details.open=opening;
+      PLGCE_OPEN_STATE.set(stateKey,opening);
+      if(opening){
+        const current=plgceCurrentRef(),fresh=plgceCurrentGeometry(current);
+        if(current&&fresh&&PLGCE_TYPE_SET.has(fresh.type)&&current.feature.id===r.feature.id)plgceMountEditor(current,details);
+      }
+    });
     details.addEventListener('toggle',()=>{
       PLGCE_OPEN_STATE.set(stateKey,details.open);
-      if(details.open){const current=plgceCurrentRef(),fresh=plgceCurrentGeometry(current);if(current&&fresh&&PLGCE_TYPE_SET.has(fresh.type)&&current.feature.id===r.feature.id)plgceMountEditor(current,details);}
+      if(details.open&&!details.querySelector('.plgce-code')){const current=plgceCurrentRef(),fresh=plgceCurrentGeometry(current);if(current&&fresh&&PLGCE_TYPE_SET.has(fresh.type)&&current.feature.id===r.feature.id)plgceMountEditor(current,details);}
     });
     const cards=Array.from(panel.querySelectorAll('.inspector-card'));
     const geometryCard=cards.find(card=>card.querySelector('h3')?.textContent.trim()==='Geometry')||cards[0]||null;
@@ -13376,22 +13389,48 @@ showAutosaveRecoveryIfAvailable();
   }
 
   function plgceEnsureSection(){
-    plgceQueued=false;
     const panel=document.getElementById('selectedPanel');if(!panel)return null;
     const r=plgceCurrentRef(),geom=plgceCurrentGeometry(r),supported=!!(r&&geom&&PLGCE_TYPE_SET.has(geom.type));
     const existing=panel.querySelector('[data-plgce-section="code"]');
     if(!supported){if(existing)existing.remove();return null;}
-    return existing||plgceCreateSection(r);
+    if(existing){
+      const key=plgceKey(r);
+      if(existing.dataset.plgceFeatureKey===key)return existing;
+      existing.remove();
+    }
+    return plgceCreateSection(r);
   }
-  function plgceQueueEnsure(){if(plgceQueued)return;plgceQueued=true;Promise.resolve().then(plgceEnsureSection);}
+  function plgceQueueEnsure(){
+    if(plgceQueued)return;
+    plgceQueued=true;
+    const run=()=>{plgceQueued=false;plgceEnsureSection();};
+    // Reconcile after the complete Inspector renderer chain, not in the middle of
+    // the synchronous Point/Line wrappers that rewrite selectedPanel.
+    if(typeof requestAnimationFrame==='function')requestAnimationFrame(()=>requestAnimationFrame(run));else setTimeout(run,0);
+  }
   function plgceInstallObserver(){
-    const panel=document.getElementById('selectedPanel');if(!panel)return;
-    plgceObserver?.disconnect?.();plgceObserver=new MutationObserver(plgceQueueEnsure);plgceObserver.observe(panel,{childList:true,subtree:true});
+    const root=document.getElementById('selectedSection')||document.body;if(!root)return;
+    plgceObserver?.disconnect?.();
+    plgceObserver=new MutationObserver(mutations=>{
+      const panel=document.getElementById('selectedPanel');if(!panel)return;
+      for(const mutation of mutations){
+        if(mutation.target===panel||panel.contains(mutation.target)){plgceQueueEnsure();return;}
+        for(const node of mutation.addedNodes||[]){if(node===panel||(node?.nodeType===1&&node.contains?.(panel))){plgceQueueEnsure();return;}}
+      }
+    });
+    plgceObserver.observe(root,{childList:true,subtree:true});
     plgceQueueEnsure();
+  }
+  function plgceOpenCurrent(){
+    const r=plgceCurrentRef(),geom=plgceCurrentGeometry(r);if(!r||!geom||!PLGCE_TYPE_SET.has(geom.type))return null;
+    const details=plgceEnsureSection();if(!details)return null;
+    PLGCE_OPEN_STATE.set(plgceKey(r),true);details.open=true;
+    if(!details.querySelector('.plgce-code'))plgceMountEditor(r,details);
+    return details;
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',plgceInstallObserver,{once:true});else plgceInstallObserver();
   window.addEventListener?.('editpolygon:gis-selection-changed',plgceQueueEnsure);
-  window.__pointLineGeometryCodeV2=Object.freeze({version:PLGCE_VERSION,supportedTypes:[...PLGCE_TYPES],analyze:plgceAnalyze,ensureNow:plgceEnsureSection});
+  window.__pointLineGeometryCodeV2=Object.freeze({version:PLGCE_VERSION,supportedTypes:[...PLGCE_TYPES],analyze:plgceAnalyze,ensureNow:plgceEnsureSection,openNow:plgceOpenCurrent});
 })();
 /* v126-point-line-geometry-code-v2:end */
 ;
@@ -21396,7 +21435,13 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(controls.reset&&!controls.reset.dataset.v150Bound){controls.reset.dataset.v150Bound='1';controls.reset.textContent='Use layer style';controls.reset.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();try{gisClearFeatureStyleOverride(r.file.id,r.feature.id);}catch(error){setStatus(error.message,'error');}},true);}
   }
   const baseRenderSelectedV150=renderSelected;
-  renderSelected=function(){const out=baseRenderSelectedV150.apply(this,arguments);requestAnimationFrame(enhanceInspectorStyle);return out;};window.renderSelected=renderSelected;
+  renderSelected=function(){
+    const out=baseRenderSelectedV150.apply(this,arguments);
+    const reconcilePointLineGeometryCode=()=>{try{window.__pointLineGeometryCodeV2?.ensureNow?.();}catch(error){console.warn('Point/Line Geometry code Inspector reconciliation failed',error);}};
+    reconcilePointLineGeometryCode();
+    requestAnimationFrame(()=>{reconcilePointLineGeometryCode();enhanceInspectorStyle();});
+    return out;
+  };window.renderSelected=renderSelected;
 
   cloneStylePayloadFromFeature=function(feature){const r=fileOfFeature(feature?.id),effective=r?gisResolvedFeatureStyle(r.file,feature,{highlight:false}):gisClone(feature?.style||{});return {style:{color:effective.color||'#1664d6',fillColor:effective.fillColor||effective.color||'#1664d6',weight:Number(effective.weight)||2,fillOpacity:Number.isFinite(Number(effective.fillOpacity))?Number(effective.fillOpacity):.18,radius:Number(effective.radius)||5,dashArray:effective.dashArray||''},opacity:Number.isFinite(Number(effective.opacity))?Number(effective.opacity):null,annotationStyle:feature?.annotationStyle?clone(feature.annotationStyle):null};};
   applyStylePayloadToFeature=function(feature,payload){if(!feature||!payload)return;const r=fileOfFeature(feature.id);if(!r)return;feature.styleOverride={...(feature.styleOverride||{}),...clone(payload.style||{})};if(payload.opacity!==null&&payload.opacity!==undefined)feature.styleOverride.opacity=Math.max(.05,Math.min(1,Number(payload.opacity)||1));if(payload.annotationStyle)feature.annotationStyle=clone(payload.annotationStyle);gisSyncLegacyFeatureStyle(r.file,feature);gisTouchStyle(r.file,feature);clearFeatureCaches(feature);};
@@ -21939,7 +21984,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260817-v1561-point-line-geometry-v2';
+  const PROCESSING_KEY='20260817-v1561-point-line-geometry-v3';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

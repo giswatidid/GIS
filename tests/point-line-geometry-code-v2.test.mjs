@@ -29,12 +29,17 @@ function loadApi(){
 const api=loadApi();
 const plain=value=>JSON.parse(JSON.stringify(value));
 
-test('retry is a separate Point/Line module and does not wrap renderSelected',()=>{
+test('Point/Line module stays isolated while the final live Inspector renderer reconciles it',()=>{
   assert.deepEqual(plain(api.supportedTypes),['Point','MultiPoint','LineString','MultiLineString']);
   assert.doesNotMatch(moduleCode,/renderSelected\s*=/);
   assert.doesNotMatch(moduleCode,/window\.renderSelected/);
-  assert.match(moduleCode,/new MutationObserver\(plgceQueueEnsure\)/);
+  assert.match(moduleCode,/new MutationObserver\(/);
+  assert.match(moduleCode,/requestAnimationFrame\(\(\)=>requestAnimationFrame\(run\)\)/);
+  assert.match(moduleCode,/event\.preventDefault\(\)/);
+  assert.match(moduleCode,/event\.stopPropagation\(\)/);
   assert.match(moduleCode,/data-plgce-section="code"/);
+  assert.match(app,/__pointLineGeometryCodeV2\?\.ensureNow\?\.\(\)/);
+  assert.match(app,/Point\/Line Geometry code Inspector reconciliation failed/);
 });
 
 test('restored polygon Geometry code remains polygon-only and the failed generic retrofit stays absent',()=>{
