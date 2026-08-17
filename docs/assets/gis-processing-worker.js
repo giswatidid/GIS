@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-points-along-line-rhumb';
+const KEY='20260817-v1561-generated-point-names';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
