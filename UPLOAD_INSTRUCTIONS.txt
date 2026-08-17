@@ -1,0 +1,10 @@
+EditPolygon v1.56.1 geometry-code hotfix
+Baseline: giswatidid/GIS main @ ba3afbc0235c6765f954f81b7c6fa7f94d7bd042
+
+Upload/replace the files in this ZIP at the same repository paths.
+No existing repository files need to be deleted.
+New files:
+- tests/geometry-code-editor.test.mjs
+- tests/browser-geometry-code-smoke.py
+
+After upload, GitHub Pages should rebuild automatically if the repository's Pages workflow is configured as before.

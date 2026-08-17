@@ -13,14 +13,22 @@ npm run test:browser-smoke
 
 v1.56.1 currently expects:
 
-- **304/304 Node tests**;
-- **9/9 browser smoke suites**;
+- **319/319 Node tests**;
+- **11/11 browser smoke suites**;
 - repository integration audit;
 - runtime/repository audit;
 - binding/architecture audit;
 - JavaScript syntax validation for critical runtime modules.
 
 ## Architecture invariants
+
+### Geometry-code editing
+
+- The Inspector geometry-code editor supports `Point`, `MultiPoint`, `LineString`, `MultiLineString`, `Polygon` and `MultiPolygon` through one shared implementation.
+- Geometry-code replacement stays within the selected feature family (point, line or polygon); deliberate cross-family conversion belongs in explicit GIS conversion tools.
+- Candidate geometry is normalised and validated through Geometry Health before commit. Invalid code never mutates the project.
+- A successful code edit is a normal manual geometry edit with one project-history boundary, so Ctrl+Z/Ctrl+Y and `.epz` persistence follow the same canonical model as other edits.
+- Parametric Circle remains a separate curve model and is not misrepresented as native GeoJSON geometry.
 
 ### One map runtime
 

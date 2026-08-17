@@ -6888,6 +6888,10 @@ renderSelected=function(){
       <h3>Geometry</h3>
       <div class="inspector-grid"><div class="k">File</div><div>${esc(r.file.name)}</div><div class="k">Type</div><div>${f.geometry.type}</div><div class="k">Parts</div><div>${parts}</div><div class="k">Vertices</div><div>${vertexCount(f.geometry)}</div><div class="k">Selected</div><div>${V.active?V.selected.size:0}</div><div class="k">Area</div><div>${areaLabel(m.area)}</div><div class="k">Length</div><div>${lenLabel(m.perim)}</div></div>
     </div>
+    <details class="inspector-card gce-inspector-section gce-generic-section" data-gce-section="code">
+      <summary><strong>Geometry code</strong><span class="gce-generic-subtitle">GeoJSON · edit</span></summary>
+      <div id="gceMount"><div class="gce-note"><strong>Editable GeoJSON geometry.</strong> Open this section to inspect, validate, repair, or manually replace the selected feature geometry.</div></div>
+    </details>
     <div class="inspector-card">
       <h3>${V.active?'Vertex editing':'Polygon actions'}</h3>
       <div class="inspector-actions">${V.active?`<button id="panelLasso">${V.lasso?'Stop lasso':'Lasso select'}</button><button id="panelDeleteVertices" class="danger">Delete vertices</button><button id="panelClearVertices">Clear selection</button><button id="panelDone">Done</button>`:`<button id="panelEditVertices" class="primary">Edit polygon</button><button id="panelDuplicate">Duplicate</button><button id="panelDeletePolygon" class="danger">Delete polygon</button>`}</div>
@@ -12606,13 +12610,19 @@ initUxRehaul();
 /* v125: geometry-code editor integrated inside the core app closure. */
 (function(){
   'use strict';
-  const VERSION='v125';
+  const VERSION='v125.1';
   const LARGE_VERTEX_GATE=3000;
+  const EDITABLE_GEOMETRY_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString','Polygon','MultiPolygon']);
+  const EDITABLE_GEOMETRY_TYPE_SET=new Set(EDITABLE_GEOMETRY_TYPES);
   const sessions=new Map();
   const $g=id=>document.getElementById(id);
   const safeClone=v=>{try{return clone(v);}catch(_){return JSON.parse(JSON.stringify(v));}};
   const html=v=>{try{return esc(v==null?'':String(v));}catch(_){return String(v==null?'':v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}};
-  const canonicalType=t=>({polygon:'Polygon',multipolygon:'MultiPolygon',feature:'Feature',featurecollection:'FeatureCollection',geometrycollection:'GeometryCollection',linestring:'LineString',multilinestring:'MultiLineString'})[String(t||'').toLowerCase()]||String(t||'');
+  const canonicalType=t=>({point:'Point',multipoint:'MultiPoint',linestring:'LineString',multilinestring:'MultiLineString',polygon:'Polygon',multipolygon:'MultiPolygon',feature:'Feature',featurecollection:'FeatureCollection',geometrycollection:'GeometryCollection'})[String(t||'').toLowerCase()]||String(t||'');
+  const geometryFamily=t=>{t=canonicalType(t);return t==='Point'||t==='MultiPoint'?'point':t==='LineString'||t==='MultiLineString'?'line':t==='Polygon'||t==='MultiPolygon'?'polygon':'';};
+  const editableGeometryType=t=>EDITABLE_GEOMETRY_TYPE_SET.has(canonicalType(t));
+  const editableGeometry=g=>!!g&&editableGeometryType(g.type);
+  const geometryFamilyLabel=t=>({point:'point',line:'line',polygon:'polygon'})[geometryFamily(t)]||'feature';
   const pretty=g=>JSON.stringify(g,null,2);
   const nowLabel=()=>new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
 
@@ -12624,14 +12634,13 @@ initUxRehaul();
   }
   function geometryFingerprint(g){
     if(!g)return 'none';
-    let first='',last='',sampleCount=0;
     try{
-      const take=c=>{if(!Array.isArray(c)||c.length<2)return;const s=`${Number(c[0]).toPrecision(12)},${Number(c[1]).toPrecision(12)}`;if(!first)first=s;last=s;sampleCount++;};
-      if(typeof eachRing==='function'&&(g.type==='Polygon'||g.type==='MultiPolygon'))eachRing(g,ring=>{if(ring?.length){take(ring[0]);take(ring[Math.max(0,Math.floor((ring.length-1)/2))]);take(ring[ring.length-1]);}});
-      const m=typeof metrics==='function'?metrics(g):{};
-      const b=m?.bbox||[];
-      return [g.type,typeof vertexCount==='function'?vertexCount(g):0,b.map(x=>Number(x).toPrecision(10)).join(','),first,last,sampleCount].join('|');
-    }catch(_){return `${g.type}|${Date.now()}`;}
+      const adapterFingerprint=window.EditPolygonMapAdapter?.geometryFingerprint?.(g);
+      if(adapterFingerprint)return String(adapterFingerprint);
+      return JSON.stringify(g);
+    }catch(_){
+      try{return `${g.type}|${typeof vertexCount==='function'?vertexCount(g):0}|${JSON.stringify(g.coordinates||[])}`;}catch(__){return String(g.type||'geometry');}
+    }
   }
   function captureGeometryState(f){
     if(typeof ensureFeatureModel==='function')ensureFeatureModel(f);
@@ -12680,21 +12689,32 @@ initUxRehaul();
     try{const p=typeof v53InspectorPrefs==='function'?v53InspectorPrefs():{};return !!p.code;}catch(_){return false;}
   }
   function createSection(r){
+    const geom=r&&typeof getDisplayGeometry==='function'?getDisplayGeometry(r.feature):null;
+    if(!r||!editableGeometry(geom))return null;
     const panel=$g('selectedPanel');
-    const shell=panel?.querySelector('.v53-inspector-shell');
-    if(!panel||!shell)return null;
-    let details=panel.querySelector('[data-v53-section="code"]');
+    if(!panel)return null;
+    const shell=panel.querySelector('.v53-inspector-shell');
+    let details=panel.querySelector('[data-v53-section="code"],[data-gce-section="code"]');
     if(!details){
       const geometrySection=panel.querySelector('[data-v53-section="geometry"]');
       details=document.createElement('details');
-      details.className='v53-inspector-section gce-inspector-section';
-      details.dataset.v53Section='code';
-      if(sectionOpenPreference())details.open=true;
-      details.innerHTML=`<summary><span class="v53-section-title"><b>Geometry code</b></span><span class="v53-section-subtitle">GeoJSON · edit</span></summary><div class="v53-section-body"><div id="gceMount"><div class="gce-note"><strong>Editable GeoJSON geometry.</strong> Open this section to inspect, validate, repair, or manually replace the selected polygon coordinates.</div></div></div>`;
-      if(geometrySection)geometrySection.insertAdjacentElement('afterend',details);else shell.appendChild(details);
+      if(shell){
+        details.className='v53-inspector-section gce-inspector-section';
+        details.dataset.v53Section='code';
+        details.innerHTML=`<summary><span class="v53-section-title"><b>Geometry code</b></span><span class="v53-section-subtitle">GeoJSON · edit</span></summary><div class="v53-section-body"><div id="gceMount"><div class="gce-note"><strong>Editable GeoJSON geometry.</strong> Open this section to inspect, validate, repair, or manually replace the selected feature geometry.</div></div></div>`;
+        if(geometrySection)geometrySection.insertAdjacentElement('afterend',details);else shell.appendChild(details);
+      }else{
+        details.className='inspector-card gce-inspector-section gce-generic-section';
+        details.dataset.gceSection='code';
+        details.innerHTML=`<summary><strong>Geometry code</strong><span class="gce-generic-subtitle">GeoJSON · edit</span></summary><div id="gceMount"><div class="gce-note"><strong>Editable GeoJSON geometry.</strong> Open this section to inspect, validate, repair, or manually replace the selected feature geometry.</div></div>`;
+        const cards=[...panel.querySelectorAll('.inspector-card')];
+        const geometryCard=cards.find(card=>card.querySelector('h3')?.textContent.trim()==='Geometry');
+        if(geometryCard)geometryCard.insertAdjacentElement('afterend',details);else panel.appendChild(details);
+      }
     }
     details.classList.add('gce-inspector-section');
-    const subtitle=details.querySelector('.v53-section-subtitle');
+    if(sectionOpenPreference())details.open=true;
+    const subtitle=details.querySelector('.v53-section-subtitle,.gce-generic-subtitle');
     if(subtitle)subtitle.textContent='GeoJSON · edit';
     if(details.dataset.gceReady!=='1'){
       details.dataset.gceReady='1';
@@ -12702,8 +12722,8 @@ initUxRehaul();
         try{if(typeof v53SaveInspectorPref==='function')v53SaveInspectorPref('code',details.open);}catch(_){ }
         if(details.open){
           const current=typeof ref==='function'?ref():null;
-          const geom=current&&typeof getDisplayGeometry==='function'?getDisplayGeometry(current.feature):null;
-          if(current&&geom&&(geom.type==='Polygon'||geom.type==='MultiPolygon'))mountEditor(current,details);
+          const currentGeom=current&&typeof getDisplayGeometry==='function'?getDisplayGeometry(current.feature):null;
+          if(current&&editableGeometry(currentGeom))mountEditor(current,details);
         }
       });
     }
@@ -12721,7 +12741,7 @@ initUxRehaul();
     mount.dataset.gceMounted='1';
     mount.dataset.gceFeatureId=featureKey;
     if(count>LARGE_VERTEX_GATE&&!s.forcedLargeLoad&&!s.loaded){
-      mount.innerHTML=`<div class="gce-large-gate"><strong>Large geometry · ${count.toLocaleString()} vertices</strong><p>Loading the full coordinate document can use substantial browser memory. The polygon will not change until a valid edit is explicitly applied.</p><button id="gceLoadLarge" type="button">Load full geometry code</button></div>`;
+      mount.innerHTML=`<div class="gce-large-gate"><strong>Large geometry · ${count.toLocaleString()} vertices</strong><p>Loading the full coordinate document can use substantial browser memory. The feature will not change until a valid edit is explicitly applied.</p><button id="gceLoadLarge" type="button">Load full geometry code</button></div>`;
       $g('gceLoadLarge')?.addEventListener('click',()=>{s.forcedLargeLoad=true;loadSessionText(currentRef,s);renderEditor(currentRef,s,mount);mount.dataset.gceMounted='1';mount.dataset.gceFeatureId=featureKey;});
       return;
     }
@@ -12736,21 +12756,22 @@ initUxRehaul();
     s.currentText=pretty(g);s.appliedText=s.currentText;s.loaded=true;s.dirty=false;s.lastObservedFingerprint=geometryFingerprint(g);
   }
   function editorReadonlyReason(r){
-    if(typeof isLocked==='function'&&isLocked(r.file,r.feature))return 'This polygon is locked. Unlock it before applying geometry code.';
+    if(typeof isLocked==='function'&&isLocked(r.file,r.feature))return 'This feature is locked. Unlock it before applying geometry code.';
     if(typeof V!=='undefined'&&V.active)return 'Finish vertex editing before applying geometry code.';
+    if(window.EditPolygonPointEditing?.active?.())return 'Finish point editing before applying geometry code.';
     return '';
   }
   function renderEditor(r,s,mount){
     const reason=editorReadonlyReason(r);
     const changed=s.dirty||s.appliedCount>0;
     mount.innerHTML=`
-      <div class="gce-meta"><div class="gce-meta-row"><span>Editable format</span><strong>GeoJSON geometry</strong></div><div class="gce-meta-row"><span>Origin</span><strong>${html(sourceLabel(r.file,r.feature))}</strong></div></div>
-      <div class="gce-note"><strong>Coordinate order:</strong> <code>[longitude, latitude]</code>. The editor accepts a Polygon or MultiPolygon geometry and can also extract polygon geometry from a pasted Feature or FeatureCollection.</div>
+      <div class="gce-meta"><div class="gce-meta-row"><span>Editable format</span><strong>GeoJSON geometry</strong></div><div class="gce-meta-row"><span>Geometry family</span><strong>${html(geometryFamilyLabel(getDisplayGeometry(r.feature)?.type))}</strong></div><div class="gce-meta-row"><span>Origin</span><strong>${html(sourceLabel(r.file,r.feature))}</strong></div></div>
+      <div class="gce-note"><strong>Coordinate order:</strong> <code>[longitude, latitude]</code>. Edit <code>Point</code>, <code>MultiPoint</code>, <code>LineString</code>, <code>MultiLineString</code>, <code>Polygon</code>, or <code>MultiPolygon</code> geometry. A pasted Feature, FeatureCollection, or GeometryCollection is reduced to the selected feature’s geometry family.</div>
       ${reason?`<div class="gce-conflict">${html(reason)}</div>`:''}
-      ${s.externalConflict?'<div class="gce-conflict"><strong>The polygon changed elsewhere while this code had unsaved edits.</strong> Reset the editor to the current polygon before applying, or revert the manual session.</div>':''}
-      <div class="gce-editor-wrap"><textarea id="gceCode" class="gce-code" aria-label="Selected polygon GeoJSON geometry" spellcheck="false" autocomplete="off" autocapitalize="off" ${reason?'readonly':''}>${html(s.currentText||'')}</textarea><div class="gce-editor-foot"><span id="gceCount"></span><span id="gceState" class="gce-state ${s.dirty?'dirty':''}">${s.dirty?'Unsaved code':(s.appliedCount?'Applied this session':'Matches polygon')}</span></div></div>
+      ${s.externalConflict?'<div class="gce-conflict"><strong>The feature changed elsewhere while this code had unsaved edits.</strong> Reset the editor to the current feature before applying, or revert the manual session.</div>':''}
+      <div class="gce-editor-wrap"><textarea id="gceCode" class="gce-code" aria-label="Selected feature GeoJSON geometry" spellcheck="false" autocomplete="off" autocapitalize="off" ${reason?'readonly':''}>${html(s.currentText||'')}</textarea><div class="gce-editor-foot"><span id="gceCount"></span><span id="gceState" class="gce-state ${s.dirty?'dirty':''}">${s.dirty?'Unsaved code':(s.appliedCount?'Applied this session':'Matches feature')}</span></div></div>
       <div class="gce-toolbar"><button id="gceCheck" type="button">Check &amp; suggest fixes</button><button id="gceFormat" type="button">Format JSON</button><button id="gceCopy" type="button">Copy code</button><button id="gceApply" class="primary" type="button" ${reason||s.externalConflict?'disabled':''}>Apply geometry</button><button id="gceReset" type="button">Reset editor</button><button id="gceRevert" class="danger" type="button" ${changed?'':'disabled'}>Revert manual session</button></div>
-      <div class="gce-session-line"><span>Original session geometry is retained until the session is reverted or another map tool changes the polygon.</span><strong>${s.lastAppliedAt?`Last applied ${html(s.lastAppliedAt)}`:'Polygon unchanged'}</strong></div>
+      <div class="gce-session-line"><span>Original session geometry is retained until the session is reverted or another map tool changes the feature.</span><strong>${s.lastAppliedAt?`Last applied ${html(s.lastAppliedAt)}`:'Feature unchanged'}</strong></div>
       <div id="gceResult" class="gce-result"></div>`;
     wireEditor(r,s,mount);
     renderAnalysis(r,s);
@@ -12761,7 +12782,7 @@ initUxRehaul();
     updateCount();
     ta?.addEventListener('input',()=>{
       s.currentText=ta.value;s.dirty=s.currentText!==s.appliedText;s.analysis=null;
-      const badge=$g('gceState');if(badge){badge.textContent=s.dirty?'Unsaved code':'Matches polygon';badge.className=`gce-state ${s.dirty?'dirty':''}`;}
+      const badge=$g('gceState');if(badge){badge.textContent=s.dirty?'Unsaved code':'Matches feature';badge.className=`gce-state ${s.dirty?'dirty':''}`;}
       const rev=$g('gceRevert');if(rev)rev.disabled=!(s.dirty||s.appliedCount);
       const result=$g('gceResult');if(result)result.innerHTML='';
       updateCount();
@@ -12803,7 +12824,7 @@ initUxRehaul();
     s.currentText=text;s.appliedText=text;s.dirty=false;s.analysis=null;s.externalConflict=false;s.lastObservedFingerprint=geometryFingerprint(g);
     const ta=$g('gceCode');if(ta){ta.value=text;ta.dispatchEvent(new Event('input',{bubbles:true}));}
     const result=$g('gceResult');if(result)result.innerHTML='';
-    setStatus('Geometry code reset to the polygon currently on the map.');
+    setStatus('Geometry code reset to the feature currently on the map.');
   }
 
   function stripJsonComments(input){
@@ -12860,52 +12881,69 @@ initUxRehaul();
   function coordinateLeaf(v){return Array.isArray(v)&&v.length>=2&&!Array.isArray(v[0])&&!Array.isArray(v[1]);}
   function coordinateDepth(v){if(coordinateLeaf(v))return 0;if(!Array.isArray(v))return -1;for(const x of v){const d=coordinateDepth(x);if(d>=0)return d+1;}return -1;}
   function polygonsFromGeometry(g){if(!g)return [];if(g.type==='Polygon')return [safeClone(g.coordinates||[])];if(g.type==='MultiPolygon')return safeClone(g.coordinates||[]);return [];}
-  function combinePolygonGeometries(geoms){
-    const polys=[];for(const g of geoms||[])polys.push(...polygonsFromGeometry(g));
-    if(!polys.length)return null;return polys.length===1?{type:'Polygon',coordinates:polys[0]}:{type:'MultiPolygon',coordinates:polys};
-  }
-  function inferGeometryFromCoordinates(coords,changes){
-    const d=coordinateDepth(coords);
-    if(d===1){changes.push({level:'review',message:'Interpreted a raw coordinate ring as a Polygon.'});return {type:'Polygon',coordinates:[safeClone(coords)]};}
-    if(d===2){changes.push({level:'review',message:'Interpreted raw nested coordinates as a Polygon.'});return {type:'Polygon',coordinates:safeClone(coords)};}
-    if(d===3){changes.push({level:'review',message:'Interpreted raw nested coordinates as a MultiPolygon.'});return {type:'MultiPolygon',coordinates:safeClone(coords)};}
+  function linesFromGeometry(g){if(!g)return [];if(g.type==='LineString')return [safeClone(g.coordinates||[])];if(g.type==='MultiLineString')return safeClone(g.coordinates||[]);return [];}
+  function pointsFromGeometry(g){if(!g)return [];if(g.type==='Point')return [safeClone(g.coordinates||[])];if(g.type==='MultiPoint')return safeClone(g.coordinates||[]);return [];}
+  function combineFamilyGeometries(geoms,family){
+    const matching=(geoms||[]).filter(g=>geometryFamily(g?.type)===family);
+    if(!matching.length)return null;
+    if(family==='point'){
+      const points=[];for(const g of matching)points.push(...pointsFromGeometry(g));
+      return points.length===1?{type:'Point',coordinates:points[0]}:{type:'MultiPoint',coordinates:points};
+    }
+    if(family==='line'){
+      const lines=[];for(const g of matching)lines.push(...linesFromGeometry(g));
+      return lines.length===1?{type:'LineString',coordinates:lines[0]}:{type:'MultiLineString',coordinates:lines};
+    }
+    if(family==='polygon'){
+      const polys=[];for(const g of matching)polys.push(...polygonsFromGeometry(g));
+      return polys.length===1?{type:'Polygon',coordinates:polys[0]}:{type:'MultiPolygon',coordinates:polys};
+    }
     return null;
   }
-  function extractGeometry(value,changes){
-    if(!value)return null;
-    if(Array.isArray(value))return inferGeometryFromCoordinates(value,changes);
+  function inferGeometryFromCoordinates(coords,changes,expectedFamily=''){
+    const d=coordinateDepth(coords),family=expectedFamily||'';
+    if(family==='point'){
+      if(d===0){changes.push({level:'review',message:'Interpreted raw coordinates as a Point.'});return {type:'Point',coordinates:safeClone(coords)};}
+      if(d===1){changes.push({level:'review',message:'Interpreted raw coordinates as a MultiPoint.'});return {type:'MultiPoint',coordinates:safeClone(coords)};}
+    }else if(family==='line'){
+      if(d===1){changes.push({level:'review',message:'Interpreted raw coordinates as a LineString.'});return {type:'LineString',coordinates:safeClone(coords)};}
+      if(d===2){changes.push({level:'review',message:'Interpreted raw coordinates as a MultiLineString.'});return {type:'MultiLineString',coordinates:safeClone(coords)};}
+    }else if(family==='polygon'){
+      if(d===1){changes.push({level:'review',message:'Interpreted a raw coordinate ring as a Polygon.'});return {type:'Polygon',coordinates:[safeClone(coords)]};}
+      if(d===2){changes.push({level:'review',message:'Interpreted raw nested coordinates as a Polygon.'});return {type:'Polygon',coordinates:safeClone(coords)};}
+      if(d===3){changes.push({level:'review',message:'Interpreted raw nested coordinates as a MultiPolygon.'});return {type:'MultiPolygon',coordinates:safeClone(coords)};}
+    }
+    return null;
+  }
+  function extractGeometry(value,changes,expectedFamily=''){
+    if(value==null)return null;
+    if(Array.isArray(value))return inferGeometryFromCoordinates(value,changes,expectedFamily);
     if(typeof value!=='object')return null;
     const type=canonicalType(value.type);
-    if(type!==value.type&&value.type){changes.push({level:'safe',message:`Normalised geometry type “${value.type}” to “${type}”.`});}
-    if(type==='Polygon'||type==='MultiPolygon')return {type,coordinates:safeClone(value.coordinates)};
+    if(type!==value.type&&value.type)changes.push({level:'safe',message:`Normalised geometry type “${value.type}” to “${type}”.`});
+    if(editableGeometryType(type))return {type,coordinates:safeClone(value.coordinates)};
     if(type==='Feature'){
-      changes.push({level:'safe',message:'Extracted polygon geometry from a GeoJSON Feature.'});
-      return extractGeometry(value.geometry,changes);
+      changes.push({level:'safe',message:'Extracted geometry from a GeoJSON Feature.'});
+      return extractGeometry(value.geometry,changes,expectedFamily);
     }
     if(type==='FeatureCollection'){
-      const geoms=(value.features||[]).map(f=>extractGeometry(f?.geometry||f,[])).filter(g=>g&&(g.type==='Polygon'||g.type==='MultiPolygon'));
+      const geoms=(value.features||[]).map(f=>extractGeometry(f?.geometry||f,[],expectedFamily)).filter(g=>editableGeometry(g)&&(!expectedFamily||geometryFamily(g.type)===expectedFamily));
       if(!geoms.length)return null;
-      if(geoms.length===1){changes.push({level:'safe',message:'Extracted the polygon from a GeoJSON FeatureCollection.'});return geoms[0];}
-      changes.push({level:'review',message:`Combined ${geoms.length} polygon features into one MultiPolygon.`});
-      return combinePolygonGeometries(geoms);
+      const combined=combineFamilyGeometries(geoms,expectedFamily||geometryFamily(geoms[0].type));
+      if(!combined)return null;
+      changes.push({level:geoms.length===1?'safe':'review',message:geoms.length===1?'Extracted geometry from a GeoJSON FeatureCollection.':`Combined ${geoms.length} matching features into ${combined.type} geometry.`});
+      return combined;
     }
     if(type==='GeometryCollection'){
-      const geoms=(value.geometries||[]).map(g=>extractGeometry(g,[])).filter(g=>g&&(g.type==='Polygon'||g.type==='MultiPolygon'));
+      const geoms=(value.geometries||[]).map(g=>extractGeometry(g,[],expectedFamily)).filter(g=>editableGeometry(g)&&(!expectedFamily||geometryFamily(g.type)===expectedFamily));
       if(!geoms.length)return null;
-      changes.push({level:'review',message:`Extracted ${geoms.length} polygon geometr${geoms.length===1?'y':'ies'} from a GeometryCollection.`});
-      return combinePolygonGeometries(geoms);
+      const combined=combineFamilyGeometries(geoms,expectedFamily||geometryFamily(geoms[0].type));
+      if(!combined)return null;
+      changes.push({level:geoms.length===1?'safe':'review',message:geoms.length===1?'Extracted geometry from a GeometryCollection.':`Combined ${geoms.length} matching geometries into ${combined.type}.`});
+      return combined;
     }
-    if(type==='LineString'){
-      const line=safeClone(value.coordinates||[]);
-      changes.push({level:'review',message:'Converted a LineString into a closed Polygon ring.'});
-      return {type:'Polygon',coordinates:[line]};
-    }
-    if(type==='MultiLineString'){
-      changes.push({level:'review',message:'Converted MultiLineString components into polygon parts.'});
-      return {type:'MultiPolygon',coordinates:(value.coordinates||[]).map(line=>[safeClone(line)])};
-    }
-    if(value.geometry){changes.push({level:'safe',message:'Extracted geometry from the surrounding object.'});return extractGeometry(value.geometry,changes);}
-    if(value.coordinates){const inferred=inferGeometryFromCoordinates(value.coordinates,changes);if(inferred)return inferred;}
+    if(value.geometry){changes.push({level:'safe',message:'Extracted geometry from the surrounding object.'});return extractGeometry(value.geometry,changes,expectedFamily);}
+    if(value.coordinates){const inferred=inferGeometryFromCoordinates(value.coordinates,changes,expectedFamily);if(inferred)return inferred;}
     return null;
   }
   function coordKey(c){return `${Number(c[0]).toPrecision(15)},${Number(c[1]).toPrecision(15)}`;}
@@ -12938,31 +12976,65 @@ initUxRehaul();
     return points;
   }
   function mapAllCoordinates(g,fn){
-    if(g.type==='Polygon')g.coordinates=g.coordinates.map(r=>r.map(fn));
-    else if(g.type==='MultiPolygon')g.coordinates=g.coordinates.map(p=>p.map(r=>r.map(fn)));
-    return g;
+    const walk=value=>coordinateLeaf(value)?fn(value):Array.isArray(value)?value.map(walk):value;
+    g.coordinates=walk(g.coordinates);return g;
   }
-  function collectCoordinates(g){const out=[];if(g?.type==='Polygon')for(const r of g.coordinates||[])out.push(...r);else if(g?.type==='MultiPolygon')for(const p of g.coordinates||[])for(const r of p||[])out.push(...r);return out;}
-  function normalizeGeometry(raw,changes){
-    const issues=[];let g=safeClone(raw);g.type=canonicalType(g.type);
-    let depth=coordinateDepth(g.coordinates);
-    if(g.type==='Polygon'&&depth===1){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing Polygon ring nesting level.'});}
-    else if(g.type==='Polygon'&&depth===3){if((g.coordinates||[]).length===1){g.coordinates=g.coordinates[0];changes.push({level:'safe',message:'Removed an extra Polygon nesting level.'});}else{g.type='MultiPolygon';changes.push({level:'review',message:'Changed Polygon to MultiPolygon because multiple polygon parts were supplied.'});}}
-    else if(g.type==='MultiPolygon'&&depth===2){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing MultiPolygon nesting level.'});}
-    if(g.type!=='Polygon'&&g.type!=='MultiPolygon'){issues.push({severity:'error',code:'UNSUPPORTED_TYPE',message:'Only Polygon and MultiPolygon geometry can replace a polygon.'});return {geometry:null,issues};}
-    if(!Array.isArray(g.coordinates)){issues.push({severity:'error',code:'BAD_COORDINATES',message:'The coordinates property must be a nested array.'});return {geometry:null,issues};}
-    if(g.type==='Polygon'){
-      const rings=[];(g.coordinates||[]).forEach((r,ri)=>{const nr=normalizeRing(r,ri===0?'outer ring':`hole ${ri}`,changes,issues);if(nr)rings.push(nr);else if(ri>0)changes.push({level:'review',message:`Dropped invalid hole ${ri}.`});});
-      if(!rings.length||!rings[0])issues.push({severity:'error',code:'NO_OUTER_RING',message:'No valid outer ring remains.'});
-      g.coordinates=rings;
-    }else{
+  function collectCoordinates(g){const out=[];const walk=value=>{if(coordinateLeaf(value)){out.push(value);return;}if(Array.isArray(value))value.forEach(walk);};if(g)walk(g.coordinates);return out;}
+  function normalizePointList(raw,role,changes,issues,{dedupe=false}={}){
+    if(!Array.isArray(raw)){issues.push({severity:'error',code:'BAD_COORDINATES',message:`${role} must be an array of coordinates.`});return [];}
+    const out=[],seen=new Set();let invalid=0,dupes=0;
+    for(const value of raw){
+      const c=normalizeCoordinate(value,changes,role);if(!c){invalid++;continue;}
+      const key=coordKey(c);if(dedupe&&seen.has(key)){dupes++;continue;}seen.add(key);
+      if(!dedupe&&out.length&&coordSame(out[out.length-1],c)){dupes++;continue;}out.push(c);
+    }
+    if(invalid)changes.push({level:'review',message:`Removed ${invalid} invalid coordinate entr${invalid===1?'y':'ies'} from ${role}.`});
+    if(dupes)changes.push({level:'safe',message:dedupe?`Removed ${dupes} exact duplicate point${dupes===1?'':'s'} from ${role}.`:`Removed ${dupes} consecutive duplicate vertex${dupes===1?'':'es'} from ${role}.`});
+    return out;
+  }
+  function normalizeGeometry(raw,changes,expectedFamily=''){
+    const issues=[];let g=safeClone(raw||{});g.type=canonicalType(g.type);
+    const family=geometryFamily(g.type);
+    if(!editableGeometryType(g.type)){issues.push({severity:'error',code:'UNSUPPORTED_TYPE',message:`${g.type||'This geometry'} is not an editable GeoJSON point, line, or polygon type.`});return {geometry:null,issues};}
+    if(expectedFamily&&family!==expectedFamily){issues.push({severity:'error',code:'GEOMETRY_FAMILY_MISMATCH',message:`The selected feature is a ${expectedFamily} feature. Use ${expectedFamily==='point'?'Point or MultiPoint':expectedFamily==='line'?'LineString or MultiLineString':'Polygon or MultiPolygon'} geometry, or use a conversion tool to change geometry family.`});return {geometry:null,issues};}
+    if(!Array.isArray(g.coordinates)){issues.push({severity:'error',code:'BAD_COORDINATES',message:'The coordinates property must be an array.'});return {geometry:null,issues};}
+    const depth=coordinateDepth(g.coordinates);
+    if(g.type==='Point'){
+      const c=normalizeCoordinate(g.coordinates,changes,'Point');if(!c){issues.push({severity:'error',code:'INVALID_COORDINATE',message:'Point requires one finite [longitude, latitude] coordinate.'});return {geometry:null,issues};}g.coordinates=c;
+    }else if(g.type==='MultiPoint'){
+      if(depth===0){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing MultiPoint nesting level.'});}
+      g.coordinates=normalizePointList(g.coordinates,'MultiPoint',changes,issues,{dedupe:true});if(!g.coordinates.length)issues.push({severity:'error',code:'EMPTY_MULTIPOINT',message:'MultiPoint must contain at least one valid point.'});
+      if(g.coordinates.length===1){g={type:'Point',coordinates:g.coordinates[0]};changes.push({level:'safe',message:'Simplified a one-point MultiPoint to Point.'});}
+    }else if(g.type==='LineString'){
+      if(depth===2&&(g.coordinates||[]).length===1){g.coordinates=g.coordinates[0];changes.push({level:'safe',message:'Removed an extra LineString nesting level.'});}
+      else if(depth===2){g.type='MultiLineString';changes.push({level:'review',message:'Changed LineString to MultiLineString because multiple line parts were supplied.'});}
+      if(g.type==='LineString'){
+        g.coordinates=normalizePointList(g.coordinates,'LineString',changes,issues);if(g.coordinates.length<2)issues.push({severity:'error',code:'TOO_FEW_VERTICES',message:'LineString requires at least two valid vertices.'});
+      }
+    }
+    if(g.type==='MultiLineString'){
+      if(depth===1){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing MultiLineString nesting level.'});}
+      const parts=[];for(const [i,line] of (g.coordinates||[]).entries()){
+        const clean=normalizePointList(line,`line part ${i+1}`,changes,issues);if(clean.length>=2)parts.push(clean);else changes.push({level:'review',message:`Dropped line part ${i+1} because it had fewer than two valid vertices.`});
+      }
+      if(!parts.length)issues.push({severity:'error',code:'EMPTY_LINE_PART',message:'No usable line parts remain.'});
+      g.coordinates=parts;if(parts.length===1){g={type:'LineString',coordinates:parts[0]};changes.push({level:'safe',message:'Simplified a one-part MultiLineString to LineString.'});}
+    }else if(g.type==='Polygon'){
+      if(depth===1){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing Polygon ring nesting level.'});}
+      else if(depth===3){if((g.coordinates||[]).length===1){g.coordinates=g.coordinates[0];changes.push({level:'safe',message:'Removed an extra Polygon nesting level.'});}else{g.type='MultiPolygon';changes.push({level:'review',message:'Changed Polygon to MultiPolygon because multiple polygon parts were supplied.'});}}
+      if(g.type==='Polygon'){
+        const rings=[];(g.coordinates||[]).forEach((ring,ri)=>{const nr=normalizeRing(ring,ri===0?'outer ring':`hole ${ri}`,changes,issues);if(nr)rings.push(nr);else if(ri>0)changes.push({level:'review',message:`Dropped invalid hole ${ri}.`});});
+        if(!rings.length||!rings[0])issues.push({severity:'error',code:'NO_OUTER_RING',message:'No valid outer ring remains.'});g.coordinates=rings;
+      }
+    }
+    if(g.type==='MultiPolygon'){
+      if(depth===2){g.coordinates=[g.coordinates];changes.push({level:'safe',message:'Added the missing MultiPolygon nesting level.'});}
       const polys=[];(g.coordinates||[]).forEach((poly,pi)=>{
         if(!Array.isArray(poly)){changes.push({level:'review',message:`Dropped invalid polygon part ${pi+1}.`});return;}
-        const rings=[];poly.forEach((r,ri)=>{const nr=normalizeRing(r,ri===0?`polygon ${pi+1} outer ring`:`polygon ${pi+1} hole ${ri}`,changes,issues);if(nr)rings.push(nr);else if(ri>0)changes.push({level:'review',message:`Dropped invalid hole ${ri} from polygon ${pi+1}.`});});
+        const rings=[];poly.forEach((ring,ri)=>{const nr=normalizeRing(ring,ri===0?`polygon ${pi+1} outer ring`:`polygon ${pi+1} hole ${ri}`,changes,issues);if(nr)rings.push(nr);else if(ri>0)changes.push({level:'review',message:`Dropped invalid hole ${ri} from polygon ${pi+1}.`});});
         if(rings[0])polys.push(rings);else changes.push({level:'review',message:`Dropped polygon part ${pi+1} because it had no valid outer ring.`});
       });
-      if(!polys.length)issues.push({severity:'error',code:'NO_POLYGONS',message:'No valid polygon parts remain.'});
-      g.coordinates=polys;if(polys.length===1){g={type:'Polygon',coordinates:polys[0]};changes.push({level:'safe',message:'Simplified a one-part MultiPolygon to Polygon.'});}
+      if(!polys.length)issues.push({severity:'error',code:'NO_POLYGONS',message:'No valid polygon parts remain.'});g.coordinates=polys;if(polys.length===1){g={type:'Polygon',coordinates:polys[0]};changes.push({level:'safe',message:'Simplified a one-part MultiPolygon to Polygon.'});}
     }
     const coords=collectCoordinates(g);
     const normalRange=coords.length&&coords.every(c=>c[0]>=-180&&c[0]<=180&&c[1]>=-90&&c[1]<=90);
@@ -12972,16 +13044,33 @@ initUxRehaul();
     if(stillBad.length)issues.push({severity:'error',code:'COORDINATE_RANGE',message:`${stillBad.length} coordinate${stillBad.length===1?' is':'s are'} outside valid longitude/latitude range. The code may use a projected coordinate system.`});
     return {geometry:g,issues};
   }
-  function validateGeometry(g){
-    if(!g)return {issues:[{severity:'error',code:'NO_GEOMETRY',message:'No polygon geometry was produced.'}]};
+  function geometryHealthSeverity(issue){
+    const code=String(issue?.code||'');
+    const invalidTopology=new Set(['SELF_INTERSECTION','HOLE_OUTSIDE_SHELL','HOLE_TOUCHES_SHELL','HOLES_INTERSECT','NESTED_HOLE','MULTIPOLYGON_PARTS_OVERLAP','ZERO_AREA_RING','TOO_FEW_VERTICES','TOO_FEW_UNIQUE_VERTICES','INVALID_COORDINATE','COORDINATE_RANGE','EMPTY_MULTIPOINT','EMPTY_LINE_PART','EMPTY_POLYGON','EMPTY_GEOMETRY','UNSUPPORTED_GEOMETRY']);
+    if(issue?.risk==='manual'||invalidTopology.has(code))return 'error';
+    if(issue?.risk==='safe'||issue?.risk==='review')return 'warning';
+    return 'info';
+  }
+  function validateGeometry(g,expectedFamily=''){
+    if(!g)return {issues:[{severity:'error',code:'NO_GEOMETRY',message:'No editable geometry was produced.'}]};
+    if(!editableGeometry(g))return {issues:[{severity:'error',code:'UNSUPPORTED_TYPE',message:`${g.type||'This geometry'} is not supported by the geometry-code editor.`}]};
+    if(expectedFamily&&geometryFamily(g.type)!==expectedFamily)return {issues:[{severity:'error',code:'GEOMETRY_FAMILY_MISMATCH',message:`The proposed ${g.type} does not match the selected ${expectedFamily} feature family.`}]};
     try{
-      const report=validateCollectionGeometry({type:'Feature',properties:{name:'Manual geometry'},geometry:g});
-      return {issues:(report.issues||[]).map(i=>({severity:i.severity||'info',code:i.code||'',message:i.message||'',path:i.path||'',fix:i.fix||''})),summary:report.summary};
+      const health=window.EditPolygonGeometryHealthCore;
+      if(health?.validateFeature){
+        const report=health.validateFeature({type:'Feature',id:'geometry-code-preview',properties:{name:'Manual geometry'},geometry:g},0,{rules:{}});
+        return {issues:(report.issues||[]).map(issue=>({severity:geometryHealthSeverity(issue),code:issue.code||'',message:issue.detail||issue.summary||issue.title||issue.code||'Geometry issue',path:issue.path||'',fix:issue.repair?.action||''})),summary:report};
+      }
+      if(geometryFamily(g.type)==='polygon'){
+        const report=validateCollectionGeometry({type:'Feature',properties:{name:'Manual geometry'},geometry:g});
+        return {issues:(report.issues||[]).map(i=>({severity:i.severity||'info',code:i.code||'',message:i.message||'',path:i.path||'',fix:i.fix||''})),summary:report.summary};
+      }
+      return {issues:[]};
     }catch(err){return {issues:[{severity:'error',code:'VALIDATION_FAILED',message:String(err.message||err)}]};}
   }
   function geometryFromFeatureCollection(fc){
-    const geoms=(fc?.features||[]).map(f=>f.geometry).filter(g=>g&&(g.type==='Polygon'||g.type==='MultiPolygon'));
-    return combinePolygonGeometries(geoms);
+    const geoms=(fc?.features||[]).map(f=>f.geometry).filter(editableGeometry);if(!geoms.length)return null;
+    const family=geometryFamily(geoms[0].type);return combineFamilyGeometries(geoms,family);
   }
   function aggressiveRepair(g,validationIssues,changes){
     try{
@@ -13001,10 +13090,10 @@ initUxRehaul();
       return out;
     }catch(_){return null;}
   }
-  function analyzeGeometryText(text){
-    const changes=[];let value=null,parseError=null,sourceText=String(text||'');
-    const wkt=/^\s*(MULTI)?POLYGON\s*\(/i.test(sourceText);
-    if(wkt){
+  function analyzeGeometryText(text,expectedType=''){
+    const expectedFamily=geometryFamily(expectedType),changes=[];let value=null,parseError=null,sourceText=String(text||'');
+    const wkt=/^\s*(?:MULTI)?POLYGON\s*\(/i.test(sourceText);
+    if(wkt&&(!expectedFamily||expectedFamily==='polygon')){
       try{value=typeof wktToGeo==='function'?wktToGeo(sourceText,'Manual geometry'):null;changes.push({level:'review',message:'Converted pasted WKT into GeoJSON geometry.'});}
       catch(err){parseError=err;}
     }else{
@@ -13019,18 +13108,18 @@ initUxRehaul();
       const pos=parsePosition(parseError.message,sourceText);
       return {valid:false,parseError:{message:String(parseError.message||parseError),...pos},changes:uniqueChanges(changes),issues:[],candidate:null,proposal:null,confidence:'none'};
     }
-    const extracted=extractGeometry(value,changes);
-    if(!extracted)return {valid:false,parseError:null,changes:uniqueChanges(changes),issues:[{severity:'error',code:'NO_POLYGON',message:'The code does not contain Polygon or MultiPolygon geometry.'}],candidate:null,proposal:null,confidence:'none'};
-    const normalized=normalizeGeometry(extracted,changes);
+    const extracted=extractGeometry(value,changes,expectedFamily);
+    if(!extracted)return {valid:false,parseError:null,changes:uniqueChanges(changes),issues:[{severity:'error',code:'NO_EDITABLE_GEOMETRY',message:expectedFamily?`The code does not contain ${expectedFamily} geometry compatible with the selected feature.`:'The code does not contain an editable Point, LineString, or Polygon geometry.'}],candidate:null,proposal:null,confidence:'none'};
+    const normalized=normalizeGeometry(extracted,changes,expectedFamily);
     const candidate=normalized.geometry;
     let issues=[...(normalized.issues||[])];
-    if(candidate)issues.push(...validateGeometry(candidate).issues);
+    if(candidate)issues.push(...validateGeometry(candidate,expectedFamily).issues);
     let errors=issues.filter(i=>i.severity==='error');
     let proposal=candidate;
-    if(errors.length&&candidate){
+    if(errors.length&&candidate&&geometryFamily(candidate.type)==='polygon'){
       const aggressiveChanges=[];const repaired=aggressiveRepair(candidate,issues,aggressiveChanges);
       if(repaired){
-        const repairedIssues=validateGeometry(repaired).issues;const repairedErrors=repairedIssues.filter(i=>i.severity==='error');
+        const repairedIssues=validateGeometry(repaired,expectedFamily).issues;const repairedErrors=repairedIssues.filter(i=>i.severity==='error');
         if(!repairedErrors.length){proposal=repaired;changes.push(...aggressiveChanges);issues=repairedIssues;errors=[];}
       }
     }
@@ -13039,18 +13128,25 @@ initUxRehaul();
     return {valid:!!proposal&&!errors.length,parseError:null,changes:unique,issues,candidate,proposal:proposal||candidate,confidence};
   }
   function stats(g){
-    if(!g)return {vertices:0,parts:0,holes:0,area:null};
-    let parts=g.type==='MultiPolygon'?(g.coordinates||[]).length:1,holes=0;
+    if(!g)return {vertices:0,parts:0,holes:0,area:null,length:null};
+    const family=geometryFamily(g.type);let parts=1,holes=0;
+    if(g.type==='MultiPoint')parts=(g.coordinates||[]).length;
+    else if(g.type==='MultiLineString')parts=(g.coordinates||[]).length;
+    else if(g.type==='MultiPolygon')parts=(g.coordinates||[]).length;
     if(g.type==='Polygon')holes=Math.max(0,(g.coordinates||[]).length-1);else if(g.type==='MultiPolygon')holes=(g.coordinates||[]).reduce((n,p)=>n+Math.max(0,(p||[]).length-1),0);
-    const m=metrics(g);return {vertices:vertexCount(g),parts,holes,area:m.area};
+    const m=metrics(g);return {vertices:vertexCount(g),parts,holes,area:m.area,length:m.perim,family};
   }
   function comparisonHtml(before,after){
-    const b=stats(before),a=stats(after);const areaDelta=Number.isFinite(a.area)&&Number.isFinite(b.area)?a.area-b.area:null;
-    return `<div class="gce-comparison"><div class="head">Measure</div><div class="head">Current</div><div class="head">Proposed</div><div class="label">Type</div><div>${html(before?.type||'—')}</div><div>${html(after?.type||'—')}</div><div class="label">Vertices</div><div>${b.vertices.toLocaleString()}</div><div>${a.vertices.toLocaleString()}</div><div class="label">Parts / holes</div><div>${b.parts} / ${b.holes}</div><div>${a.parts} / ${a.holes}</div><div class="label">Area</div><div>${Number.isFinite(b.area)?html(areaLabel(b.area)):'—'}</div><div>${Number.isFinite(a.area)?html(areaLabel(a.area)):'—'}${Number.isFinite(areaDelta)?` · ${areaDelta>=0?'+':''}${html(areaLabel(areaDelta))}`:''}</div></div>`;
+    const b=stats(before),a=stats(after);const areaDelta=Number.isFinite(a.area)&&Number.isFinite(b.area)?a.area-b.area:null,lengthDelta=Number.isFinite(a.length)&&Number.isFinite(b.length)?a.length-b.length:null;
+    const rows=[['Type',before?.type||'—',after?.type||'—'],['Vertices',b.vertices.toLocaleString(),a.vertices.toLocaleString()],['Parts',String(b.parts),String(a.parts)]];
+    if(b.family==='polygon'||a.family==='polygon')rows.push(['Holes',String(b.holes),String(a.holes)]);
+    if(Number.isFinite(b.length)||Number.isFinite(a.length))rows.push([b.family==='polygon'||a.family==='polygon'?'Perimeter':'Length',Number.isFinite(b.length)?lenLabel(b.length):'—',Number.isFinite(a.length)?`${lenLabel(a.length)}${Number.isFinite(lengthDelta)?` · ${lengthDelta>=0?'+':''}${lenLabel(lengthDelta)}`:''}`:'—']);
+    if(Number.isFinite(b.area)||Number.isFinite(a.area))rows.push(['Area',Number.isFinite(b.area)?areaLabel(b.area):'—',Number.isFinite(a.area)?`${areaLabel(a.area)}${Number.isFinite(areaDelta)?` · ${areaDelta>=0?'+':''}${areaLabel(areaDelta)}`:''}`:'—']);
+    return `<div class="gce-comparison"><div class="head">Measure</div><div class="head">Current</div><div class="head">Proposed</div>${rows.map(row=>`<div class="label">${html(row[0])}</div><div>${html(row[1])}</div><div>${html(row[2])}</div>`).join('')}</div>`;
   }
   function runAnalysis(r,s,applyRequested){
     const text=$g('gceCode')?.value??s.currentText??'';
-    s.currentText=text;s.dirty=text!==s.appliedText;s.analysis=analyzeGeometryText(text);renderAnalysis(r,s);
+    s.currentText=text;s.dirty=text!==s.appliedText;s.analysis=analyzeGeometryText(text,getDisplayGeometry(r.feature)?.type);renderAnalysis(r,s);
     const a=s.analysis;
     if(applyRequested&&a.valid&&!a.changes.length){applyGeometryResult(r,s,a.proposal,[]);}
     else if(applyRequested&&a.valid)setStatus(`${a.changes.length} repair${a.changes.length===1?'':'s'} proposed. Review and apply them below.`);
@@ -13061,22 +13157,22 @@ initUxRehaul();
     const box=$g('gceResult');if(!box)return;const a=s.analysis;if(!a){box.innerHTML='';return;}
     if(a.parseError){
       const loc=a.parseError.line?` at line ${a.parseError.line}, column ${a.parseError.column}`:'';
-      box.innerHTML=`<div class="gce-alert error"><div class="gce-alert-title">The code could not be parsed${html(loc)}</div><div>${html(a.parseError.message)}</div>${a.changes.length?`<ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>`:''}<div>The polygon on the map has not changed. Correct the code, use any partial syntax repairs shown above, or revert the manual session.</div></div>`;
+      box.innerHTML=`<div class="gce-alert error"><div class="gce-alert-title">The code could not be parsed${html(loc)}</div><div>${html(a.parseError.message)}</div>${a.changes.length?`<ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>`:''}<div>The feature on the map has not changed. Correct the code, use any partial syntax repairs shown above, or revert the manual session.</div></div>`;
       return;
     }
     const errors=(a.issues||[]).filter(i=>i.severity==='error'),warnings=(a.issues||[]).filter(i=>i.severity==='warning'),infos=(a.issues||[]).filter(i=>i.severity==='info');
     if(!a.valid){
       const partial=a.proposal?`<div class="gce-toolbar"><button id="gceUseProposal" type="button">Use partial cleanup</button></div>`:'';
-      box.innerHTML=`<div class="gce-alert error"><div class="gce-alert-title">A valid polygon could not be produced automatically</div>${errors.length?`<ul class="gce-list">${errors.map(i=>`<li class="error">${html(i.message)}${i.path?` <span class="subtle">${html(i.path)}</span>`:''}</li>`).join('')}</ul>`:''}${a.changes.length?`<div><strong>Partial repairs available:</strong></div><ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>`:''}<div>The map remains unchanged. Add or correct the missing geometry, or revert to the session’s original polygon.</div></div>${partial}`;
+      box.innerHTML=`<div class="gce-alert error"><div class="gce-alert-title">A valid compatible geometry could not be produced automatically</div>${errors.length?`<ul class="gce-list">${errors.map(i=>`<li class="error">${html(i.message)}${i.path?` <span class="subtle">${html(i.path)}</span>`:''}</li>`).join('')}</ul>`:''}${a.changes.length?`<div><strong>Partial repairs available:</strong></div><ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>`:''}<div>The map remains unchanged. Add or correct the missing geometry, or revert to the session’s original feature geometry.</div></div>${partial}`;
       $g('gceUseProposal')?.addEventListener('click',()=>useProposalCode(s,a.proposal,false));
       return;
     }
     if(!a.changes.length){
-      box.innerHTML=`<div class="gce-alert ok"><div class="gce-alert-title">Geometry is valid</div><div>The code contains a usable ${html(a.proposal.type)}. Press <strong>Apply geometry</strong> to update the selected polygon.</div>${warnings.length?`<ul class="gce-list">${warnings.map(i=>`<li class="review">${html(i.message)}</li>`).join('')}</ul>`:''}</div>`;
+      box.innerHTML=`<div class="gce-alert ok"><div class="gce-alert-title">Geometry is valid</div><div>The code contains a usable ${html(a.proposal.type)}. Press <strong>Apply geometry</strong> to update the selected feature.</div>${warnings.length?`<ul class="gce-list">${warnings.map(i=>`<li class="review">${html(i.message)}</li>`).join('')}</ul>`:''}</div>`;
       return;
     }
     const kind=a.confidence==='review'?'warn':'ok';const label=a.confidence==='review'?'Suggested repair needs review':'Safe repairs available';
-    box.innerHTML=`<div class="gce-alert ${kind}"><div class="gce-alert-title">${label} · ${a.changes.length} change${a.changes.length===1?'':'s'}</div><div>The polygon has not changed yet. Review the repaired geometry and comparison before applying it.</div><ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>${warnings.length?`<div><strong>Remaining warnings:</strong></div><ul class="gce-list">${warnings.map(i=>`<li class="review">${html(i.message)}</li>`).join('')}</ul>`:''}${infos.length?`<ul class="gce-list">${infos.map(i=>`<li class="info">${html(i.message)}</li>`).join('')}</ul>`:''}</div>${comparisonHtml(getDisplayGeometry(r.feature),a.proposal)}<div class="gce-toolbar"><button id="gceUseProposal" type="button">Use repaired code</button><button id="gceApplyProposal" class="primary" type="button">${a.confidence==='review'?'Apply suggested repair':'Apply all safe fixes'}</button></div>`;
+    box.innerHTML=`<div class="gce-alert ${kind}"><div class="gce-alert-title">${label} · ${a.changes.length} change${a.changes.length===1?'':'s'}</div><div>The feature has not changed yet. Review the repaired geometry and comparison before applying it.</div><ul class="gce-list">${a.changes.map(c=>`<li class="${c.level}">${html(c.message)}</li>`).join('')}</ul>${warnings.length?`<div><strong>Remaining warnings:</strong></div><ul class="gce-list">${warnings.map(i=>`<li class="review">${html(i.message)}</li>`).join('')}</ul>`:''}${infos.length?`<ul class="gce-list">${infos.map(i=>`<li class="info">${html(i.message)}</li>`).join('')}</ul>`:''}</div>${comparisonHtml(getDisplayGeometry(r.feature),a.proposal)}<div class="gce-toolbar"><button id="gceUseProposal" type="button">Use repaired code</button><button id="gceApplyProposal" class="primary" type="button">${a.confidence==='review'?'Apply suggested repair':'Apply all safe fixes'}</button></div>`;
     $g('gceUseProposal')?.addEventListener('click',()=>useProposalCode(s,a.proposal,true));
     $g('gceApplyProposal')?.addEventListener('click',()=>applyGeometryResult(r,s,a.proposal,a.changes));
   }
@@ -13086,9 +13182,9 @@ initUxRehaul();
     setStatus(clearAnalysis?'Repaired geometry inserted into the editor for review.':'Partial cleanup inserted. Further corrections are still required.');
   }
   function applyGeometryResult(r,s,g,changes){
-    const current=typeof ref==='function'?ref():null;if(!current||current.feature.id!==r.feature.id){setStatus('The selected polygon changed. Reopen its geometry code before applying.','error');return;}
+    const current=typeof ref==='function'?ref():null;if(!current||current.feature.id!==r.feature.id){setStatus('The selected feature changed. Reopen its geometry code before applying.','error');return;}
     const reason=editorReadonlyReason(current);if(reason){setStatus(reason,'error');return;}
-    const finalReport=validateGeometry(g);const errors=(finalReport.issues||[]).filter(i=>i.severity==='error');
+    const currentFamily=geometryFamily(getDisplayGeometry(current.feature)?.type);const finalReport=validateGeometry(g,currentFamily);const errors=(finalReport.issues||[]).filter(i=>i.severity==='error');
     if(errors.length){s.analysis={valid:false,parseError:null,changes:changes||[],issues:finalReport.issues,candidate:g,proposal:g,confidence:'none'};renderAnalysis(current,s);setStatus('The proposed geometry still contains errors and was not applied.','error');return;}
     try{
       pushHistory([current.feature.id]);
@@ -13103,12 +13199,12 @@ initUxRehaul();
   }
   function revertSession(r,s){
     const current=typeof ref==='function'?ref():null;if(!current||current.feature.id!==r.feature.id)return;
-    if(typeof isLocked==='function'&&isLocked(current.file,current.feature)){setStatus('Unlock the polygon before reverting its geometry.','error');return;}
-    if(s.appliedCount&& !confirm(`Revert ${s.appliedCount} geometry-code change${s.appliedCount===1?'':'s'} and restore the polygon from before this manual editing session?`))return;
+    if(typeof isLocked==='function'&&isLocked(current.file,current.feature)){setStatus('Unlock the feature before reverting its geometry.','error');return;}
+    if(s.appliedCount&& !confirm(`Revert ${s.appliedCount} geometry-code change${s.appliedCount===1?'':'s'} and restore the feature geometry from before this manual editing session?`))return;
     try{
       if(s.appliedCount){pushHistory([current.feature.id]);restoreGeometryState(current.feature,s.baseline);setDirty(true);try{logOperation('geometry-code-reverted',{featureId:current.feature.id,appliedCount:s.appliedCount});}catch(_){ }}
-      sessions.delete(current.feature.id);renderAll();setStatus(s.appliedCount?'Restored the polygon from before the manual code-editing session.':'Discarded unsaved geometry code and restored the original editor text.');
-    }catch(err){console.error('Geometry code revert failed',err);setStatus('Could not restore the original polygon: '+(err.message||err),'error');}
+      sessions.delete(current.feature.id);renderAll();setStatus(s.appliedCount?'Restored the feature geometry from before the manual code-editing session.':'Discarded unsaved geometry code and restored the original editor text.');
+    }catch(err){console.error('Geometry code revert failed',err);setStatus('Could not restore the original feature geometry: '+(err.message||err),'error');}
   }
 
   const previousRenderSelected=window.renderSelected;
@@ -13118,7 +13214,7 @@ initUxRehaul();
       try{
         const r=typeof ref==='function'?ref():null;
         const geom=r?getDisplayGeometry(r.feature):null;
-        if(r&&geom&&(geom.type==='Polygon'||geom.type==='MultiPolygon'))createSection(r);
+        if(r&&editableGeometry(geom))createSection(r);
       }catch(err){console.warn('Geometry code inspector could not render',err);}
       return out;
     };
@@ -13146,7 +13242,7 @@ initUxRehaul();
     try{
       const r=typeof ref==='function'?ref():null;
       const geom=r&&typeof getDisplayGeometry==='function'?getDisplayGeometry(r.feature):null;
-      if(r&&geom&&(geom.type==='Polygon'||geom.type==='MultiPolygon'))createSection(r);
+      if(r&&editableGeometry(geom))createSection(r);
     }catch(err){console.warn('Geometry code inspector lifecycle check failed',err);}
   }
   function queueGeometryCodeSection(){
@@ -13171,6 +13267,9 @@ initUxRehaul();
   window.__gceAfterInspectorRender=queueGeometryCodeSection;
   window.__geometryCodeEditorV124={
     version:VERSION,
+    supportedTypes:[...EDITABLE_GEOMETRY_TYPES],
+    family:geometryFamily,
+    isEditableType:editableGeometryType,
     ensure:queueGeometryCodeSection,
     analyze:analyzeGeometryText,
     validate:validateGeometry,
@@ -21738,7 +21837,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260817-v1561-mixed-geometry-hotfix';
+  const PROCESSING_KEY='20260817-v1561-geometry-code-hotfix';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

@@ -55,6 +55,10 @@ Retired/forbidden architecture:
 - Select by Attribute uses the same typed schema/filter semantics as the attribute-table filtering system.
 - Fix geometries reuses Geometry Health and the existing GEOS MakeValid boundary.
 
+## Geometry-code editing
+
+The v1.56.1 live-test geometry-code hotfix generalises manual geometry replacement to all six standard editable GeoJSON vector types: Point, MultiPoint, LineString, MultiLineString, Polygon and MultiPolygon. The editor keeps the selected geometry family stable, validates proposals through Geometry Health, and commits successful changes through the existing manual-edit/history path. Parametric Circle remains intentionally separate.
+
 ## Quality gate
 
 Before packaging:
@@ -72,7 +76,7 @@ npm run test:browser-processing-execution
 
 It executes real worker + GEOS-WASM processing when the test environment is permitted to load the pinned CDN module, and reports a skip when that external import is administratively blocked.
 
-Automated release verification for this package: **304/304 Node tests**, **9/9 browser smoke suites**, **1,670 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Automated release verification for this package: **319/319 Node tests**, **11/11 browser smoke suites**, **1,674 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Next milestone
 

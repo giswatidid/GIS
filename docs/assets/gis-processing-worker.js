@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-fix-geometries-normalize';
+const KEY='20260817-v1561-geometry-code-hotfix';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,

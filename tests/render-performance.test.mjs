@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260817-v1561-mixed-geometry-hotfix/);
+  assert.match(html,/editpolygon-app\.js\?v=20260817-v1561-geometry-code-hotfix/);
 });
 
 
