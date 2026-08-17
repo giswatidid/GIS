@@ -91,9 +91,9 @@ with sync_playwright() as p:
       renderSelected=function(){
         const out=__downstreamInspectorBase.apply(this,arguments);
         const panel=document.getElementById('selectedPanel');
-        if(window.__feature.geometry.type==='LineString'){
+        if(window.__feature.geometry.type==='LineString'||window.__feature.geometry.type==='Point'){
           const other=[...panel.querySelectorAll('.inspector-card h3')].find(h=>h.textContent==='Other');
-          if(other)other.textContent='Line actions';
+          if(other)other.textContent=window.__feature.geometry.type==='LineString'?'Line actions':'Point actions';
         }
         return out;
       };
@@ -101,10 +101,12 @@ with sync_playwright() as p:
     ''')
 
     # Point: the generic Inspector gets Geometry code and applies through manual edit/history.
-    page.evaluate("__setFeature({id:'point-1',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Point 1'},editStack:[]})")
+    page.evaluate("__setFeature({id:'point-1',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Point 1'},editStack:[]}); window.__geometryCodeEditorV124.ensureNow();")
     page.wait_for_selector('[data-gce-section="code"]')
     point_section = page.locator('[data-gce-section="code"]')
-    point_section.locator('summary').click()
+    assert page.locator('#gceOpenButton').count() == 1
+    assert page.locator('#gceMount').is_visible() is False
+    page.locator('#gceOpenButton').click()
     page.wait_for_selector('#gceCode')
     assert page.locator('.gce-meta-row').nth(1).inner_text().lower().endswith('point')
     assert '"type": "Point"' in page.locator('#gceCode').input_value()
@@ -126,9 +128,9 @@ with sync_playwright() as p:
     assert page.locator('.gce-alert.error').count() == 1
 
     # Point graphical editing owns geometry while active, so code application is read-only.
-    page.evaluate("window.__pointEditing=true; window.renderSelected();")
+    page.evaluate("window.__pointEditing=true; window.renderSelected(); window.__geometryCodeEditorV124.ensureNow();")
     page.wait_for_selector('[data-gce-section="code"]')
-    page.locator('[data-gce-section="code"] summary').click()
+    page.locator('#gceOpenButton').click()
     page.wait_for_selector('#gceCode')
     assert page.locator('#gceCode').is_editable() is False
     assert page.locator('#gceApply').is_disabled()
@@ -137,7 +139,10 @@ with sync_playwright() as p:
     # LineString: the same generic editor handles line geometry and detects a middle-vertex change.
     page.evaluate("__setFeature({id:'line-1',geometry:{type:'LineString',coordinates:[[153,-27],[153.5,-27.5],[154,-28]]},properties:{name:'Line 1'},editStack:[]})")
     page.wait_for_selector('[data-gce-section="code"]')
-    page.locator('[data-gce-section="code"] summary').click()
+    page.evaluate("document.querySelector('[data-gce-section=\"code\"]')?.remove(); window.__geometryCodeEditorV124.ensureNow();")
+    page.wait_for_selector('[data-gce-section="code"]')
+    assert page.locator('#gceOpenButton').count() == 1
+    page.locator('#gceOpenButton').click()
     page.wait_for_selector('#gceCode')
     assert '"type": "LineString"' in page.locator('#gceCode').input_value()
     page.locator('#gceCode').fill('{"type":"LineString","coordinates":[[153,-27],[153.75,-27.25],[154,-28]]}')

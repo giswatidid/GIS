@@ -4429,6 +4429,7 @@ body.v120-sidebar-resizing,body.v120-sidebar-resizing *{cursor:ns-resize!importa
 .gce-generic-section>summary strong{margin-right:auto;font-size:12px;color:#1f2328}
 .gce-generic-subtitle{font-size:10px;font-weight:700;color:#667085;white-space:nowrap}
 .gce-generic-section>#gceMount{display:grid;gap:8px;padding:0 12px 12px}
+.gce-generic-section:not([open])>#gceMount{display:none!important}
 body.night-mode .gce-generic-section>summary strong{color:#e5e7eb}
 body.night-mode .gce-generic-section>summary:before,body.night-mode .gce-generic-subtitle{color:#9ca3af}
 .gce-meta{display:grid;grid-template-columns:1fr;gap:4px;font-size:11px;color:#59626e}

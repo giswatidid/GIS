@@ -76,7 +76,7 @@ npm run test:browser-processing-execution
 
 It executes real worker + GEOS-WASM processing when the test environment is permitted to load the pinned CDN module, and reports a skip when that external import is administratively blocked.
 
-Automated release verification for this package: **319/319 Node tests**, **11/11 browser smoke suites**, **1,674 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Automated release verification for this package: **319/319 Node tests**, **11/11 browser smoke suites**, **1,676 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Next milestone
 

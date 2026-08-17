@@ -12615,7 +12615,7 @@ initUxRehaul();
 /* v125: geometry-code editor integrated inside the core app closure. */
 (function(){
   'use strict';
-  const VERSION='v125.2';
+  const VERSION='v125.3';
   const LARGE_VERTEX_GATE=3000;
   const EDITABLE_GEOMETRY_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString','Polygon','MultiPolygon']);
   const EDITABLE_GEOMETRY_TYPE_SET=new Set(EDITABLE_GEOMETRY_TYPES);
@@ -12693,6 +12693,27 @@ initUxRehaul();
   function sectionOpenPreference(){
     try{const p=typeof v53InspectorPrefs==='function'?v53InspectorPrefs():{};return !!p.code;}catch(_){return false;}
   }
+  function ensureGeometryCodeAction(r,details){
+    if(!r||!details)return;
+    const family=geometryFamily(getDisplayGeometry(r.feature)?.type);
+    if(family!=='point'&&family!=='line')return;
+    const panel=$g('selectedPanel');if(!panel||panel.querySelector('#gceOpenButton'))return;
+    const actionCard=[...panel.querySelectorAll('.inspector-card')].find(card=>/actions|vertex editing/i.test(card.querySelector('h3')?.textContent||''));
+    const host=actionCard?.querySelector('.inspector-actions')||actionCard;
+    if(!host)return;
+    const button=document.createElement('button');button.id='gceOpenButton';button.type='button';button.textContent='Edit geometry code';
+    button.addEventListener('click',()=>{
+      const current=typeof ref==='function'?ref():null;
+      const currentGeometry=current&&typeof getDisplayGeometry==='function'?getDisplayGeometry(current.feature):null;
+      if(!current||!editableGeometry(currentGeometry))return;
+      const section=createSection(current);if(!section)return;
+      section.open=true;
+      try{if(typeof v53SaveInspectorPref==='function')v53SaveInspectorPref('code',true);}catch(_){ }
+      mountEditor(current,section,true);
+      try{section.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){ }
+    });
+    host.appendChild(button);
+  }
   function createSection(r){
     const geom=r&&typeof getDisplayGeometry==='function'?getDisplayGeometry(r.feature):null;
     if(!r||!editableGeometry(geom))return null;
@@ -12733,6 +12754,7 @@ initUxRehaul();
       });
     }
     if(details.open)mountEditor(r,details);
+    ensureGeometryCodeAction(r,details);
     return details;
   }
   function mountEditor(r,details,force=false){
@@ -13253,8 +13275,9 @@ initUxRehaul();
     try{
       const r=typeof ref==='function'?ref():null;
       const geom=r&&typeof getDisplayGeometry==='function'?getDisplayGeometry(r.feature):null;
-      if(r&&editableGeometry(geom))createSection(r);
+      if(r&&editableGeometry(geom))return createSection(r);
     }catch(err){console.warn('Geometry code inspector lifecycle check failed',err);}
+    return null;
   }
   function queueGeometryCodeSection(){
     if(inspectorEnsureQueued)return;
@@ -21306,7 +21329,15 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
     if(controls.reset&&!controls.reset.dataset.v150Bound){controls.reset.dataset.v150Bound='1';controls.reset.textContent='Use layer style';controls.reset.addEventListener('click',event=>{event.preventDefault();event.stopImmediatePropagation();try{gisClearFeatureStyleOverride(r.file.id,r.feature.id);}catch(error){setStatus(error.message,'error');}},true);}
   }
   const baseRenderSelectedV150=renderSelected;
-  renderSelected=function(){const out=baseRenderSelectedV150.apply(this,arguments);requestAnimationFrame(enhanceInspectorStyle);return out;};window.renderSelected=renderSelected;
+  renderSelected=function(){
+    const out=baseRenderSelectedV150.apply(this,arguments);
+    try{window.__geometryCodeEditorV124?.ensureNow?.();}catch(error){console.warn('Final Geometry code Inspector reconciliation failed',error);}
+    requestAnimationFrame(()=>{
+      try{window.__geometryCodeEditorV124?.ensureNow?.();}catch(error){console.warn('Deferred Geometry code Inspector reconciliation failed',error);}
+      enhanceInspectorStyle();
+    });
+    return out;
+  };window.renderSelected=renderSelected;
 
   cloneStylePayloadFromFeature=function(feature){const r=fileOfFeature(feature?.id),effective=r?gisResolvedFeatureStyle(r.file,feature,{highlight:false}):gisClone(feature?.style||{});return {style:{color:effective.color||'#1664d6',fillColor:effective.fillColor||effective.color||'#1664d6',weight:Number(effective.weight)||2,fillOpacity:Number.isFinite(Number(effective.fillOpacity))?Number(effective.fillOpacity):.18,radius:Number(effective.radius)||5,dashArray:effective.dashArray||''},opacity:Number.isFinite(Number(effective.opacity))?Number(effective.opacity):null,annotationStyle:feature?.annotationStyle?clone(feature.annotationStyle):null};};
   applyStylePayloadToFeature=function(feature,payload){if(!feature||!payload)return;const r=fileOfFeature(feature.id);if(!r)return;feature.styleOverride={...(feature.styleOverride||{}),...clone(payload.style||{})};if(payload.opacity!==null&&payload.opacity!==undefined)feature.styleOverride.opacity=Math.max(.05,Math.min(1,Number(payload.opacity)||1));if(payload.annotationStyle)feature.annotationStyle=clone(payload.annotationStyle);gisSyncLegacyFeatureStyle(r.file,feature);gisTouchStyle(r.file,feature);clearFeatureCaches(feature);};
@@ -21849,7 +21880,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260817-v1561-geometry-code-runtime-fix';
+  const PROCESSING_KEY='20260817-v1561-geometry-code-inspector-final';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

@@ -2,6 +2,7 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Makes Geometry code a final-stage Inspector concern for Point/LineString as well as polygon features: the last Inspector renderer now reconciles the shared editor after geometry-specific panels finish, generic point/line actions expose an explicit **Edit geometry code** button, and collapsed generic accordions no longer leak partial editor metadata.
 - Fixes the Geometry code Inspector lifecycle for Point/LineString features by wrapping the authoritative lexical `renderSelected` chain instead of only the `window.renderSelected` alias. This prevents downstream Inspector wrappers from dropping the editor or leaving a partially mounted panel, and corrects the LineString action label to **Edit line**.
 - Generalises the Inspector **Geometry code** editor from polygon-only editing to all six standard editable GeoJSON vector types: Point, MultiPoint, LineString, MultiLineString, Polygon and MultiPolygon. The shared editor validates through Geometry Health, keeps edits inside the selected geometry family, commits through the canonical manual-edit/history path, and preserves polygon behaviour while adding point/line support.
 - Geometry-constrained Processing tools now accept mixed-geometry EditPolygon layers and process only the compatible features for each input role; scope labels and pre-flight warnings report compatible/excluded counts instead of rejecting the whole layer.

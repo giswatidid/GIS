@@ -179,6 +179,8 @@ test('generic Inspector host and apply path remain wired to the authoritative le
   assert.match(app,/renderSelected=geometryCodeRenderSelected;\s*window\.renderSelected=geometryCodeRenderSelected;/);
   assert.match(app,/if\(r&&editableGeometry\(geom\)\)createSection\(r\);/);
   assert.match(app,/ensureNow:ensureGeometryCodeSection/);
+  assert.match(app,/button\.id='gceOpenButton'/);
+  assert.match(app,/window\.__geometryCodeEditorV124\?\.ensureNow\?\.\(\)/);
   assert.match(app,/pushHistory\(\[current\.feature\.id\]\);\s*addEdit\(current\.feature,'manual'/);
   assert.match(app,/source:'geometry-code'/);
   assert.doesNotMatch(app,/Only Polygon and MultiPolygon geometry can replace a polygon/);

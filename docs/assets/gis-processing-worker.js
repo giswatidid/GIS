@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-geometry-code-runtime-fix';
+const KEY='20260817-v1561-geometry-code-inspector-final';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,

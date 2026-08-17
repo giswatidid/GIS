@@ -7,7 +7,7 @@ const tools=fs.readFileSync(new URL('../docs/assets/gis-data-tools.js',import.me
 
 test('CRS core loads before the main application',()=>{
   assert.ok(html.indexOf('gis-crs-core.js')<html.indexOf('editpolygon-app.js'));
-  assert.match(html,/gis-crs-core\.js\?v=20260817-v1561-geometry-code-runtime-fix/);
+  assert.match(html,/gis-crs-core\.js\?v=20260817-v1561-geometry-code-inspector-final/);
 });
 
 test('application exposes assignment, coordinate interpretation and CRS-aware export APIs',()=>{
