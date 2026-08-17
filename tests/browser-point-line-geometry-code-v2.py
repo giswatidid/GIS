@@ -47,7 +47,10 @@ with sync_playwright() as p:
       const metrics=()=>({area:null,perim:null,bbox:null});
       const areaLabel=()=>'';
       const lenLabel=()=>'';
-      const repairCollectionGeometry=fc=>clone(fc);
+      // Match the established Polygon smoke harness. This combined test is for
+      // Inspector lifecycle/interference; Geometry Health has its own regressions.
+      const validateCollectionGeometry=()=>({issues:[],summary:{}});
+      const repairCollectionGeometry=()=>({features:[]});
       const wktToGeo=()=>{throw Error('WKT is not used in this smoke test')};
       const V={active:false};
       window.EditPolygonPointEditing={active:()=>false};
