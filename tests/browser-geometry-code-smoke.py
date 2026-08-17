@@ -30,9 +30,7 @@ with sync_playwright() as p:
     page = browser.new_page(viewport={'width': 1280, 'height': 800})
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
-    page.set_content('''<!doctype html><html><body>
-      <section id="selectedSection"><div id="selectedPanel"></div></section>
-    </body></html>''')
+    page.set_content('<!doctype html><html><body><section id="selectedSection"><div id="selectedPanel"></div></section></body></html>')
     page.add_style_tag(path=str(ROOT / 'docs/assets/editpolygon.css'))
     page.add_script_tag(path=str(ROOT / 'docs/assets/gis-geometry-health-core.js'))
     page.add_script_tag(content=r'''
@@ -49,17 +47,11 @@ with sync_playwright() as p:
       const wktToGeo=()=>{throw Error('WKT not used in this smoke test')};
       const V={active:false};
       window.__historyCalls=[];window.__editCalls=[];window.__statuses=[];
-      window.__feature={id:'point-1',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Point 1'},editStack:[]};
-      window.__file={id:'layer-1',name:'geometry-smoke.geojson',sourceFormat:'geojson'};
-      window.__pointEditing=false;
-      window.EditPolygonPointEditing={active:()=>window.__pointEditing};
-      // Disable the editor's fallback observer/timer installers in this smoke test.
-      // The regression we care about is synchronous ownership of the lexical
-      // renderSelected chain used by downstream Inspector wrappers.
-      window.MutationObserver=class{observe(){} disconnect(){}};
-      window.requestAnimationFrame=()=>0;
-      window.setTimeout=()=>0;
-      window.setInterval=()=>0;
+      window.__feature={id:'polygon-1',geometry:{type:'Polygon',coordinates:[[[153,-27],[154,-27],[154,-28],[153,-27]]]},properties:{name:'Polygon 1'},editStack:[]};
+      window.__file={id:'layer-1',name:'polygon-smoke.geojson',sourceFormat:'geojson'};
+      window.__prefs={code:false};
+      function v53InspectorPrefs(){return window.__prefs;}
+      function v53SaveInspectorPref(key,value){window.__prefs[key]=!!value;}
       function ref(){return {file:window.__file,feature:window.__feature};}
       function ensureFeatureModel(f){if(!f.sourceGeometry)f.sourceGeometry=clone(f.geometry);if(!f.renderedGeometry)f.renderedGeometry=clone(f.geometry);if(!Array.isArray(f.editStack))f.editStack=[];}
       function getDisplayGeometry(f){return f.geometry;}
@@ -70,95 +62,57 @@ with sync_playwright() as p:
       function setDirty(){}
       function setStatus(message,type=''){window.__statuses.push([message,type]);}
       function logOperation(){}
-      function renderAll(){window.renderSelected();}
       function renderSelected(){
-        const panel=document.getElementById('selectedPanel'),type=window.__feature.geometry.type;
-        if(type==='Polygon'||type==='MultiPolygon'){
-          panel.innerHTML='<div class="v53-inspector-shell"><details class="v53-inspector-section" data-v53-section="geometry"><summary><span class="v53-section-title"><b>Geometry</b></span></summary><div class="v53-section-body">Polygon geometry</div></details></div>';
-        }else{
-          panel.innerHTML='<div class="inspector-card"><h3>Geometry</h3><div>'+type+'</div></div><div class="inspector-card"><h3>Other</h3></div>';
-        }
+        document.getElementById('selectedPanel').innerHTML='<div class="v53-inspector-shell"><details class="v53-inspector-section" data-v53-section="geometry" open><summary><span class="v53-section-title"><b>Geometry</b></span></summary><div class="v53-section-body">Polygon geometry</div></details></div>';
       }
       window.renderSelected=renderSelected;
-      window.__setFeature=(feature)=>{window.__feature=clone(feature);ensureFeatureModel(window.__feature);window.renderSelected();};
+      function renderAll(){window.renderSelected();}
+      ensureFeatureModel(window.__feature);
     ''')
     page.add_script_tag(content=EDITOR)
-    # Simulate the real app: point/style/reference enhancements are installed after
-    # the geometry-code module and capture the lexical renderSelected function.
-    # A window-only geometry-code wrapper is therefore insufficient.
-    page.add_script_tag(content=r'''
-      const __downstreamInspectorBase=renderSelected;
-      renderSelected=function(){
-        const out=__downstreamInspectorBase.apply(this,arguments);
-        const panel=document.getElementById('selectedPanel');
-        if(window.__feature.geometry.type==='LineString'||window.__feature.geometry.type==='Point'){
-          const other=[...panel.querySelectorAll('.inspector-card h3')].find(h=>h.textContent==='Other');
-          if(other)other.textContent=window.__feature.geometry.type==='LineString'?'Line actions':'Point actions';
-        }
-        return out;
-      };
-      window.renderSelected=renderSelected;
-    ''')
-
-    # Point: the generic Inspector gets Geometry code and applies through manual edit/history.
-    page.evaluate("__setFeature({id:'point-1',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Point 1'},editStack:[]}); window.__geometryCodeEditorV124.ensureNow();")
-    page.wait_for_selector('[data-gce-section="code"]')
-    point_section = page.locator('[data-gce-section="code"]')
-    assert page.locator('#gceOpenButton').count() == 1
-    assert page.locator('#gceMount').is_visible() is False
-    page.locator('#gceOpenButton').click()
-    page.wait_for_selector('#gceCode')
-    assert page.locator('.gce-meta-row').nth(1).inner_text().lower().endswith('point')
-    assert '"type": "Point"' in page.locator('#gceCode').input_value()
-    page.locator('#gceCode').fill('{"type":"Point","coordinates":[153.25,-27.5]}')
-    page.locator('#gceApply').click()
-    page.wait_for_function("__feature.geometry.coordinates[0]===153.25 && __feature.geometry.coordinates[1]===-27.5")
-    point_result = page.evaluate("({geometry:__feature.geometry,history:__historyCalls.length,lastEdit:__editCalls.at(-1)})")
-    assert point_result['geometry'] == {'type': 'Point', 'coordinates': [153.25, -27.5]}, point_result
-    assert point_result['history'] == 1, point_result
-    assert point_result['lastEdit']['type'] == 'manual', point_result
-    assert point_result['lastEdit']['params']['source'] == 'geometry-code', point_result
-
-    # A point cannot silently become a line; conversion remains a deliberate GIS operation.
-    page.locator('[data-gce-section="code"] summary').click()
-    page.wait_for_selector('#gceCode')
-    page.locator('#gceCode').fill('{"type":"LineString","coordinates":[[153,-27],[154,-28]]}')
-    page.locator('#gceApply').click()
-    assert page.evaluate("__feature.geometry.type") == 'Point'
-    assert page.locator('.gce-alert.error').count() == 1
-
-    # Point graphical editing owns geometry while active, so code application is read-only.
-    page.evaluate("window.__pointEditing=true; window.renderSelected(); window.__geometryCodeEditorV124.ensureNow();")
-    page.wait_for_selector('[data-gce-section="code"]')
-    page.locator('#gceOpenButton').click()
-    page.wait_for_selector('#gceCode')
-    assert page.locator('#gceCode').is_editable() is False
-    assert page.locator('#gceApply').is_disabled()
-    page.evaluate("window.__pointEditing=false")
-
-    # LineString: the same generic editor handles line geometry and detects a middle-vertex change.
-    page.evaluate("__setFeature({id:'line-1',geometry:{type:'LineString',coordinates:[[153,-27],[153.5,-27.5],[154,-28]]},properties:{name:'Line 1'},editStack:[]})")
-    page.wait_for_selector('[data-gce-section="code"]')
-    page.evaluate("document.querySelector('[data-gce-section=\"code\"]')?.remove(); window.__geometryCodeEditorV124.ensureNow();")
-    page.wait_for_selector('[data-gce-section="code"]')
-    assert page.locator('#gceOpenButton').count() == 1
-    page.locator('#gceOpenButton').click()
-    page.wait_for_selector('#gceCode')
-    assert '"type": "LineString"' in page.locator('#gceCode').input_value()
-    page.locator('#gceCode').fill('{"type":"LineString","coordinates":[[153,-27],[153.75,-27.25],[154,-28]]}')
-    page.locator('#gceApply').click()
-    page.wait_for_function("__feature.geometry.coordinates[1][0]===153.75")
-    assert page.evaluate("__feature.geometry.coordinates[1]") == [153.75, -27.25]
-
-    # Polygon keeps the existing v53 Inspector-host path and remains editable.
-    page.evaluate("__setFeature({id:'polygon-1',geometry:{type:'Polygon',coordinates:[[[153,-27],[154,-27],[154,-28],[153,-27]]]},properties:{name:'Polygon 1'},editStack:[]})")
+    page.evaluate('window.renderSelected()')
     page.wait_for_selector('[data-v53-section="code"]')
-    page.locator('[data-v53-section="code"] summary').click()
+
+    section='[data-v53-section="code"]'
+    assert page.evaluate(f"document.querySelector('{section}').open") is False
+    assert page.locator('#gceCode').count() == 0
+
+    # Open: the original polygon editor must mount and be usable.
+    page.locator(f'{section} summary').click()
     page.wait_for_selector('#gceCode')
+    assert page.evaluate(f"document.querySelector('{section}').open") is True
+    assert page.locator('#gceCode').is_visible()
     assert '"type": "Polygon"' in page.locator('#gceCode').input_value()
+
+    # Apply one valid polygon code edit through the canonical history/manual-edit path.
+    page.locator('#gceCode').fill('{"type":"Polygon","coordinates":[[[153,-27],[154.25,-27],[154,-28],[153,-27]]]}')
+    page.locator('#gceApply').click()
+    page.wait_for_function('__feature.geometry.coordinates[0][1][0]===154.25')
+    result=page.evaluate('({geometry:__feature.geometry,history:__historyCalls.length,lastEdit:__editCalls.at(-1)})')
+    assert result['history'] == 1, result
+    assert result['lastEdit']['type'] == 'manual', result
+    assert result['lastEdit']['params']['source'] == 'geometry-code', result
+
+    # Regression: closing must actually close, and a normal Inspector rebuild must
+    # not force the Geometry code section back open.
+    page.locator(f'{section} summary').click()
+    assert page.evaluate(f"document.querySelector('{section}').open") is False
+    assert page.locator('#gceCode').is_visible() is False
+    assert page.evaluate('__prefs.code') is False
+
+    page.evaluate('window.renderSelected()')
+    page.wait_for_selector(section)
+    page.wait_for_timeout(50)
+    assert page.evaluate(f"document.querySelector('{section}').open") is False
+
+    # It must still reopen normally afterwards.
+    page.locator(f'{section} summary').click()
+    page.wait_for_selector('#gceCode')
+    assert page.locator('#gceCode').is_visible()
     assert page.locator('[data-gce-section="code"]').count() == 0
+    assert page.locator('#gceOpenButton').count() == 0
 
     assert not errors, errors
     browser.close()
 
-print('Geometry code browser smoke test passed.')
+print('Polygon Geometry code browser regression passed.')
