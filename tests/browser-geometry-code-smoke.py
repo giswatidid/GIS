@@ -80,6 +80,7 @@ with sync_playwright() as p:
     # Open: the original polygon editor must mount and be usable.
     page.locator(f'{section} summary').click()
     page.wait_for_selector('#gceCode')
+    page.wait_for_function('__prefs.code===true')
     assert page.evaluate(f"document.querySelector('{section}').open") is True
     assert page.locator('#gceCode').is_visible()
     assert '"type": "Polygon"' in page.locator('#gceCode').input_value()
@@ -94,11 +95,12 @@ with sync_playwright() as p:
     assert result['lastEdit']['params']['source'] == 'geometry-code', result
 
     # Regression: closing must actually close, and a normal Inspector rebuild must
-    # not force the Geometry code section back open.
+    # not force the Geometry code section back open. Native details toggle events
+    # are asynchronous, so wait for the stored preference to follow the UI state.
     page.locator(f'{section} summary').click()
     assert page.evaluate(f"document.querySelector('{section}').open") is False
     assert page.locator('#gceCode').is_visible() is False
-    assert page.evaluate('__prefs.code') is False
+    page.wait_for_function('__prefs.code===false')
 
     page.evaluate('window.renderSelected()')
     page.wait_for_selector(section)
@@ -108,6 +110,7 @@ with sync_playwright() as p:
     # It must still reopen normally afterwards.
     page.locator(f'{section} summary').click()
     page.wait_for_selector('#gceCode')
+    page.wait_for_function('__prefs.code===true')
     assert page.locator('#gceCode').is_visible()
     assert page.locator('[data-gce-section="code"]').count() == 0
     assert page.locator('#gceOpenButton').count() == 0
