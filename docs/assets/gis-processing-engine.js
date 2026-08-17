@@ -37,7 +37,47 @@ function geosOverlay(operation,source,overlay,geos,onProgress){const adapter=geo
 }
 function dissolveGeometry(geometries,geos){const adapter=geosAdapter();if(!adapter||!geos)throw new Error('GEOS topology engine is unavailable.');return adapter.unaryUnion(geos,(geometries||[]).filter(Boolean));}
 function dissolve(source,fieldName,geos,onProgress){const groups=new Map();source.forEach((item,index)=>{const key=fieldName?String(item.properties?.[fieldName]??''):'';if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item);progress(onProgress,'Grouping dissolve features',index+1,source.length);});const out=[];for(const [key,items] of groups){const geometry=dissolveGeometry(items.map(item=>item.geometry),geos);if(geometry&&!emptyGeometry(geometry))out.push(...outputFromGeometry(geometry,fieldName?{[fieldName]:items[0].properties?.[fieldName]??null,source_count:items.length}:{source_count:items.length}));}return out;}
-function pointsAlongLine(source,params,turf,onProgress){const out=[],interval=Number(params.interval),units=params.units||'meters',toKm=value=>units==='meters'?value/1000:units==='miles'?value*1.609344:value;source.forEach((item,index)=>{const lines=item.geometry?.type==='LineString'?[item.geometry.coordinates]:item.geometry?.type==='MultiLineString'?item.geometry.coordinates:[];lines.forEach((coordinates,part)=>{const line=turf.lineString(coordinates),length=turf.length(line,{units:'kilometers'}),step=toKm(interval);let distances=[];for(let d=0;d<=length+1e-10;d+=step)distances.push(Math.min(d,length));if(params.includeEnds!==false&&distances.at(-1)!==length)distances.push(length);if(params.includeEnds===false)distances=distances.filter(d=>d>0&&d<length);for(const d of distances){const pt=turf.along(line,d,{units:'kilometers'});pt.properties={...clone(item.properties||{}),part_index:part+1,distance_m:Math.round(d*1000*1000)/1000};pt.id=item.id;out.push(pt);}});progress(onProgress,'Creating points along lines',index+1,source.length);});return out;}
+function pointsAlongLine(source,params,turf,onProgress){
+  const out=[],interval=Number(params.interval),units=params.units||'meters',toKm=value=>units==='meters'?value/1000:units==='miles'?value*1.609344:value,step=toKm(interval),epsilon=1e-10;
+  if(!Number.isFinite(step)||step<=0)throw new Error('Interval must be greater than 0.');
+  const hasRhumb=typeof turf?.rhumbDistance==='function'&&typeof turf?.rhumbBearing==='function'&&typeof turf?.rhumbDestination==='function';
+  source.forEach((item,index)=>{
+    const lines=item.geometry?.type==='LineString'?[item.geometry.coordinates]:item.geometry?.type==='MultiLineString'?item.geometry.coordinates:[];
+    lines.forEach((coordinates,part)=>{
+      if(!Array.isArray(coordinates)||coordinates.length<2)return;
+      if(!hasRhumb){
+        const line=turf.lineString(coordinates),length=turf.length(line,{units:'kilometers'});let distances=[];
+        for(let d=0;d<=length+epsilon;d+=step)distances.push(Math.min(d,length));
+        if(params.includeEnds!==false&&distances.at(-1)!==length)distances.push(length);
+        if(params.includeEnds===false)distances=distances.filter(d=>d>0&&d<length);
+        for(const d of distances){const pt=turf.along(line,d,{units:'kilometers'});pt.properties={...clone(item.properties||{}),part_index:part+1,distance_m:Math.round(d*1000*1000)/1000};pt.id=item.id;out.push(pt);}
+        return;
+      }
+      const segments=[];let length=0;
+      for(let i=1;i<coordinates.length;i++){
+        const fromCoord=coordinates[i-1],toCoord=coordinates[i],from=turf.point(fromCoord),to=turf.point(toCoord),segmentLength=turf.rhumbDistance(from,to,{units:'kilometers'});
+        if(!Number.isFinite(segmentLength)||segmentLength<=epsilon)continue;
+        segments.push({from,fromCoord,toCoord,bearing:turf.rhumbBearing(from,to),start:length,length:segmentLength,end:length+segmentLength});length+=segmentLength;
+      }
+      if(!segments.length||length<=epsilon)return;
+      let segmentIndex=0;
+      const emitAt=distance=>{
+        const d=Math.max(0,Math.min(length,distance));
+        while(segmentIndex<segments.length-1&&d>segments[segmentIndex].end+epsilon)segmentIndex++;
+        const segment=segments[segmentIndex],within=Math.max(0,Math.min(segment.length,d-segment.start));let pt;
+        if(within<=epsilon)pt=turf.point(clone(segment.fromCoord));
+        else if(segment.length-within<=epsilon)pt=turf.point(clone(segment.toCoord));
+        else pt=turf.rhumbDestination(segment.from,within,segment.bearing,{units:'kilometers'});
+        pt.properties={...clone(item.properties||{}),part_index:part+1,distance_m:Math.round(d*1000*1000)/1000};pt.id=item.id;out.push(pt);
+      };
+      if(params.includeEnds!==false)emitAt(0);
+      for(let d=step;d<length-epsilon;d+=step)emitAt(d);
+      if(params.includeEnds!==false)emitAt(length);
+    });
+    progress(onProgress,'Creating points along lines',index+1,source.length);
+  });
+  return out;
+}
 function executeTurf(toolId,source,params,turf,onProgress){const out=[],failures=[];if(toolId==='buffer'||toolId==='centroid'||toolId==='point-on-surface'){source.forEach((item,index)=>{try{let result=toolId==='buffer'?turf.buffer(item,Number(params.distance),{units:params.units||'meters',steps:Number(params.steps)||16}):toolId==='centroid'?turf.centroid(item):turf.pointOnFeature(item);if(!result?.geometry)throw new Error('The geometry operation returned no result.');result.properties=clone(item.properties||{});result.id=item.id;out.push(result);}catch(error){failures.push(core().failure(item,index,error));}progress(onProgress,toolId==='buffer'?'Creating buffers':toolId==='centroid'?'Creating centroids':'Creating points on surface',index+1,source.length);});}
   else if(toolId==='convex-hull'||toolId==='bounding-geometry'){if(toolId==='bounding-geometry'&&params.mode==='extent'){const box=turf.bboxPolygon(turf.bbox(fc(source)));box.properties={source_count:source.length};out.push(box);}else{const points=[];for(const item of source)turf.coordEach(item,coordinate=>points.push(turf.point(coordinate)));const hull=turf.convex(fc(points));if(!hull)throw new Error('Convex hull could not be created.');hull.properties={source_count:source.length};out.push(hull);}progress(onProgress,'Creating bounding geometry',source.length,source.length);}
   else if(toolId==='points-along-line')out.push(...pointsAlongLine(source,params,turf,onProgress));
