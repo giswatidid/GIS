@@ -31,7 +31,7 @@ with sync_playwright() as p:
           {id:'filtered-b',name:'Filtered B',geometryType:'Polygon',properties:{name:'Filtered B'},filtered:true,visible:true},
           {id:'visible-c',name:'Visible C',geometryType:'Polygon',properties:{name:'Visible C'},filtered:false,visible:true}
         ]},
-        {id:'overlay',name:'Overlay polygons',tableOnly:false,features:[{id:'mask',name:'Mask',geometryType:'Polygon',properties:{name:'Mask'},filtered:false,visible:true}]}
+        {id:'overlay',name:'Overlay polygons',tableOnly:false,features:[{id:'mask',name:'Mask',geometryType:'Polygon',properties:{drawKind:'polygon',name:'Mask'},filtered:false,visible:true}]}
       ];
       window.__statuses=[];window.__cancelCount=0;window.__slow=false;window.__pendingReject=null;
     </script></body></html>''')
@@ -42,7 +42,7 @@ with sync_playwright() as p:
       window.EditPolygonGIS={
         getEditableLayers:()=>window.__layers,
         getSelection:()=>({ids:[...window.__selection.ids],count:window.__selection.ids.length,index:0}),
-        previewProcessingRequest:request=>EditPolygonGISProcessingCore.preflight(request,{layers:window.__layers,selectionIds:window.__selection.ids}),
+        previewProcessingRequest:request=>{window.__lastPreview=JSON.parse(JSON.stringify(request));return EditPolygonGISProcessingCore.preflight(request,{layers:window.__layers,selectionIds:window.__selection.ids});},
         runProcessingRequest:(request,onProgress)=>new Promise((resolve,reject)=>{
           window.__pendingReject=reject;onProgress({stage:'Preparing input',done:0,total:3,percent:0});
           setTimeout(()=>{if(window.__pendingReject!==reject)return;onProgress({stage:'Processing',done:3,total:3,percent:90});window.__pendingReject=null;const selection=request.toolId.startsWith('select-')||request.toolId==='invert-selection';const modified=request.output?.mode==='modify-source';resolve(selection?{kind:'selection',output:{kind:'selection',count:1},summary:{input:3,processed:3,output:1,failed:0,partial:false},failures:[]}:{kind:'layer',output:{id:modified?'source':'out',name:modified?'Source polygons':(request.output.name||'Result'),modified,features:[{id:'out1'}]},summary:{input:3,processed:3,output:1,failed:0,partial:false},failures:[],provenance:{tool:request.toolId}});},window.__slow?300:30);
@@ -108,6 +108,35 @@ with sync_playwright() as p:
     page.locator('[data-processing-tool="select-by-attribute"]').click()
     assert page.locator('.gis-processing-output-note').inner_text().find('does not create a layer')>=0
     assert page.locator('[data-processing-action="run"]').inner_text()=='Run selection'
+
+    # Multi-field parameters use a checkbox picker rather than a native Ctrl/Shift multi-select.
+    page.locator('[data-processing-tool="nearest-feature"]').click()
+    picker=page.locator('[data-processing-fields="fields"]')
+    assert picker.count()==1
+    assert page.locator('select[multiple][data-processing-param="fields"]').count()==0
+    assert picker.locator('[data-processing-field-param="fields"]').count()==2
+    assert picker.locator('[data-processing-field-count]').inner_text()=='0 of 2 selected'
+    picker.locator('[data-processing-field-param="fields"][value="name"]').check()
+    assert picker.locator('[data-processing-field-count]').inner_text()=='1 of 2 selected'
+    assert page.evaluate("window.__lastPreview.parameters.fields")==['name']
+    picker.locator('[data-processing-fields-action="all"]').click()
+    assert picker.locator('[data-processing-field-count]').inner_text()=='2 of 2 selected'
+    assert set(page.evaluate("window.__lastPreview.parameters.fields"))=={'drawKind','name'}
+    picker.locator('[data-processing-fields-action="none"]').click()
+    assert picker.locator('[data-processing-field-count]').inner_text()=='0 of 2 selected'
+    assert page.evaluate("window.__lastPreview.parameters.fields")==[]
+    picker.locator('[data-processing-field-param="fields"][value="name"]').check()
+    assert page.evaluate("window.__lastPreview.parameters.fields")==['name']
+
+    # The field picker stays touch-friendly and horizontally safe on a phone viewport.
+    page.set_viewport_size({'width':390,'height':844})
+    page.wait_for_timeout(30)
+    field_picker_mobile=page.evaluate('''()=>{const picker=document.querySelector('[data-processing-fields="fields"]'),options=picker.querySelector('.gis-processing-field-options'),row=picker.querySelector('.gis-processing-field-option');return {scroll:picker.scrollWidth,client:picker.clientWidth,optionsScroll:options.scrollWidth,optionsClient:options.clientWidth,rowHeight:row.getBoundingClientRect().height};}''')
+    assert field_picker_mobile['scroll']<=field_picker_mobile['client']+1,field_picker_mobile
+    assert field_picker_mobile['optionsScroll']<=field_picker_mobile['optionsClient']+1,field_picker_mobile
+    assert field_picker_mobile['rowHeight']>=44,field_picker_mobile
+    page.set_viewport_size({'width':1180,'height':820})
+    page.wait_for_timeout(30)
 
     # Maintenance tools alone expose an explicit undoable in-place output mode.
     page.locator('[data-processing-tool="simplify"]').click()

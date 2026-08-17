@@ -2,6 +2,7 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Replaces raw browser multi-select boxes for Processing `fields` parameters with an explicit checkbox field picker, selected-count summary, **Select all** and **Clear** actions, including mobile/touch layout coverage.
 - Fixes `Distance to nearest` / `Nearest feature` metric reads to use the GEOS-WASM supported `Module.getValue(..., 'double')` output-pointer path, with a safe typed-memory fallback.
 - Same-layer nearest-neighbour searches now exclude the input feature itself instead of returning a guaranteed zero-distance self match, and pre-flight explains that behaviour.
 - Processing worker tasks now carry explicit input-layer identities so same-layer spatial semantics are unambiguous.

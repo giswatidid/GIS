@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-nearest-distance-hotfix';
+const KEY='20260817-v1561-field-picker-hotfix';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
