@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-polygon-geometry-restore';
+const KEY='20260817-v1561-point-line-geometry-v2';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
