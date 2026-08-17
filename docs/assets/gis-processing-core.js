@@ -65,7 +65,10 @@ function preflight(requestValue,{layers=[],selectionIds=[]}={}){
     if(config.scope==='filtered'&&scoped.length<scopeCount(layer,'all',selectionIds))warnings.push(`Only ${scoped.length.toLocaleString()} filtered feature${scoped.length===1?'':'s'} from ${layer.name} are in scope.`);
     if(config.scope==='selected'&&scoped.length)warnings.push(`Only ${scoped.length.toLocaleString()} selected feature${scoped.length===1?'':'s'} from ${layer.name} are in scope.`);
   }
-  const ids=Object.values(inputLayers).filter(Boolean).map(layer=>layer.id),sameLayerInputs=ids.length!==new Set(ids).size;if(sameLayerInputs&&tool?.id==='count-points-in-polygon')warnings.push('The same mixed layer is being used for polygons and points. Each input role uses only its compatible geometry.');else if(sameLayerInputs&&tool?.execution==='overlay')warnings.push('The same layer is being used for more than one processing input. Verify that this is intended.');if(sameLayerInputs&&['nearest-feature','distance-to-nearest'].includes(tool?.id))warnings.push('The same layer is being searched for nearest features. Each input feature is excluded from matching itself.');
+  const ids=Object.values(inputLayers).filter(Boolean).map(layer=>layer.id),sameLayerInputs=ids.length!==new Set(ids).size;
+  if(sameLayerInputs&&tool?.id==='count-points-in-polygon')warnings.push('The same mixed layer is being used for polygons and points. Each input role uses only its compatible geometry.');
+  else if(sameLayerInputs&&tool?.execution==='overlay')errors.push('Polygon overlay operations require two different layers. Choose a different layer for the second input.');
+  if(sameLayerInputs&&['nearest-feature','distance-to-nearest'].includes(tool?.id))warnings.push('The same layer is being searched for nearest features. Each input feature is excluded from matching itself.');
   for(const definition of tool?.parameters||[]){const error=validateParameter(definition,request.parameters[definition.id],{inputLayers});if(error)errors.push(error);}
   const source=inputLayers.source||Object.values(inputLayers).find(Boolean)||null;
   if(!request.output.name&&tool?.resultKind==='layer'&&request.output.mode==='new-layer'&&source)request.output.name=defaultOutputName(tool,source);
