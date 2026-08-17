@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-generated-point-names';
+const KEY='20260817-v1561-fix-geometries-normalize';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
