@@ -2,6 +2,7 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Adds Point/Line **Geometry code** back as an isolated v2 extension: the known-good polygon editor remains unchanged, Point/Line uses its own namespaced Inspector section and validation path, and integration is MutationObserver-driven rather than another `renderSelected` wrapper.
 - Restores the Inspector **Geometry code** editor to the last known-good polygon-only implementation from `ba3afbc`; the failed Point/Line retrofit and forced Inspector reconciliation are removed before Point/Line support is attempted again in isolation.
 - Geometry-constrained Processing tools now accept mixed-geometry EditPolygon layers and process only the compatible features for each input role; scope labels and pre-flight warnings report compatible/excluded counts instead of rejecting the whole layer.
 - Processing tasks and in-place maintenance commits now use the exact compatibility-filtered pre-flight feature set, preserving unrelated geometry in mixed layers; switching tools or parameters also clears stale completion/result state from the previous configuration.
