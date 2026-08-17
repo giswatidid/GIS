@@ -12263,6 +12263,8 @@ initUxRehaul();
     const panel=$('selectedPanel');if(!panel)return out;const geom=getDisplayGeometry(r.feature),m=metrics(geom),parts=geom.type==='MultiLineString'?geom.coordinates.length:1,allParts=lineParts(geom),first=allParts[0]?.[0],lastPart=allParts[allParts.length-1],last=lastPart?.[lastPart.length-1],locked=isLocked(r.file,r.feature);
     const headerIcon=panel.querySelector('.inspector-icon');if(headerIcon)headerIcon.textContent='╱';
     for(const h of panel.querySelectorAll('.inspector-card h3'))if(h.textContent.trim()==='Polygon actions')h.textContent='Line actions';
+    const editLineButton=panel.querySelector('#panelEditVertices');
+    if(editLineButton)editLineButton.textContent=V.active?'Done editing':'Edit line';
     panel.querySelectorAll('#panelDeletePolygon,#deletePolygonBtn').forEach(b=>b.textContent='Delete line');
     const grid=panel.querySelector('.inspector-card .inspector-grid');
     if(grid&&!grid.querySelector('[data-v116-line-start]')){
@@ -12495,7 +12497,10 @@ initUxRehaul();
     try{active=!!V.active;}catch(_){ }
     btn.classList.toggle('active',active);
     btn.setAttribute('aria-pressed',active?'true':'false');
-    btn.title=active?'Finish polygon editing':'Edit polygon';
+    let selectedType='';
+    try{selectedType=typeof ref==='function'?(getDisplayGeometry(ref()?.feature)?.type||''):'';}catch(_){ }
+    const lineSelected=selectedType==='LineString'||selectedType==='MultiLineString';
+    btn.title=active?(lineSelected?'Finish line editing':'Finish polygon editing'):(lineSelected?'Edit line':'Edit polygon');
   }
   /* Capture at window level so this intentional selected-feature action runs
      before legacy document-level handlers that attempted to edit every layer. */
@@ -12516,7 +12521,7 @@ initUxRehaul();
       const r=selectedEditablePath();
       if(!r){
         if(typeof setMode==='function')setMode('select');
-        if(typeof setNotice==='function')setNotice('Select a polygon or line, then click <strong>Polygon</strong> or <strong>Edit polygon</strong>.');
+        if(typeof setNotice==='function')setNotice('Select a polygon or line, then use the edit control for that geometry.');
         if(typeof setStatus==='function')setStatus('Select an unlocked polygon or line before starting vertex editing.','error');
         syncVertexRail();
         return;
@@ -12610,7 +12615,7 @@ initUxRehaul();
 /* v125: geometry-code editor integrated inside the core app closure. */
 (function(){
   'use strict';
-  const VERSION='v125.1';
+  const VERSION='v125.2';
   const LARGE_VERTEX_GATE=3000;
   const EDITABLE_GEOMETRY_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString','Polygon','MultiPolygon']);
   const EDITABLE_GEOMETRY_TYPE_SET=new Set(EDITABLE_GEOMETRY_TYPES);
@@ -13207,17 +13212,23 @@ initUxRehaul();
     }catch(err){console.error('Geometry code revert failed',err);setStatus('Could not restore the original feature geometry: '+(err.message||err),'error');}
   }
 
-  const previousRenderSelected=window.renderSelected;
+  /* Geometry-code rendering must wrap the authoritative lexical renderer, not
+     only window.renderSelected. Later Inspector enhancements capture the lexical
+     renderSelected function; wrapping only the window alias meant point/line
+     renders could bypass this editor entirely or leave a half-mounted section. */
+  const previousRenderSelected=renderSelected;
   if(typeof previousRenderSelected==='function'){
-    window.renderSelected=function(){
+    const geometryCodeRenderSelected=function(){
       const out=previousRenderSelected.apply(this,arguments);
       try{
         const r=typeof ref==='function'?ref():null;
-        const geom=r?getDisplayGeometry(r.feature):null;
+        const geom=r&&typeof getDisplayGeometry==='function'?getDisplayGeometry(r.feature):null;
         if(r&&editableGeometry(geom))createSection(r);
       }catch(err){console.warn('Geometry code inspector could not render',err);}
       return out;
     };
+    renderSelected=geometryCodeRenderSelected;
+    window.renderSelected=geometryCodeRenderSelected;
   }
   if(typeof editSummary==='function'){
     const previousEditSummary=editSummary;
@@ -13271,6 +13282,7 @@ initUxRehaul();
     family:geometryFamily,
     isEditableType:editableGeometryType,
     ensure:queueGeometryCodeSection,
+    ensureNow:ensureGeometryCodeSection,
     analyze:analyzeGeometryText,
     validate:validateGeometry,
     sessions
@@ -21837,7 +21849,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260817-v1561-geometry-code-hotfix';
+  const PROCESSING_KEY='20260817-v1561-geometry-code-runtime-fix';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

@@ -173,9 +173,12 @@ test('numeric coordinate strings become canonical two-dimensional numbers',()=>{
   assert.ok(result.changes.some(change=>/extra coordinate values/i.test(change.message)));
 });
 
-test('generic Inspector host and apply path remain wired to canonical feature history/edit APIs',()=>{
+test('generic Inspector host and apply path remain wired to the authoritative lexical renderer and canonical history APIs',()=>{
   assert.match(app,/data-gce-section="code"/);
+  assert.match(app,/const previousRenderSelected=renderSelected;/);
+  assert.match(app,/renderSelected=geometryCodeRenderSelected;\s*window\.renderSelected=geometryCodeRenderSelected;/);
   assert.match(app,/if\(r&&editableGeometry\(geom\)\)createSection\(r\);/);
+  assert.match(app,/ensureNow:ensureGeometryCodeSection/);
   assert.match(app,/pushHistory\(\[current\.feature\.id\]\);\s*addEdit\(current\.feature,'manual'/);
   assert.match(app,/source:'geometry-code'/);
   assert.doesNotMatch(app,/Only Polygon and MultiPolygon geometry can replace a polygon/);

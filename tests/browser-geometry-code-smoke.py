@@ -53,6 +53,13 @@ with sync_playwright() as p:
       window.__file={id:'layer-1',name:'geometry-smoke.geojson',sourceFormat:'geojson'};
       window.__pointEditing=false;
       window.EditPolygonPointEditing={active:()=>window.__pointEditing};
+      // Disable the editor's fallback observer/timer installers in this smoke test.
+      // The regression we care about is synchronous ownership of the lexical
+      // renderSelected chain used by downstream Inspector wrappers.
+      window.MutationObserver=class{observe(){} disconnect(){}};
+      window.requestAnimationFrame=()=>0;
+      window.setTimeout=()=>0;
+      window.setInterval=()=>0;
       function ref(){return {file:window.__file,feature:window.__feature};}
       function ensureFeatureModel(f){if(!f.sourceGeometry)f.sourceGeometry=clone(f.geometry);if(!f.renderedGeometry)f.renderedGeometry=clone(f.geometry);if(!Array.isArray(f.editStack))f.editStack=[];}
       function getDisplayGeometry(f){return f.geometry;}
@@ -73,9 +80,25 @@ with sync_playwright() as p:
         }
       }
       window.renderSelected=renderSelected;
-      window.__setFeature=(feature)=>{window.__feature=clone(feature);ensureFeatureModel(window.__feature);window.renderSelected();window.__gceAfterInspectorRender?.();};
+      window.__setFeature=(feature)=>{window.__feature=clone(feature);ensureFeatureModel(window.__feature);window.renderSelected();};
     ''')
     page.add_script_tag(content=EDITOR)
+    # Simulate the real app: point/style/reference enhancements are installed after
+    # the geometry-code module and capture the lexical renderSelected function.
+    # A window-only geometry-code wrapper is therefore insufficient.
+    page.add_script_tag(content=r'''
+      const __downstreamInspectorBase=renderSelected;
+      renderSelected=function(){
+        const out=__downstreamInspectorBase.apply(this,arguments);
+        const panel=document.getElementById('selectedPanel');
+        if(window.__feature.geometry.type==='LineString'){
+          const other=[...panel.querySelectorAll('.inspector-card h3')].find(h=>h.textContent==='Other');
+          if(other)other.textContent='Line actions';
+        }
+        return out;
+      };
+      window.renderSelected=renderSelected;
+    ''')
 
     # Point: the generic Inspector gets Geometry code and applies through manual edit/history.
     page.evaluate("__setFeature({id:'point-1',geometry:{type:'Point',coordinates:[153,-27]},properties:{name:'Point 1'},editStack:[]})")
@@ -103,7 +126,7 @@ with sync_playwright() as p:
     assert page.locator('.gce-alert.error').count() == 1
 
     # Point graphical editing owns geometry while active, so code application is read-only.
-    page.evaluate("window.__pointEditing=true; window.renderSelected(); window.__gceAfterInspectorRender();")
+    page.evaluate("window.__pointEditing=true; window.renderSelected();")
     page.wait_for_selector('[data-gce-section="code"]')
     page.locator('[data-gce-section="code"] summary').click()
     page.wait_for_selector('#gceCode')
