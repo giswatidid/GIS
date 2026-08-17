@@ -36,6 +36,19 @@ test('typed selection honours the authoritative layer schema when raw values are
 
 test('selection and maintenance tools return the generic result contract',async()=>{const w=load(),engine=w.EditPolygonGISProcessingEngine,source=[pt('a'),pt('b')];const inverse=await engine.execute({toolId:'invert-selection',inputs:{source},parameters:{},currentSelectionIds:['a','other-layer-id'],processingCrs:'EPSG:4326'},{crs});assert.equal(inverse.kind,'selection');assert.deepEqual(JSON.parse(JSON.stringify(inverse.selectionIds)),['other-layer-id','b']);const dedupe=await engine.execute({toolId:'remove-duplicate-features',inputs:{source:[pt('a',0),pt('b',0),pt('c',1)]},parameters:{},processingCrs:'EPSG:4326'},{crs});assert.equal(dedupe.kind,'layer');assert.equal(dedupe.features.length,2);});
 
+
+
+test('same-layer nearest searches exclude the source feature itself instead of returning zero',async()=>{
+  const w=load(),engine=w.EditPolygonGISProcessingEngine,source=[pt('a',0),pt('b',5)];
+  const result=await engine.execute({toolId:'distance-to-nearest',inputs:{source,overlay:source},inputLayerIds:{source:'layer-1',overlay:'layer-1'},parameters:{distanceField:'distance_m'},processingCrs:'EPSG:4326'},{turf,geos:{},crs});
+  assert.deepEqual(JSON.parse(JSON.stringify(result.features.map(f=>f.properties.distance_m))),[5,5]);
+});
+
+test('different layers may legitimately contain the same feature ids without being treated as self matches',async()=>{
+  const w=load(),engine=w.EditPolygonGISProcessingEngine,source=[pt('same-id',0)],overlay=[pt('same-id',7)];
+  const result=await engine.execute({toolId:'distance-to-nearest',inputs:{source,overlay},inputLayerIds:{source:'source-layer',overlay:'candidate-layer'},parameters:{distanceField:'distance_m'},processingCrs:'EPSG:4326'},{turf,geos:{},crs});
+  assert.equal(result.features[0].properties.distance_m,7);
+});
 test('overlay and dissolve route through the shared GEOS adapter',async()=>{const w=load(),engine=w.EditPolygonGISProcessingEngine,source=[poly('a',{group:'x'}),poly('b',{group:'x'})],overlay=[poly('mask')];const difference=await engine.execute({toolId:'difference',inputs:{source,overlay},parameters:{},processingCrs:'EPSG:32756'},{geos:{},crs});assert.equal(difference.features.length,2);assert.equal(difference.processingCrs,'EPSG:32756');const dissolved=await engine.execute({toolId:'dissolve',inputs:{source},parameters:{field:'group'},processingCrs:'EPSG:4326'},{geos:{},crs});assert.equal(dissolved.features.length,1);assert.equal(dissolved.features[0].properties.group,'x');assert.equal(dissolved.features[0].properties.source_count,2);});
 
 

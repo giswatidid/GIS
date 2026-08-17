@@ -64,7 +64,7 @@ function preflight(requestValue,{layers=[],selectionIds=[]}={}){
     if(config.scope==='filtered'&&features.length<scopeCount(layer,'all',selectionIds))warnings.push(`Only ${features.length.toLocaleString()} filtered feature${features.length===1?'':'s'} from ${layer.name} will be processed.`);
     if(config.scope==='selected'&&features.length)warnings.push(`Only ${features.length.toLocaleString()} selected feature${features.length===1?'':'s'} from ${layer.name} will be processed.`);
   }
-  const ids=Object.values(inputLayers).filter(Boolean).map(layer=>layer.id);if(ids.length!==new Set(ids).size&&tool?.execution==='overlay')warnings.push('The same layer is being used for more than one processing input. Verify that this is intended.');
+  const ids=Object.values(inputLayers).filter(Boolean).map(layer=>layer.id),sameLayerInputs=ids.length!==new Set(ids).size;if(sameLayerInputs&&tool?.execution==='overlay')warnings.push('The same layer is being used for more than one processing input. Verify that this is intended.');if(sameLayerInputs&&['nearest-feature','distance-to-nearest'].includes(tool?.id))warnings.push('The same layer is being searched for nearest features. Each input feature is excluded from matching itself.');
   for(const definition of tool?.parameters||[]){const error=validateParameter(definition,request.parameters[definition.id],{inputLayers});if(error)errors.push(error);}
   const source=inputLayers.source||Object.values(inputLayers).find(Boolean)||null;
   if(!request.output.name&&tool?.resultKind==='layer'&&request.output.mode==='new-layer'&&source)request.output.name=defaultOutputName(tool,source);

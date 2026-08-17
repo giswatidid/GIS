@@ -1,5 +1,11 @@
 # EditPolygon changelog
 
+## v1.56.1 live-test hotfixes
+
+- Fixes `Distance to nearest` / `Nearest feature` metric reads to use the GEOS-WASM supported `Module.getValue(..., 'double')` output-pointer path, with a safe typed-memory fallback.
+- Same-layer nearest-neighbour searches now exclude the input feature itself instead of returning a guaranteed zero-distance self match, and pre-flight explains that behaviour.
+- Processing worker tasks now carry explicit input-layer identities so same-layer spatial semantics are unambiguous.
+
 ## v1.56.1 — Full Processing Toolbox consolidation
 
 - Live-testing hotfix: switching Processing tools now preserves the current source scope (All, Filtered or Selected), so **Process selected** remains selected after choosing Difference, Union or another tool.

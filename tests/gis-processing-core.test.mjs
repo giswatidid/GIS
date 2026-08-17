@@ -32,6 +32,14 @@ test('generic preflight validates multiple inputs, geometry, fields, scopes and 
   assert.equal(selected.valid,true);assert.equal(selected.counts.source,1);assert.match(selected.warnings.join(' '),/Only 1 selected feature/);
 });
 
+
+
+test('same-layer nearest preflight explains self-exclusion instead of silently producing self matches',()=>{
+  const {core}=load();
+  const pf=core.preflight({toolId:'distance-to-nearest',inputs:{source:{layerId:'poly',scope:'all'},overlay:{layerId:'poly',scope:'all'}},parameters:{distanceField:'distance_m'}},{layers:[polygonLayer],selectionIds:[]});
+  assert.equal(pf.valid,true);
+  assert.match(pf.warnings.join(' '),/excluded from matching itself/i);
+});
 test('requests support layer, in-place and selection result policies without per-tool UI contracts',()=>{
   const {core}=load();
   const normal=core.normaliseRequest({toolId:'buffer',inputs:{source:{layerId:'poly',scope:'filtered'}},parameters:{distance:'5',units:'meters'},output:{mode:'modify-source'}});

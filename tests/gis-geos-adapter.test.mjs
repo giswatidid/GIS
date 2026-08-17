@@ -10,7 +10,7 @@ function fakeGeos({invalidReason='Self-intersection[1 1]',makeValidGeometry={typ
   const allocString=value=>{const ptr=next++;strings.set(ptr,String(value));return ptr;};
   const allocGeometry=value=>{const ptr=next++;geometries.set(ptr,JSON.parse(JSON.stringify(value)));return ptr;};
   const api={
-    Module:{_malloc:()=>next++,_free:ptr=>strings.delete(ptr),stringToUTF8:(value,ptr)=>strings.set(ptr,String(value)),UTF8ToString:ptr=>strings.get(ptr)||'',HEAPF64:new Float64Array(128)},
+    Module:{_malloc:()=>next++,_free:ptr=>strings.delete(ptr),stringToUTF8:(value,ptr)=>strings.set(ptr,String(value)),UTF8ToString:ptr=>strings.get(ptr)||'',HEAPF64:new Float64Array(128),getValue:(ptr,type)=>{api.__getValueCalls++;if(type!=='double')throw new Error('unexpected type');return api.Module.HEAPF64[ptr>>3];}},
     GEOSGeoJSONReader_create:()=>1,GEOSGeoJSONReader_destroy:()=>null,
     GEOSGeoJSONReader_readGeometry:(_reader,ptr)=>allocGeometry(JSON.parse(strings.get(ptr))),
     GEOSGeoJSONWriter_create:()=>2,GEOSGeoJSONWriter_destroy:()=>null,
@@ -27,7 +27,7 @@ function fakeGeos({invalidReason='Self-intersection[1 1]',makeValidGeometry={typ
     GEOSDensify:(a,t)=>allocGeometry(geometries.get(a)),
     GEOSSnap:(a,b,t)=>allocGeometry(geometries.get(a)),
     GEOSDistance:(a,b,ptr)=>{api.Module.HEAPF64[ptr>>3]=12.5;return 1;},
-    __strings:strings,__geometries:geometries
+    __strings:strings,__geometries:geometries,__getValueCalls:0
   };
   const originalMakeValid=api.GEOSMakeValid;api.GEOSMakeValid=geom=>allocGeometry(makeValidGeometry||geometries.get(geom));return api;
 }
@@ -65,8 +65,16 @@ test('GEOS adapter routes robust overlay and maintenance operations through the 
   assert.equal(geos.__geometries.size,0,'temporary GEOS pointers should be destroyed');
 });
 
-test('GEOS adapter reads metric distance from WASM floating-point memory',()=>{
+test('GEOS adapter reads metric distance through the supported Emscripten double accessor',()=>{
   const adapter=load(),geos=fakeGeos(),a={type:'Point',coordinates:[0,0]},b={type:'Point',coordinates:[1,1]};
+  assert.equal(adapter.distance(geos,a,b),12.5);
+  assert.equal(geos.__getValueCalls,1);
+  assert.equal(geos.__geometries.size,0);
+});
+
+test('GEOS adapter retains a typed-memory fallback for builds without Module.getValue',()=>{
+  const adapter=load(),geos=fakeGeos(),a={type:'Point',coordinates:[0,0]},b={type:'Point',coordinates:[1,1]};
+  delete geos.Module.getValue;
   assert.equal(adapter.distance(geos,a,b),12.5);
   assert.equal(geos.__geometries.size,0);
 });

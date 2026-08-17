@@ -39,7 +39,10 @@ with sync_playwright() as p:
       const dissolve=await run({toolId:'dissolve',inputs:{source:[a,b]},parameters:{field:'group'},processingCrs:'EPSG:32756',currentSelectionIds:[]});
       const simplify=await run({toolId:'simplify',inputs:{source:[a]},parameters:{tolerance:2},processingCrs:'EPSG:32756',currentSelectionIds:[]});
       const select=await run({toolId:'select-by-attribute',inputs:{source:[{id:'low',type:'Feature',properties:{value:2},geometry:{type:'Point',coordinates:[153,-27]}},{id:'high',type:'Feature',properties:{value:10},geometry:{type:'Point',coordinates:[153.1,-27]}}]},parameters:{field:'value',operator:'gt',value:'5',selectionMode:'replace'},processingCrs:'EPSG:4326',currentSelectionIds:[]});
-      worker.terminate();URL.revokeObjectURL(url);return {difference,intersection,dissolve,simplify,select};
+      const p1={id:'p1',type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153,-27]}},p2={id:'p2',type:'Feature',properties:{},geometry:{type:'Point',coordinates:[153.1,-27]}};
+      const distance=await run({toolId:'distance-to-nearest',inputs:{source:[p1],overlay:[p2]},inputLayerIds:{source:'source',overlay:'candidates'},parameters:{distanceField:'distance_m'},processingCrs:'EPSG:32756',currentSelectionIds:[]});
+      const sameLayerDistance=await run({toolId:'distance-to-nearest',inputs:{source:[p1,p2],overlay:[p1,p2]},inputLayerIds:{source:'same',overlay:'same'},parameters:{distanceField:'distance_m'},processingCrs:'EPSG:32756',currentSelectionIds:[]});
+      worker.terminate();URL.revokeObjectURL(url);return {difference,intersection,dissolve,simplify,select,distance,sameLayerDistance};
         }''',worker_source)
     except PlaywrightError as error:
         message=str(error)
@@ -56,6 +59,8 @@ with sync_playwright() as p:
     assert result['dissolve']['features'][0]['properties']['group']=='one',result
     assert result['simplify']['summary']['failed']==0 and result['simplify']['summary']['output']==1,result
     assert result['select']['kind']=='selection' and result['select']['selectionIds']==['high'],result
+    distance=result['distance']['features'][0]['properties']['distance_m'];assert 5000<distance<15000,result
+    same=[f['properties']['distance_m'] for f in result['sameLayerDistance']['features']];assert len(same)==2 and all(5000<value<15000 for value in same),result
     assert not errors,errors
     browser.close()
 print('Processing engine + GEOS execution browser smoke test passed.')
