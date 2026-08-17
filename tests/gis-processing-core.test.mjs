@@ -8,6 +8,7 @@ const coreSource=fs.readFileSync(new URL('../docs/assets/gis-processing-core.js'
 function load(){const window={};const context=vm.createContext({window,globalThis:window,Object,Map,Set,JSON,String,Array,Number,Math,Date,Error,Intl});vm.runInContext(registrySource,context);vm.runInContext(coreSource,context);return {registry:window.EditPolygonGISProcessingRegistry,core:window.EditPolygonGISProcessingCore};}
 const feature=(id,type='Polygon',extra={})=>({id,name:id,geometryType:type,filtered:false,visible:true,properties:{name:id,group:id==='a'?'north':'south'},geometry:type==='Point'?{type:'Point',coordinates:[153,-27]}:{type,coordinates:[]},...extra});
 const polygonLayer={id:'poly',name:'Polygons',features:[feature('a','Polygon',{visible:false}),feature('b','Polygon',{filtered:true}),feature('c','Polygon')]};
+const secondPolygonLayer={id:'poly2',name:'Other polygons',features:[feature('d','Polygon'),feature('e','Polygon')]};
 const pointLayer={id:'points',name:'Points',features:[feature('p','Point')]};
 
 test('processing scopes are explicit and presentation visibility never changes membership',()=>{
@@ -32,7 +33,6 @@ test('generic preflight validates multiple inputs, geometry, fields, scopes and 
   assert.equal(selected.valid,true);assert.equal(selected.counts.source,1);assert.match(selected.warnings.join(' '),/Only 1 selected feature/);
 });
 
-
 test('geometry-constrained inputs use compatible features inside mixed-geometry layers',()=>{
   const {core}=load();
   const mixed={id:'mixed',name:'Mixed features',features:[
@@ -49,6 +49,14 @@ test('geometry-constrained inputs use compatible features inside mixed-geometry 
   assert.match(pf.warnings.join(' '),/same mixed layer/i);
 });
 
+test('same-layer polygon overlays are rejected instead of producing degenerate self-overlays',()=>{
+  const {core}=load();
+  for(const toolId of ['union','intersection','difference','symmetric-difference','clip']){
+    const pf=core.preflight({toolId,inputs:{source:{layerId:'poly',scope:'all'},overlay:{layerId:'poly',scope:'all'}}},{layers:[polygonLayer],selectionIds:[]});
+    assert.equal(pf.valid,false,toolId);
+    assert.match(pf.errors.join(' '),/two different layers/i,toolId);
+  }
+});
 
 test('same-layer nearest preflight explains self-exclusion instead of silently producing self matches',()=>{
   const {core}=load();
@@ -56,6 +64,7 @@ test('same-layer nearest preflight explains self-exclusion instead of silently p
   assert.equal(pf.valid,true);
   assert.match(pf.warnings.join(' '),/excluded from matching itself/i);
 });
+
 test('requests support layer, in-place and selection result policies without per-tool UI contracts',()=>{
   const {core}=load();
   const normal=core.normaliseRequest({toolId:'buffer',inputs:{source:{layerId:'poly',scope:'filtered'}},parameters:{distance:'5',units:'meters'},output:{mode:'modify-source'}});
@@ -68,12 +77,12 @@ test('requests support layer, in-place and selection result policies without per
 
 test('provenance records generic inputs, output policy and actual processing engine/CRS',()=>{
   const {core}=load();
-  const pf=core.preflight({toolId:'difference',inputs:{source:{layerId:'poly',scope:'filtered'},overlay:{layerId:'poly',scope:'selected'}},output:{name:'Difference'}},{layers:[polygonLayer],selectionIds:['a']});
+  const pf=core.preflight({toolId:'difference',inputs:{source:{layerId:'poly',scope:'filtered'},overlay:{layerId:'poly2',scope:'all'}},output:{name:'Difference'}},{layers:[polygonLayer,secondPolygonLayer],selectionIds:['a']});
   assert.equal(pf.valid,true);
   const provenance=core.createProvenance(pf,{processingCrs:'EPSG:32756',engine:'geos',worker:true,result:{summary:{output:2}}});
   assert.equal(provenance.version,2);assert.equal(provenance.tool,'difference');
   assert.equal(provenance.inputs.source.layerId,'poly');assert.equal(provenance.inputs.source.scope,'filtered');
-  assert.equal(provenance.inputs.overlay.scope,'selected');assert.equal(provenance.processingCrs,'EPSG:32756');assert.equal(provenance.engine,'geos');
+  assert.equal(provenance.inputs.overlay.layerId,'poly2');assert.equal(provenance.inputs.overlay.scope,'all');assert.equal(provenance.processingCrs,'EPSG:32756');assert.equal(provenance.engine,'geos');
   assert.equal(provenance.result.summary.output,2);
 });
 
