@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-geometry-code-inspector-final';
+const KEY='20260817-v1561-polygon-geometry-restore';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
