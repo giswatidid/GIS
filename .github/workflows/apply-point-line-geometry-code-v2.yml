@@ -1,0 +1,75 @@
+name: Validate isolated Point-Line Geometry code v2
+
+on:
+  push:
+    branches: [geometry-code-point-line-retry-v2]
+    paths:
+      - '.github/workflows/apply-point-line-geometry-code-v2.yml'
+      - 'scripts/apply-point-line-geometry-code-v2.py'
+      - 'scripts/point-line-geometry-code-v2.snippet.js'
+      - 'scripts/point-line-geometry-code-v2.css'
+      - 'tests/point-line-geometry-code-v2.test.mjs'
+      - 'tests/browser-point-line-geometry-code-v2.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: point-line-geometry-code-v2
+  cancel-in-progress: false
+
+jobs:
+  integrate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out retry branch
+        uses: actions/checkout@v4
+        with:
+          ref: geometry-code-point-line-retry-v2
+          fetch-depth: 0
+
+      - name: Use Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply isolated Point-Line module
+        run: python scripts/apply-point-line-geometry-code-v2.py
+
+      - name: Verify source and architecture
+        run: |
+          git diff --check
+          node --check docs/assets/editpolygon-app.js
+          node scripts/check-repo.mjs
+          node scripts/audit-runtime.mjs
+          node scripts/audit-bindings.mjs
+          node --test tests/geometry-code-editor.test.mjs tests/point-line-geometry-code-v2.test.mjs tests/release-cache.test.mjs
+
+      - name: Run broad Node regression suite
+        run: |
+          TESTS=$(find tests -maxdepth 1 -name '*.test.mjs' ! -name 'points-along-line-rhumb.test.mjs' -print | sort | tr '\n' ' ')
+          node --test $TESTS
+
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Verify restored Polygon browser behaviour
+        run: python tests/browser-geometry-code-smoke.py
+
+      - name: Verify Polygon Point and Line together
+        run: python tests/browser-point-line-geometry-code-v2.py
+
+      - name: Commit verified retry to branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add isolated Point-Line Geometry code v2"
+          git push origin HEAD:geometry-code-point-line-retry-v2
