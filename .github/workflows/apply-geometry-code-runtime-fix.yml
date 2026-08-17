@@ -1,0 +1,40 @@
+name: Apply geometry-code runtime fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-geometry-code-runtime-fix.yml'
+      - 'scripts/apply-geometry-code-runtime-fix.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: geometry-code-runtime-fix
+  cancel-in-progress: false
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply authoritative Inspector fix
+        run: python3 scripts/apply-geometry-code-runtime-fix.py
+
+      - name: Verify repository
+        run: |
+          git diff --check
+          npm run check
+
+      - name: Commit corrected runtime
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: make geometry code authoritative for point and line"
+          git push origin HEAD:main
