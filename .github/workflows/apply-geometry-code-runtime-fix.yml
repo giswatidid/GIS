@@ -23,6 +23,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Use tested Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Apply authoritative Inspector fix
         run: python3 scripts/apply-geometry-code-runtime-fix.py
 
