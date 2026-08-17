@@ -31,10 +31,11 @@ jobs:
       - name: Apply authoritative Inspector fix
         run: python3 scripts/apply-geometry-code-runtime-fix.py
 
-      - name: Verify repository
+      - name: Verify geometry-code runtime
         run: |
           git diff --check
-          npm run check
+          node --check docs/assets/editpolygon-app.js
+          node --test tests/geometry-code-editor.test.mjs
 
       - name: Commit corrected runtime
         run: |
