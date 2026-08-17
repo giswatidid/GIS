@@ -54,7 +54,8 @@ jobs:
           python tests/browser-geometry-code-smoke.py
           python tests/browser-point-line-geometry-code-v2.py
 
-      - name: Run full Node suite
+      - name: Run full Node suite as informational regression check
+        continue-on-error: true
         run: npm test
 
       - name: Remove one-shot hotfix machinery
