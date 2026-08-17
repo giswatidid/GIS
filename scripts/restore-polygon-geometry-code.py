@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 
+# One-shot guarded rollback: production commit occurs only after the polygon browser regression passes.
 BASE='ba3afbc0235c6765f954f81b7c6fa7f94d7bd042'
 OLD_KEY='20260817-v1561-geometry-code-inspector-final'
 NEW_KEY='20260817-v1561-polygon-geometry-restore'
