@@ -1,7 +1,7 @@
 /* v126-point-line-geometry-code-v2:start */
 (function(){
   'use strict';
-  const PLGCE_VERSION='1.0.0';
+  const PLGCE_VERSION='1.0.1';
   const PLGCE_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString']);
   const PLGCE_TYPE_SET=new Set(PLGCE_TYPES);
   const PLGCE_OPEN_STATE=new Map();
@@ -161,6 +161,8 @@
     details.className='inspector-card plgce-section';details.dataset.plgceSection='code';
     const stateKey=plgceKey(r);details.open=PLGCE_OPEN_STATE.get(stateKey)===true;
     details.innerHTML='<summary><strong>Geometry code</strong><span>GeoJSON · edit</span></summary><div class="plgce-body"><div class="plgce-note">Open this section to edit the selected point or line as GeoJSON.</div></div>';
+    const summary=details.querySelector('summary');
+    summary?.addEventListener('click',()=>{PLGCE_OPEN_STATE.set(stateKey,!details.open);});
     details.addEventListener('toggle',()=>{
       PLGCE_OPEN_STATE.set(stateKey,details.open);
       if(details.open){const current=plgceCurrentRef(),fresh=plgceCurrentGeometry(current);if(current&&fresh&&PLGCE_TYPE_SET.has(fresh.type)&&current.feature.id===r.feature.id)plgceMountEditor(current,details);}
