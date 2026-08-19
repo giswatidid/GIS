@@ -130,6 +130,10 @@ with sync_playwright() as p:
     assert point_layout['height'] + 1 >= point_layout['scrollHeight'], point_layout
     assert page.evaluate('__delegatedInspectorSummaryClicks') == 0
     page.locator('.plgce-code').fill('{"type":"Point","coordinates":[154,-28]}')
+    page.locator('[data-plgce="check"]').click()
+    page.wait_for_function("document.querySelector('.plgce-report')?.classList.contains('ok')")
+    point_report=page.locator('.plgce-report').inner_text()
+    assert 'Unsupported geometry type' not in point_report, point_report
     page.locator('[data-plgce="apply"]').click()
     page.wait_for_function('__feature.geometry.type==="Point" && __feature.geometry.coordinates[0]===154 && __feature.geometry.coordinates[1]===-28')
     point_result=page.evaluate('({history:__historyCalls.length,lastEdit:__editCalls.at(-1)})')
@@ -161,6 +165,11 @@ with sync_playwright() as p:
     assert line_layout['overflow'] == 'visible', line_layout
     assert line_layout['height'] + 1 >= line_layout['scrollHeight'], line_layout
     page.locator('.plgce-code').fill('{"type":"LineString","coordinates":[[153,-27],[155,-29],[156,-30]]}')
+    page.locator('[data-plgce="check"]').click()
+    page.wait_for_function("document.querySelector('.plgce-report')?.classList.contains('ok')")
+    line_report=page.locator('.plgce-report').inner_text()
+    assert 'polygon area' not in line_report.lower(), line_report
+    assert 'open line' not in line_report.lower(), line_report
     page.locator('[data-plgce="apply"]').click()
     page.wait_for_function('__feature.geometry.type==="LineString" && __feature.geometry.coordinates.length===3 && __feature.geometry.coordinates[1][0]===155')
     line_result=page.evaluate('({history:__historyCalls.length,lastEdit:__editCalls.at(-1)})')

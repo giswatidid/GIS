@@ -13202,7 +13202,7 @@ showAutosaveRecoveryIfAvailable();
 /* v126-point-line-geometry-code-v2:start */
 (function(){
   'use strict';
-  const PLGCE_VERSION='1.0.3';
+  const PLGCE_VERSION='1.0.4';
   const PLGCE_TYPES=Object.freeze(['Point','MultiPoint','LineString','MultiLineString']);
   const PLGCE_TYPE_SET=new Set(PLGCE_TYPES);
   const PLGCE_OPEN_STATE=new Map();
@@ -13264,12 +13264,17 @@ showAutosaveRecoveryIfAvailable();
     if(issues.some(item=>item.severity==='error'))return {valid:false,issues,changes,proposal:null};
     const proposal={type:input.type,coordinates};
     try{
-      if(typeof validateCollectionGeometry==='function'){
-        const report=validateCollectionGeometry({type:'Feature',properties:{name:'Manual geometry'},geometry:proposal});
+      // The legacy in-app validateCollectionGeometry helper belongs to the
+      // polygon Geometry-code editor. Point/Line code must use the shared,
+      // geometry-type-aware Geometry Health core instead.
+      const geometryHealth=window.EditPolygonGeometryHealthCore;
+      if(geometryHealth&&typeof geometryHealth.validateFeature==='function'){
+        const report=geometryHealth.validateFeature({type:'Feature',id:'geometry-code-preview',properties:{name:'Manual geometry'},geometry:proposal},0,{});
         for(const item of report?.issues||[]){
-          const severity=item.severity||'info';
-          if(severity==='error')issues.push(plgceIssue('error',item.code||'GEOMETRY_HEALTH',item.message||'Geometry Health found an error.',item.path||''));
-          else if(severity==='warning')issues.push(plgceIssue('warning',item.code||'GEOMETRY_HEALTH',item.message||'Geometry Health found a warning.',item.path||''));
+          const risk=String(item.risk||item.status||'').toLowerCase();
+          const severity=risk==='manual'?'error':'warning';
+          const message=item.detail||item.summary||item.title||'Geometry Health found an issue.';
+          issues.push(plgceIssue(severity,item.code||'GEOMETRY_HEALTH',message,item.path||''));
         }
       }
     }catch(error){issues.push(plgceIssue('warning','GEOMETRY_HEALTH_UNAVAILABLE',`Geometry Health could not complete this check: ${String(error?.message||error)}`));}
@@ -21994,7 +21999,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260819-v1561-point-line-inspector-v4';
+  const PROCESSING_KEY='20260819-v1561-point-line-validation-v5';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

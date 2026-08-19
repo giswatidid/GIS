@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const app=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
+const geometryHealthCore=fs.readFileSync(new URL('../docs/assets/gis-geometry-health-core.js',import.meta.url),'utf8');
 const START='/* v126-point-line-geometry-code-v2:start */';
 const END='/* v126-point-line-geometry-code-v2:end */';
 const start=app.indexOf(START),end=app.indexOf(END,start);
@@ -16,12 +17,15 @@ function loadApi(){
     setTimeout,clearTimeout,
     MutationObserver:class{observe(){} disconnect(){}},
     document:{readyState:'loading',addEventListener(){},getElementById(){return null;}},
-    validateCollectionGeometry:()=>({issues:[]}),
+    // Deliberately hostile polygon-only validator. Point/Line Geometry code must
+    // never call this legacy helper.
+    validateCollectionGeometry:()=>({issues:[{severity:'error',code:'LEGACY_POLYGON_VALIDATOR',message:'Legacy polygon validator was called.'}]}),
   };
   sandbox.window=sandbox;
   sandbox.globalThis=sandbox;
   sandbox.addEventListener=()=>{};
   vm.createContext(sandbox);
+  vm.runInContext(geometryHealthCore,sandbox,{filename:'gis-geometry-health-core.js'});
   vm.runInContext(moduleCode,sandbox,{filename:'point-line-geometry-code-v2.js'});
   return sandbox.__pointLineGeometryCodeV2;
 }
@@ -38,6 +42,9 @@ test('Point/Line module stays isolated while the final live Inspector renderer r
   assert.match(moduleCode,/event\.preventDefault\(\)/);
   assert.match(moduleCode,/event\.stopPropagation\(\)/);
   assert.match(moduleCode,/data-plgce-section="code"/);
+  assert.match(moduleCode,/EditPolygonGeometryHealthCore/);
+  assert.match(moduleCode,/geometryHealth\.validateFeature/);
+  assert.doesNotMatch(moduleCode,/typeof validateCollectionGeometry/);
   assert.match(app,/__pointLineGeometryCodeV2\?\.ensureNow\?\.\(\)/);
   assert.match(app,/Point\/Line Geometry code Inspector reconciliation failed/);
 });
@@ -77,6 +84,23 @@ test('LineString and MultiLineString code validates without changing geometry fa
   assert.equal(multi.valid,true);
   assert.equal(multi.proposal.type,'MultiLineString');
   assert.equal(multi.proposal.coordinates.length,2);
+});
+
+
+test('Point and Line validation uses type-aware Geometry Health rather than polygon-only validation',()=>{
+  const point=api.analyze('{"type":"Point","coordinates":[142.17575195312497,-18.823877065543243]}','Point');
+  assert.equal(point.valid,true);
+  assert.ok(!point.issues.some(item=>item.code==='LEGACY_POLYGON_VALIDATOR'));
+  assert.ok(!point.issues.some(item=>/unsupported geometry type/i.test(item.message||'')));
+
+  const line=api.analyze('{"type":"LineString","coordinates":[[142.625947265625,-25.016656493537425],[145.438447265625,-24.717624948506227],[147.02047851562503,-22.015105167331043]]}','LineString');
+  assert.equal(line.valid,true);
+  assert.ok(!line.issues.some(item=>item.code==='LEGACY_POLYGON_VALIDATOR'));
+  assert.ok(!line.issues.some(item=>/polygon area|open line/i.test(item.message||'')));
+
+  const collapsed=api.analyze('{"type":"LineString","coordinates":[[153,-27],[153,-27]]}','LineString');
+  assert.equal(collapsed.valid,false);
+  assert.ok(collapsed.issues.some(item=>item.code==='TOO_FEW_LINE_VERTICES'));
 });
 
 test('cross-family, invalid-range, collection and too-short replacements are rejected',()=>{

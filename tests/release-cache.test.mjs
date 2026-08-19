@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const html=fs.readFileSync(new URL('../docs/index.html',import.meta.url),'utf8');
-const RELEASE_KEY='20260819-v1561-point-line-inspector-v4';
+const RELEASE_KEY='20260819-v1561-point-line-validation-v5';
 
 test('all local runtime assets use the v1.56.1 release cache key',()=>{
   const refs=[...html.matchAll(/(?:href|src)="(assets\/[^"]+\.(?:css|js))\?v=([^"]+)"/g)];

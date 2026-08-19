@@ -2,6 +2,7 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Fixes Point/Line **Geometry code** validation: Point and LineString edits now use the geometry-type-aware shared Geometry Health core instead of the legacy polygon-only validator, eliminating false “Unsupported geometry type Point” and “open line / polygon area” errors while retaining real coordinate/line validity checks.
 - Fixes desktop Point/Line **Geometry code** Inspector rendering: the editor card no longer flex-shrinks/clips when opened, reconciliation keeps it immediately after Geometry for both Point and Line inspectors, and the browser regression now checks desktop layout as well as editing behaviour.
 - Fixes the live Point/Line **Geometry code** integration: Point now owns its accordion interaction so delegated Inspector clicks cannot immediately rebuild it, Line is reconciled by the final authoritative Inspector renderer after native geometry-specific UI finishes, and the restored Polygon editor remains unchanged.
 - Adds Point/Line **Geometry code** back as an isolated v2 extension: the known-good polygon editor remains unchanged, Point/Line uses its own namespaced Inspector section and validation path, and integration is MutationObserver-driven rather than another `renderSelected` wrapper.

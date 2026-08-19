@@ -19,7 +19,7 @@ test('map movement skips image rendering for vector-only projects',()=>{
 });
 
 test('performance release uses a fresh application cache key',()=>{
-  assert.match(html,/editpolygon-app\.js\?v=20260819-v1561-point-line-inspector-v4/);
+  assert.match(html,/editpolygon-app\.js\?v=20260819-v1561-point-line-validation-v5/);
 });
 
 
