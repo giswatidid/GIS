@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260820-v1561-processing-preview-v6';
+const KEY='20260820-v1561-processing-preview-v7';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,

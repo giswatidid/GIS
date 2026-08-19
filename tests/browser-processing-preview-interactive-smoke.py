@@ -39,10 +39,12 @@ with sync_playwright() as p:
     assert page.evaluate('window.__previewCalls')>before
     assert float(page.locator('[data-processing-param="tolerance"]').input_value())>1
     assert 'vertices removed' in page.locator('.gis-processing-preview').inner_text().lower()
+    page.locator('[data-processing-action="back-to-toolbox"]').click()
 
     page.locator('[data-processing-tool="snap"]').click();page.locator('[data-processing-action="preview"]').click();page.wait_for_selector('.gis-processing-preview')
     page.locator('[data-processing-param="tolerance"]').fill('5');page.locator('[data-processing-param="tolerance"]').dispatch_event('input');page.wait_for_timeout(40)
     assert page.locator('[data-processing-action="preview"]').inner_text()=='Refresh preview'
+    page.locator('[data-processing-action="back-to-toolbox"]').click()
 
     page.locator('[data-processing-tool="distance-to-nearest"]').click();assert page.locator('[data-processing-action="preview"]').inner_text()=='Preview data'
     page.locator('[data-processing-action="preview"]').click();page.wait_for_selector('.gis-processing-data-preview')

@@ -84,6 +84,7 @@ with sync_playwright() as p:
     page.locator('[data-processing-param="distance"]').dispatch_event('change')
     assert page.locator('.gis-processing-preview').count()==0
     assert page.evaluate('window.__clear')>before
+    page.locator('[data-processing-action="back-to-toolbox"]').click()
 
     page.locator('[data-processing-tool="select-by-attribute"]').click()
     page.locator('[data-processing-param="field"]').select_option('kind')
@@ -93,6 +94,7 @@ with sync_playwright() as p:
     assert 'Selection matches are highlighted without changing the current selection.' in page.locator('.gis-processing-preview').inner_text()
     assert page.evaluate('window.__selection.ids')==['a']
     assert page.evaluate('window.__mutations')==0
+    page.locator('[data-processing-action="back-to-toolbox"]').click()
 
     page.locator('[data-processing-tool="buffer"]').click()
     page.evaluate('window.__slow=true')

@@ -10,9 +10,9 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&
 const assetKey=(()=>{
   try{
     const src=global.document?.currentScript?.src||'';
-    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v6';
+    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v7';
   }catch(_){}
-  return '20260820-v1561-processing-preview-v6';
+  return '20260820-v1561-processing-preview-v7';
 })();
 
 const state={
@@ -20,11 +20,11 @@ const state={
   sourceLayerId:'',sourceScope:'',toolId:'buffer',query:'',
   request:null,preflight:null,running:false,progress:null,result:null,
   previewing:false,previewProgress:null,previewResult:null,previewSerial:0,
-  previewTimer:null,livePreview:true,previewActivated:false,previewStale:false
+  previewTimer:null,livePreview:true,previewActivated:false,previewStale:false,mapPreviewMode:false
 };
 
 const previewRuntime={
-  worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null
+  worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null,renderItems:[],mapUnbind:null,restoreRaf:0
 };
 
 function layers(){return (state.api?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}
@@ -170,10 +170,34 @@ function ensurePreviewOverlay(){
   const map=global.EditPolygonMap;
   if(!map?.createVectorOverlayLayer)return null;
   if(!previewRuntime.overlay)previewRuntime.overlay=map.createVectorOverlayLayer({zIndex:1580});
+  else if(typeof map.hasDisplayLayer==='function'&&!map.hasDisplayLayer(previewRuntime.overlay))map.addDisplayLayer?.(previewRuntime.overlay);
   return previewRuntime.overlay;
 }
-function clearPreviewOverlay(){
+function restorePreviewOverlay(){
+  const items=previewRuntime.renderItems||[];
+  if(!items.length)return false;
+  const map=global.EditPolygonMap,overlay=ensurePreviewOverlay();
+  if(!overlay)return false;
+  try{map.setVectorOverlayFeatures?.(overlay,clone(items));return true;}catch(_){return false;}
+}
+function schedulePreviewOverlayRestore(){
+  if(!previewRuntime.renderItems?.length||previewRuntime.restoreRaf)return;
+  const restore=()=>{previewRuntime.restoreRaf=0;restorePreviewOverlay();};
+  previewRuntime.restoreRaf=global.requestAnimationFrame?.(restore)||global.setTimeout?.(restore,0)||0;
+}
+function bindPreviewOverlayPersistence(){
+  if(previewRuntime.mapUnbind||!global.EditPolygonMap?.on)return;
+  const off=global.EditPolygonMap.on('viewreset resize',schedulePreviewOverlayRestore);
+  previewRuntime.mapUnbind=typeof off==='function'?off:()=>global.EditPolygonMap?.off?.('viewreset resize',schedulePreviewOverlayRestore);
+}
+function unbindPreviewOverlayPersistence(){
+  try{previewRuntime.mapUnbind?.();}catch(_){}
+  previewRuntime.mapUnbind=null;
+  if(previewRuntime.restoreRaf){try{global.cancelAnimationFrame?.(previewRuntime.restoreRaf);}catch(_){}previewRuntime.restoreRaf=0;}
+}
+function clearPreviewOverlay({forget=false}={}){
   try{if(previewRuntime.overlay)global.EditPolygonMap?.clearVectorOverlayLayer?.(previewRuntime.overlay);}catch(_){}
+  if(forget){previewRuntime.renderItems=[];unbindPreviewOverlayPersistence();}
 }
 function previewStyle(kind='layer',geometryType=''){
   if(kind==='selection')return {color:'#d97706',weight:4,opacity:1,dashArray:'5,4',fillColor:'#d97706',fillOpacity:.12,radius:8};
@@ -281,13 +305,14 @@ function renderPreviewOverlay(task,result){
   clearPreviewOverlay();
   const features=previewFeaturesFromResult(task,result),kind=result?.kind==='selection'?'selection':'layer',overlay=ensurePreviewOverlay();
   const rendered=features.slice(0,PREVIEW_RENDER_LIMIT);
-  if(overlay&&rendered.length){
-    global.EditPolygonMap?.setVectorOverlayFeatures?.(overlay,rendered.map((feature,index)=>({
-      id:`processing-preview-${index}`,
-      geometry:clone(feature.geometry),
-      style:previewStyle(kind,feature.geometry?.type)
-    })));
-  }
+  const items=rendered.map((feature,index)=>({
+    id:`processing-preview-${index}`,
+    geometry:clone(feature.geometry),
+    style:previewStyle(kind,feature.geometry?.type)
+  }));
+  previewRuntime.renderItems=clone(items);
+  if(overlay&&items.length)global.EditPolygonMap?.setVectorOverlayFeatures?.(overlay,items);
+  if(items.length)bindPreviewOverlayPersistence();
   return {features,renderedCount:rendered.length,truncated:features.length>rendered.length};
 }
 async function isolatedPreview(api,request={},onProgress=()=>{}){
@@ -295,14 +320,14 @@ async function isolatedPreview(api,request={},onProgress=()=>{}){
   const pf=api.previewProcessingRequest(clone(request));
   if(!pf?.valid)throw new Error(pf?.errors?.[0]||'The processing request is invalid.');
   terminatePreviewWorker();
-  clearPreviewOverlay();
+  clearPreviewOverlay({forget:true});
   const token=++previewRuntime.token,task=buildPreviewTask(pf,api),fingerprint=typeof api.getProcessingPreviewFingerprint==='function'?api.getProcessingPreviewFingerprint(clone(request)):core().previewFingerprint(task),started=(global.performance?.now?.()??Date.now());
   onProgress({stage:'Preparing preview',done:0,total:task.inputs.source?.length||0,percent:0});
   const execution=await previewWorker(task,onProgress,token);
   if(token!==previewRuntime.token)throw previewCancelError('A newer Processing preview replaced this result.');
   onProgress({stage:'Rendering preview',done:pf.counts?.source||0,total:pf.counts?.source||0,percent:98});
   const kind=previewKind(pf.tool),previewFeatures=previewFeaturesFromResult(task,execution.result),rendered=kind==='data'?{features:previewFeatures,renderedCount:0,truncated:false}:renderPreviewOverlay(task,execution.result);
-  if(token!==previewRuntime.token){clearPreviewOverlay();throw previewCancelError('A newer Processing preview replaced this result.');}
+  if(token!==previewRuntime.token){clearPreviewOverlay({forget:true});throw previewCancelError('A newer Processing preview replaced this result.');}
   const elapsedMs=Math.max(0,Math.round((global.performance?.now?.()??Date.now())-started));
   const metrics=previewComparisonMetrics(task,execution.result,rendered.features);
   const summary=clone(execution.result?.summary||{input:pf.counts?.source||0,processed:pf.counts?.source||0,output:rendered.features.length,failed:execution.result?.failures?.length||0,partial:!!execution.result?.failures?.length});
@@ -335,14 +360,14 @@ async function isolatedPreview(api,request={},onProgress=()=>{}){
 function clearProcessingPreview(){
   ++previewRuntime.token;
   terminatePreviewWorker();
-  clearPreviewOverlay();
+  clearPreviewOverlay({forget:true});
   previewRuntime.last=null;
   return true;
 }
 function cancelProcessingPreview(){
   ++previewRuntime.token;
   terminatePreviewWorker();
-  clearPreviewOverlay();
+  clearPreviewOverlay({forget:true});
   previewRuntime.last=null;
   return true;
 }
@@ -404,6 +429,24 @@ function previewHtml(){
 function resultHtml(){const result=state.result;if(!result)return'';const summary=result.summary||{},failed=Number(summary.failed||0),selection=result.kind==='selection'||result.output?.kind==='selection',modified=result.output?.modified===true;const title=selection?'Selection updated':modified?'Input layer updated':failed?'Processing completed with warnings':'Processing completed',name=selection?`${Number(summary.output||0).toLocaleString()} selected`:result.output?.name||'Output layer';return `<section class="gis-processing-result ${failed?'partial':'success'}"><header><div><strong>${title}</strong><span>${esc(name)}</span></div><b>${Number(summary.output||0).toLocaleString()} ${selection?'selected':'output'}</b></header><div class="gis-processing-result-grid"><div><span>Input</span><strong>${Number(summary.input||0).toLocaleString()}</strong></div><div><span>Processed</span><strong>${Number(summary.processed||0).toLocaleString()}</strong></div><div><span>${selection?'Selected':'Output'}</span><strong>${Number(summary.output||0).toLocaleString()}</strong></div><div><span>Failed</span><strong>${failed.toLocaleString()}</strong></div><div><span>Elapsed</span><strong>${Number(result.elapsedMs||0).toLocaleString()} ms</strong></div></div>${failed?`<details><summary>Show ${failed} failure${failed===1?'':'s'}</summary><div class="gis-processing-failures">${(result.failures||[]).slice(0,50).map(item=>`<p><strong>${esc(item.featureName||item.featureId||`Feature ${Number(item.index)+1}`)}</strong><span>${esc(item.message)}</span></p>`).join('')}</div></details>`:''}<div class="gis-button-row">${!selection&&result.output?.id?'<button type="button" data-processing-action="open-output">Open layer</button><button type="button" data-processing-action="zoom-output">Zoom to result</button>':''}<button type="button" data-processing-action="run-again">Run again</button></div></section>`;}
 function supportsPreview(){return currentPreviewPolicy().enabled!==false&&typeof state.api?.runProcessingPreview==='function';}
 
+function previewModal(){return state.host?.closest?.('#gisDataModal')||null;}
+function setMapPreviewMode(active,{renderNow=true}={}){
+  state.mapPreviewMode=!!active;
+  const modal=previewModal();
+  modal?.classList.toggle('gis-processing-map-preview',state.mapPreviewMode);
+  if(renderNow&&state.host)render();
+  global.requestAnimationFrame?.(()=>{try{global.EditPolygonMap?.resize?.();}catch(_){}});
+  return state.mapPreviewMode;
+}
+function previewModeRunLabel(tool){return tool?.resultKind==='selection'?'Apply selection':state.request?.output?.mode==='modify-source'?'Apply to input layer':'Run and create layer';}
+function previewModeView(pf){
+  const tool=pf.tool||registry()?.getTool(state.toolId);if(!tool)return '<section class="gis-processing-config"><p>Choose a processing tool.</p></section>';
+  const params=(tool.parameters||[]).filter(item=>!item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join('');
+  const advanced=(tool.parameters||[]).filter(item=>item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join('');
+  const previewLabel=previewActionLabel(tool),runLabel=previewModeRunLabel(tool),issues=!pf.valid||(pf.warnings||[]).length;
+  return `<section class="gis-processing-config gis-processing-map-preview-panel"><div class="gis-processing-preview-mode-head"><div><span>Preview mode</span><h2>${esc(tool.title)}</h2><p>Pan and zoom the map while you tune the processing result.</p></div><button type="button" data-processing-action="back-to-toolbox">Back to Processing</button></div><div class="gis-processing-preview-mode-note"><strong>Nothing is committed yet.</strong><span>The original geometry stays visible underneath the temporary preview.</span></div><fieldset class="gis-processing-parameter-lock" ${busy()?'disabled':''}><div class="gis-processing-form">${inputControls(tool)}${params}</div>${advanced?`<details class="gis-processing-advanced"><summary>Advanced parameters</summary><div class="gis-processing-form">${advanced}</div></details>`:''}</fieldset>${livePreviewControls(pf,tool)}${issues?`<div id="gisProcessingPreflight">${preflightHtml(pf)}</div>`:'<div id="gisProcessingPreflight" hidden></div>'}${progressHtml()}${previewHtml()}<div class="gis-processing-actions gis-processing-preview-mode-actions"><button type="button" data-processing-action="preview" ${busy()||!pf.valid?'disabled':''}>${state.previewing?'Previewing…':previewLabel}</button><button type="button" class="primary" data-processing-action="run" ${busy()||!pf.valid||!state.previewResult?'disabled':''}>${state.running?'Processing…':runLabel}</button><button type="button" data-processing-action="cancel" ${busy()?'':'disabled'}>Cancel</button></div></section>`;
+}
+
 function livePreviewControls(pf,tool){
   const policy=tool?.previewPolicy||currentPreviewPolicy();
   if(policy.mode!=='live')return '';
@@ -412,7 +455,7 @@ function livePreviewControls(pf,tool){
 }
 
 function parameterView(pf){const tool=pf.tool||registry()?.getTool(state.toolId);if(!tool)return '<section class="gis-processing-config"><p>Choose a processing tool.</p></section>';const params=(tool.parameters||[]).filter(item=>!item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join(''),advanced=(tool.parameters||[]).filter(item=>item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join(''),runLabel=tool.resultKind==='selection'?'Run selection':state.request.output.mode==='modify-source'?'Run and modify layer':'Run and create layer',previewLabel=previewActionLabel(tool);return `<section class="gis-processing-config"><div class="gis-processing-heading"><div><span>${esc(registry()?.getCategory(tool.category)?.title||'Processing')}</span><h2>${esc(tool.title)}</h2><p>${esc(tool.description)}</p></div><strong>${esc(tool.outputGeometry||tool.resultKind||'Result')}</strong></div><fieldset class="gis-processing-parameter-lock" ${busy()?'disabled':''}><div class="gis-processing-form">${inputControls(tool)}${params}${outputControls(tool)}</div>${advanced?`<details class="gis-processing-advanced"><summary>Advanced parameters</summary><div class="gis-processing-form">${advanced}</div></details>`:''}</fieldset>${livePreviewControls(pf,tool)}<div id="gisProcessingPreflight">${preflightHtml(pf)}</div>${progressHtml()}${previewHtml()}${resultHtml()}<div class="gis-processing-actions">${supportsPreview()?`<button type="button" data-processing-action="preview" ${busy()||!pf.valid?'disabled':''}>${state.previewing?'Previewing…':previewLabel}</button>`:''}<button type="button" class="primary" data-processing-action="run" ${busy()||!pf.valid?'disabled':''}>${state.running?'Processing…':runLabel}</button><button type="button" data-processing-action="cancel" ${busy()?'':'disabled'}>Cancel</button></div></section>`;}
-function render(){if(!state.host)return;ensureRequest();const pf=(state.result||state.previewResult)&&state.preflight?state.preflight:preflight();state.host.innerHTML=`<div class="gis-processing-layout"><aside class="gis-processing-browser"><label>Find a tool<input id="gisProcessingSearch" type="search" placeholder="Search buffer, dissolve, spatial join…" value="${esc(state.query)}"></label><div class="gis-processing-tools">${toolButtons()}</div></aside>${parameterView(pf)}</div>`;}
+function render(){if(!state.host)return;ensureRequest();const pf=(state.result||state.previewResult)&&state.preflight?state.preflight:preflight();if(state.mapPreviewMode){state.host.innerHTML=previewModeView(pf);return;}state.host.innerHTML=`<div class="gis-processing-layout"><aside class="gis-processing-browser"><label>Find a tool<input id="gisProcessingSearch" type="search" placeholder="Search buffer, dissolve, spatial join…" value="${esc(state.query)}"></label><div class="gis-processing-tools">${toolButtons()}</div></aside>${parameterView(pf)}</div>`;}
 function refreshPreflight(){if(!state.host)return;const pf=preflight(),target=state.host.querySelector('#gisProcessingPreflight');if(target)target.innerHTML=preflightHtml(pf);const run=state.host.querySelector('[data-processing-action="run"]'),preview=state.host.querySelector('[data-processing-action="preview"]');if(run)run.disabled=busy()||!pf.valid;if(preview){preview.disabled=busy()||!pf.valid;preview.textContent=state.previewing?'Previewing…':previewActionLabel(pf.tool);}}
 function clearPreviewState({cancel=true,renderNow=false,preserveActivation=false}={}){clearPreviewTimer();state.previewSerial++;if(cancel&&state.previewing)state.api?.cancelProcessingPreview?.();else state.api?.clearProcessingPreview?.();state.previewing=false;state.previewProgress=null;state.previewResult=null;state.previewStale=false;if(!preserveActivation)state.previewActivated=false;if(renderNow)render();}
 function invalidateResult(){const activated=state.previewActivated||state.previewing||!!state.previewResult;state.result=null;state.progress=null;clearPreviewState({cancel:true,preserveActivation:activated});state.previewActivated=activated;state.previewStale=activated;if(state.host){for(const node of state.host.querySelectorAll('.gis-processing-preview,.gis-processing-result,.gis-processing-progress'))node.remove();}}
@@ -472,6 +515,7 @@ async function runPreview({automatic=false}={}){
   if(busy()||!supportsPreview())return;
   const pf=preflight();
   if(!pf.valid){render();return;}
+  if(!automatic)setMapPreviewMode(true,{renderNow:false});
   const policy=currentPreviewPolicy(),count=Number(pf.counts?.source||0);
   state.previewActivated=true;state.previewStale=false;
   if(automatic&&count>Number(policy.maxAutoFeatures||2500))return;
@@ -517,20 +561,20 @@ async function run(){
     state.result={...result,elapsedMs:Math.max(0,Math.round((global.performance?.now?.()??Date.now())-started))};
     const what=result.kind==='selection'?`${result.summary?.output||0} feature${result.summary?.output===1?'':'s'} selected`:result.output?.modified?`Updated ${result.output.name}`:`Created ${result.output?.name}`;
     state.status?.(`${what}.${result.reused?' Used the verified preview result.':''}`,result.summary?.failed?'error':'ok');
-    render();
+    setMapPreviewMode(false,{renderNow:false});render();
   }catch(error){
-    state.running=false;state.progress=null;state.status?.(error.message,'error');render();
+    state.running=false;state.progress=null;setMapPreviewMode(false,{renderNow:false});state.status?.(error.message,'error');render();
   }
 }
 function cancel(){clearPreviewTimer();if(state.previewing){state.previewSerial++;state.api?.cancelProcessingPreview?.();state.previewing=false;state.previewProgress=null;state.previewResult=null;state.previewActivated=false;state.previewStale=false;state.status?.('Processing preview cancelled. Project data was not changed.','error');render();return true;}if(state.running){state.api?.cancelProcessing?.();state.running=false;state.progress=null;state.status?.('Processing cancelled. No project data was changed.','error');render();return true;}return false;}
-function click(event){const fieldsAction=event.target.closest('[data-processing-fields-action]');if(fieldsAction){fieldPickerAction(fieldsAction);return;}const tool=event.target.closest('[data-processing-tool]');if(tool){changeTool(tool.dataset.processingTool);return;}const action=event.target.closest('[data-processing-action]')?.dataset.processingAction;if(action==='preview')runPreview();else if(action==='clear-preview')clearPreviewState({cancel:false,renderNow:true});else if(action==='run')run();else if(action==='cancel')cancel();else if(action==='open-output'&&state.result?.output)state.onOpenOutput?.(state.result.output);else if(action==='zoom-output'&&state.result?.output)state.api?.zoomLayer?.(state.result.output.id);else if(action==='run-again'){state.result=null;state.progress=null;render();}}
+function click(event){const fieldsAction=event.target.closest('[data-processing-fields-action]');if(fieldsAction){fieldPickerAction(fieldsAction);return;}const tool=event.target.closest('[data-processing-tool]');if(tool){changeTool(tool.dataset.processingTool);return;}const action=event.target.closest('[data-processing-action]')?.dataset.processingAction;if(action==='preview')runPreview();else if(action==='back-to-toolbox')setMapPreviewMode(false);else if(action==='clear-preview')clearPreviewState({cancel:false,renderNow:true});else if(action==='run')run();else if(action==='cancel')cancel();else if(action==='open-output'&&state.result?.output)state.onOpenOutput?.(state.result.output);else if(action==='zoom-output'&&state.result?.output)state.api?.zoomLayer?.(state.result.output.id);else if(action==='run-again'){state.result=null;state.progress=null;render();}}
 function input(event){const target=event.target;if(target.id==='gisProcessingSearch'){state.query=target.value;const list=state.host.querySelector('.gis-processing-tools');if(list)list.innerHTML=toolButtons();return;}if(target.tagName!=='SELECT'||target.multiple||target.type==='checkbox'||target.id==='gisProcessingOutputName')readControl(target);}
 function change(event){readControl(event.target);}
 function bind(host){if(host._editPolygonProcessingBound)return;host._editPolygonProcessingBound=true;host.addEventListener('click',click);host.addEventListener('input',input);host.addEventListener('change',change);}
-function mount(host,{layerId='',toolId='',sourceScope='',api=null,status=null,onOpenOutput=null}={}){state.host=host;state.api=installPreviewBridge(api||global.EditPolygonGIS);state.status=status;state.onOpenOutput=onOpenOutput;const requested=toolId&&registry()?.getTool(toolId)?toolId:'',requestedScope=['all','filtered','selected'].includes(sourceScope)?sourceScope:'';if(!state.request||state.sourceLayerId!==layerId||requested||requestedScope){clearPreviewState({cancel:true});state.sourceLayerId=layerId;state.sourceScope=requestedScope;state.toolId=requested||'buffer';state.query='';state.request=null;state.preflight=null;state.result=null;state.progress=null;}bind(host);render();state.sourceScope='';return true;}
+function mount(host,{layerId='',toolId='',sourceScope='',api=null,status=null,onOpenOutput=null}={}){state.host=host;state.api=installPreviewBridge(api||global.EditPolygonGIS);setMapPreviewMode(false,{renderNow:false});state.status=status;state.onOpenOutput=onOpenOutput;const requested=toolId&&registry()?.getTool(toolId)?toolId:'',requestedScope=['all','filtered','selected'].includes(sourceScope)?sourceScope:'';if(!state.request||state.sourceLayerId!==layerId||requested||requestedScope){clearPreviewState({cancel:true});state.sourceLayerId=layerId;state.sourceScope=requestedScope;state.toolId=requested||'buffer';state.query='';state.request=null;state.preflight=null;state.result=null;state.progress=null;}bind(host);render();state.sourceScope='';return true;}
 function isRunning(){return busy();}
 function cancelIfRunning(){return cancel();}
-function reset(){if(busy())cancel();clearPreviewState({cancel:true});state.request=null;state.preflight=null;state.result=null;state.progress=null;}
+function reset(){if(busy())cancel();clearPreviewState({cancel:true});setMapPreviewMode(false,{renderNow:false});state.request=null;state.preflight=null;state.result=null;state.progress=null;}
 
 function externalStateChanged(){
   if(!state.previewTimer&&!state.previewing&&!state.previewResult)return;

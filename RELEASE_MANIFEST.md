@@ -12,7 +12,7 @@ Authoritative runtime modules:
 - `docs/assets/gis-spatial-core.js` — shared indexing, relationships, nearest and aggregation primitives.
 - `docs/assets/gis-geos-adapter.js` — sole low-level GEOS-WASM adapter, shared with Geometry Health.
 - `docs/assets/gis-processing-worker.js` — sole cancellable Processing worker.
-- `docs/assets/gis-processing.js` / `gis-processing.css` — responsive Toolbox UI. Includes non-destructive previews, logarithmic Simplify/Densify controls, specialised metrics, data-result preview tables and fingerprint-safe preview reuse.
+- `docs/assets/gis-processing.js` / `gis-processing.css` — responsive Toolbox UI. Includes non-destructive previews, a map-first floating Preview Mode, logarithmic Simplify/Densify controls, specialised metrics, data-result preview tables and fingerprint-safe preview reuse.
 
 Retired/forbidden architecture:
 
