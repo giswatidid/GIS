@@ -36,3 +36,5 @@ jobs:
         run: |
           python tests/browser-geometry-code-smoke.py
           python tests/browser-point-line-geometry-code-v2.py
+      - name: Verification marker
+        run: echo "Point-Line desktop Inspector verification completed."
