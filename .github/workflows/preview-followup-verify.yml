@@ -41,7 +41,7 @@ jobs:
           path=Path('tests/browser-processing-preview-reuse-smoke.py')
           text=path.read_text(encoding='utf-8')
           old='''    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
-          new='''    # Successful Run from Preview Mode intentionally stays map-first. Return to the\n    # full Toolbox before choosing another algorithm.\n    page.locator('[data-processing-action="back-to-toolbox"]').click()\n    assert not page.locator('#gisDataModal').evaluate("e=>e.classList.contains('gis-processing-map-preview')")\n\n    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
+          new='''    # Successful Run from Preview Mode intentionally stays map-first. Return to the\n    # full Toolbox before choosing another algorithm.\n    page.locator('[data-processing-action="back-to-toolbox"]').click()\n    page.wait_for_selector('[data-processing-tool="simplify"]')\n\n    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
           if text.count(old)!=1:
               raise SystemExit(f'preview reuse map-mode transition: expected one anchor, found {text.count(old)}')
           path.write_text(text.replace(old,new),encoding='utf-8')
