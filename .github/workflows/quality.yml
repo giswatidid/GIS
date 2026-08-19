@@ -49,9 +49,29 @@ jobs:
           node --check docs/assets/editpolygon-app.js
 
       - name: Run repository audits and Node tests
-        run: npm run check
+        id: nodecheck
+        shell: bash
+        run: |
+          set +e
+          npm run check 2>&1 | tee /tmp/npm-check.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish failed quality-gate diagnostic
+        if: steps.nodecheck.outputs.code != '0'
+        shell: bash
+        run: |
+          cp /tmp/npm-check.log PROCESSING_PREVIEW_CHECK_DIAGNOSTIC.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f PROCESSING_PREVIEW_CHECK_DIAGNOSTIC.txt
+          git commit -m "diagnostic: capture Processing preview quality failure"
+          git push --force origin HEAD:refs/heads/verify/processing-preview-check-diagnostic
+          exit 1
 
       - name: Run full browser smoke suite
+        if: steps.nodecheck.outputs.code == '0'
         env:
           CHROMIUM_PATH: /usr/bin/google-chrome
         run: npm run test:browser-smoke
