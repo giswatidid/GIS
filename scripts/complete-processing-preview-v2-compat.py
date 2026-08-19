@@ -83,6 +83,37 @@ elif "=='Preview on map'" not in preview_smoke_text:
     raise RuntimeError('legacy processing preview button assertion anchor missing')
 preview_smoke.write_text(preview_smoke_text,encoding='utf-8')
 
+# Live Simplify/Densify preview is deliberately opt-in per preview session: typing
+# alone must not start a worker job. After the user explicitly previews once,
+# subsequent parameter edits debounce and refresh automatically.
+reuse_smoke=ROOT/'tests/browser-processing-preview-reuse-smoke.py'
+reuse_text=reuse_smoke.read_text(encoding='utf-8')
+old_block="""    page.locator('[data-processing-tool=\"simplify\"]').click()
+    before=page.evaluate('window.__previewCalls')
+    page.locator('[data-processing-param=\"tolerance\"]').fill('3')
+    page.wait_for_timeout(400)
+    assert page.evaluate('window.__previewCalls')>before
+    page.wait_for_selector('.gis-processing-preview')
+"""
+new_block="""    page.locator('[data-processing-tool=\"simplify\"]').click()
+    before=page.evaluate('window.__previewCalls')
+    page.locator('[data-processing-param=\"tolerance\"]').fill('2')
+    page.wait_for_timeout(400)
+    assert page.evaluate('window.__previewCalls')==before
+    page.locator('[data-processing-action=\"preview\"]').click()
+    page.wait_for_selector('.gis-processing-preview')
+    activated=page.evaluate('window.__previewCalls')
+    page.locator('[data-processing-param=\"tolerance\"]').fill('3')
+    page.wait_for_timeout(400)
+    assert page.evaluate('window.__previewCalls')>activated
+    page.wait_for_selector('.gis-processing-preview')
+"""
+if old_block in reuse_text:
+    reuse_text=reuse_text.replace(old_block,new_block,1)
+elif "assert page.evaluate('window.__previewCalls')==before" not in reuse_text:
+    raise RuntimeError('preview reuse live-activation smoke anchor missing')
+reuse_smoke.write_text(reuse_text,encoding='utf-8')
+
 # Keep verification-only bytecode out of repository audits.
 shutil.rmtree(ROOT/'scripts/__pycache__',ignore_errors=True)
 shutil.rmtree(ROOT/'tests/__pycache__',ignore_errors=True)
