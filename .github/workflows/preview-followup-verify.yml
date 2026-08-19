@@ -36,6 +36,16 @@ jobs:
         run: |
           python -m py_compile scripts/apply-processing-preview-followup.py
           python scripts/apply-processing-preview-followup.py
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('tests/browser-processing-preview-reuse-smoke.py')
+          text=path.read_text(encoding='utf-8')
+          old='''    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
+          new='''    # Successful Run from Preview Mode intentionally stays map-first. Return to the\n    # full Toolbox before choosing another algorithm.\n    page.locator('[data-processing-action="back-to-toolbox"]').click()\n    assert not page.locator('#gisDataModal').evaluate("e=>e.classList.contains('gis-processing-map-preview')")\n\n    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
+          if text.count(old)!=1:
+              raise SystemExit(f'preview reuse map-mode transition: expected one anchor, found {text.count(old)}')
+          path.write_text(text.replace(old,new),encoding='utf-8')
+          PY
           git rm -f scripts/apply-processing-preview-followup.py .github/workflows/preview-followup-verify.yml
           rm -rf scripts/__pycache__ tests/__pycache__
           git diff --check
