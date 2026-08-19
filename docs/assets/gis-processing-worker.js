@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260817-v1561-point-line-geometry-v3';
+const KEY='20260819-v1561-point-line-inspector-v4';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,

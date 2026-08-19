@@ -5255,7 +5255,8 @@ body.night-mode .layer-menu .v1533-menu-remove:hover:not(:disabled){background:#
 .measurement-edit-vertex:hover,.measurement-edit-midpoint:hover{filter:brightness(1.08)}
 
 /* v126-point-line-geometry-code-v2:start */
-.plgce-section{padding:0!important;overflow:hidden}
+.plgce-section{padding:0!important;overflow:hidden;flex:0 0 auto;min-width:0;align-self:stretch}
+.plgce-section[open]{overflow:visible}
 .plgce-section>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;user-select:none;border-bottom:1px solid transparent}
 .plgce-section>summary::-webkit-details-marker{display:none}
 .plgce-section>summary:before{content:'›';font-size:15px;line-height:1;color:#667085;transition:transform .12s ease}

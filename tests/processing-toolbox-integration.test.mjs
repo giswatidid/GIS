@@ -8,7 +8,7 @@ const dataTools=fs.readFileSync(new URL('../docs/assets/gis-data-tools.js',impor
 const ui=fs.readFileSync(new URL('../docs/assets/gis-processing.js',import.meta.url),'utf8');
 const worker=fs.readFileSync(new URL('../docs/assets/gis-processing-worker.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../docs/assets/gis-processing.css',import.meta.url),'utf8');
-const KEY='20260817-v1561-point-line-geometry-v3';
+const KEY='20260819-v1561-point-line-inspector-v4';
 
 test('Processing Toolbox modules load in dependency order and the retired worker is gone',()=>{
   const order=['gis-spatial-core.js','gis-processing-registry.js','gis-processing-core.js','gis-processing-engine.js','editpolygon-app.js','gis-processing.js','gis-data-tools.js'].map(name=>html.indexOf(name));

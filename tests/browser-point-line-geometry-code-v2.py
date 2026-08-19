@@ -124,6 +124,10 @@ with sync_playwright() as p:
     page.locator('[data-plgce-section="code"] summary').click()
     page.wait_for_selector('.plgce-code')
     assert page.locator('.plgce-code').is_visible()
+    point_layout=page.locator('[data-plgce-section="code"]').evaluate("el=>({flexShrink:getComputedStyle(el).flexShrink,overflow:getComputedStyle(el).overflow,height:el.getBoundingClientRect().height,scrollHeight:el.scrollHeight})")
+    assert point_layout['flexShrink'] == '0', point_layout
+    assert point_layout['overflow'] == 'visible', point_layout
+    assert point_layout['height'] + 1 >= point_layout['scrollHeight'], point_layout
     assert page.evaluate('__delegatedInspectorSummaryClicks') == 0
     page.locator('.plgce-code').fill('{"type":"Point","coordinates":[154,-28]}')
     page.locator('[data-plgce="apply"]').click()
@@ -148,8 +152,14 @@ with sync_playwright() as p:
     page.evaluate("window.__pointLineGeometryCodeV2.ensureNow()")
     page.wait_for_selector('[data-plgce-section="code"]')
     assert page.locator('[data-v53-section="code"]').count() == 0
+    line_position=page.locator('[data-plgce-section="code"]').evaluate("el=>el.previousElementSibling?.querySelector('h3')?.textContent.trim()||''")
+    assert line_position == 'Geometry', line_position
     page.locator('[data-plgce-section="code"] summary').click()
     page.wait_for_selector('.plgce-code')
+    line_layout=page.locator('[data-plgce-section="code"]').evaluate("el=>({flexShrink:getComputedStyle(el).flexShrink,overflow:getComputedStyle(el).overflow,height:el.getBoundingClientRect().height,scrollHeight:el.scrollHeight})")
+    assert line_layout['flexShrink'] == '0', line_layout
+    assert line_layout['overflow'] == 'visible', line_layout
+    assert line_layout['height'] + 1 >= line_layout['scrollHeight'], line_layout
     page.locator('.plgce-code').fill('{"type":"LineString","coordinates":[[153,-27],[155,-29],[156,-30]]}')
     page.locator('[data-plgce="apply"]').click()
     page.wait_for_function('__feature.geometry.type==="LineString" && __feature.geometry.coordinates.length===3 && __feature.geometry.coordinates[1][0]===155')

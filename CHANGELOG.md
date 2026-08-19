@@ -2,6 +2,7 @@
 
 ## v1.56.1 live-test hotfixes
 
+- Fixes desktop Point/Line **Geometry code** Inspector rendering: the editor card no longer flex-shrinks/clips when opened, reconciliation keeps it immediately after Geometry for both Point and Line inspectors, and the browser regression now checks desktop layout as well as editing behaviour.
 - Fixes the live Point/Line **Geometry code** integration: Point now owns its accordion interaction so delegated Inspector clicks cannot immediately rebuild it, Line is reconciled by the final authoritative Inspector renderer after native geometry-specific UI finishes, and the restored Polygon editor remains unchanged.
 - Adds Point/Line **Geometry code** back as an isolated v2 extension: the known-good polygon editor remains unchanged, Point/Line uses its own namespaced Inspector section and validation path, and integration is MutationObserver-driven rather than another `renderSelected` wrapper.
 - Restores the Inspector **Geometry code** editor to the last known-good polygon-only implementation from `ba3afbc`; the failed Point/Line retrofit and forced Inspector reconciliation are removed before Point/Line support is attempted again in isolation.
