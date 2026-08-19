@@ -1,0 +1,38 @@
+name: Test Point-Line desktop Inspector fix
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply fix in test workspace
+        run: python3 scripts/fix-point-line-inspector-desktop.py
+      - name: Verify targeted contracts
+        run: |
+          git diff --check
+          node --check docs/assets/editpolygon-app.js
+          node scripts/check-repo.mjs
+          node scripts/audit-runtime.mjs
+          node scripts/audit-bindings.mjs
+          node --test tests/geometry-code-editor.test.mjs tests/point-line-geometry-code-v2.test.mjs tests/point-line-inspector-layout.test.mjs tests/release-cache.test.mjs
+      - name: Install Playwright Chromium
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install chromium
+      - name: Run Geometry code browser regressions
+        run: |
+          python tests/browser-geometry-code-smoke.py
+          python tests/browser-point-line-geometry-code-v2.py
