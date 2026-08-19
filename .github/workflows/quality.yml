@@ -41,9 +41,10 @@ jobs:
           : > "$LOG"
           {
             echo '=== patch syntax ==='
-            python -m py_compile scripts/complete-processing-preview-v2.py
+            python -m py_compile scripts/complete-processing-preview-v2.py scripts/complete-processing-preview-v2-compat.py
             echo '=== apply readable completion patch ==='
             python scripts/complete-processing-preview-v2.py
+            python scripts/complete-processing-preview-v2-compat.py
             echo '=== required architecture in working tree ==='
             grep -q 'previewPolicy' docs/assets/gis-processing-registry.js
             grep -q 'previewFingerprint' docs/assets/gis-processing-core.js
@@ -114,7 +115,7 @@ jobs:
           if [ "$STATUS" -ne 0 ]; then
             git reset --hard HEAD
             restore_quality
-            rm -f scripts/complete-processing-preview-v2.py
+            rm -f scripts/complete-processing-preview-v2.py scripts/complete-processing-preview-v2-compat.py
             rm -f .github/workflows/complete-processing-preview.yml
             cp "$LOG" PREVIEW_VERIFIER_FAILURE.txt
             git add -A
@@ -126,7 +127,7 @@ jobs:
 
           restore_quality
           rm -f PREVIEW_VERIFIER_FAILURE.txt
-          rm -f scripts/complete-processing-preview-v2.py
+          rm -f scripts/complete-processing-preview-v2.py scripts/complete-processing-preview-v2-compat.py
           rm -f .github/workflows/complete-processing-preview.yml
           git add -A
           git commit -m "feat: complete Processing preview workflow"
