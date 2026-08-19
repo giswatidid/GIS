@@ -1,0 +1,2780 @@
+
+> editpolygon-browser-gis@1.56.1 check
+> node scripts/check-repo.mjs && node scripts/audit-runtime.mjs && node scripts/audit-bindings.mjs && npm test
+
+Repository integration checks passed.
+v1.56.1 runtime/repository audit passed. OpenLayers authority remains intact and the declarative browser-local Processing Toolbox is wired through one validated worker lifecycle.
+v1.56.1 binding/architecture audit passed: 1688 named bindings, 196 duplicate names, 369 extra sites, 0 application engine branches, 0 application native-map calls, 0 native-map escapes. Highest wrapper chains: wrapped:21, renderSelected:15, renderSidebar:13, renderAll:10, showFileLayerMenu:8, showFeatureLayerMenu:7, updateButtons:7, install:7.
+
+> editpolygon-browser-gis@1.56.1 test
+> node --test tests/*.test.mjs
+
+TAP version 13
+# Subtest: processing output layers are complete Layers-panel records and open expanded
+ok 1 - processing output layers are complete Layers-panel records and open expanded
+  ---
+  duration_ms: 2.795045
+  type: 'test'
+  ...
+# Subtest: legacy analysis outputs remain list-safe while v1.56 processing uses dedicated provenance metadata
+ok 2 - legacy analysis outputs remain list-safe while v1.56 processing uses dedicated provenance metadata
+  ---
+  duration_ms: 1.745159
+  type: 'test'
+  ...
+# Subtest: point-marker conversion uses the same canonical GIS Point symbol as Draw point
+ok 3 - point-marker conversion uses the same canonical GIS Point symbol as Draw point
+  ---
+  duration_ms: 5.359047
+  type: 'test'
+  ...
+# Subtest: measurement conversion uses geometry-family feature defaults instead of polygon-like styling for every type
+ok 4 - measurement conversion uses geometry-family feature defaults instead of polygon-like styling for every type
+  ---
+  duration_ms: 2.451001
+  type: 'test'
+  ...
+# Subtest: text annotation conversion keeps annotation typography while point-marker conversion becomes a normal GIS point
+ok 5 - text annotation conversion keeps annotation typography while point-marker conversion becomes a normal GIS point
+  ---
+  duration_ms: 1.369745
+  type: 'test'
+  ...
+# Subtest: true-circle click follows the rendered materialised polygon, not a separate circle-math result
+ok 6 - true-circle click follows the rendered materialised polygon, not a separate circle-math result
+  ---
+  duration_ms: 4.2502
+  type: 'test'
+  ...
+# Subtest: ordinary click candidate loop no longer has a separate true-circle screen-space shortcut
+ok 7 - ordinary click candidate loop no longer has a separate true-circle screen-space shortcut
+  ---
+  duration_ms: 1.347724
+  type: 'test'
+  ...
+# Subtest: ordinary OpenLayers click still returns a true circle when native rendered-feature hit detection returns no ids
+ok 8 - ordinary OpenLayers click still returns a true circle when native rendered-feature hit detection returns no ids
+  ---
+  duration_ms: 3.325859
+  type: 'test'
+  ...
+# Subtest: late v1.16 compatibility code cannot replace the authoritative click selector
+ok 9 - late v1.16 compatibility code cannot replace the authoritative click selector
+  ---
+  duration_ms: 2.61648
+  type: 'test'
+  ...
+# Subtest: screen-mode true circle final render exactly matches the live draw preview over Australia
+ok 10 - screen-mode true circle final render exactly matches the live draw preview over Australia
+  ---
+  duration_ms: 11.394761
+  type: 'test'
+  ...
+# Subtest: screen-mode true circle remains centred and circular at southern mid-latitudes
+ok 11 - screen-mode true circle remains centred and circular at southern mid-latitudes
+  ---
+  duration_ms: 6.805657
+  type: 'test'
+  ...
+# Subtest: screen-mode true circle stays continuous when inverse map coordinates canonicalise at the dateline
+ok 12 - screen-mode true circle stays continuous when inverse map coordinates canonicalise at the dateline
+  ---
+  duration_ms: 4.266881
+  type: 'test'
+  ...
+# Subtest: screen-mode true circle remains continuous in a repeated world copy when inverse coordinates canonicalise
+ok 13 - screen-mode true circle remains continuous in a repeated world copy when inverse coordinates canonicalise
+  ---
+  duration_ms: 3.909392
+  type: 'test'
+  ...
+# Subtest: map rendering uses display materialisation while export keeps the canonical geographic fallback path
+ok 14 - map rendering uses display materialisation while export keeps the canonical geographic fallback path
+  ---
+  duration_ms: 1.173037
+  type: 'test'
+  ...
+# Subtest: draw longitude helpers preserve the short branch across the International Date Line
+ok 15 - draw longitude helpers preserve the short branch across the International Date Line
+  ---
+  duration_ms: 9.347778
+  type: 'test'
+  ...
+# Subtest: authoritative constrained draw coordinate keeps live line and polygon clicks in the visible world copy
+ok 16 - authoritative constrained draw coordinate keeps live line and polygon clicks in the visible world copy
+  ---
+  duration_ms: 7.07983
+  type: 'test'
+  ...
+# Subtest: authoritative draw constraint owns LineString world-wrap and cannot be replaced by the legacy line block
+ok 17 - authoritative draw constraint owns LineString world-wrap and cannot be replaced by the legacy line block
+  ---
+  duration_ms: 5.512234
+  type: 'test'
+  ...
+# Subtest: click-based drawing exposes native map navigation while freehand keeps drag ownership
+ok 18 - click-based drawing exposes native map navigation while freehand keeps drag ownership
+  ---
+  duration_ms: 13.684691
+  type: 'test'
+  ...
+# Subtest: LineString drawing no longer owns a late coordinate conversion implementation
+ok 19 - LineString drawing no longer owns a late coordinate conversion implementation
+  ---
+  duration_ms: 6.249014
+  type: 'test'
+  ...
+# Subtest: a map drag suppresses the following draw click instead of creating a vertex
+ok 20 - a map drag suppresses the following draw click instead of creating a vertex
+  ---
+  duration_ms: 2.431564
+  type: 'test'
+  ...
+# Subtest: drawing keyboard navigation pans with arrows and zooms with plus/minus without editing geometry
+ok 21 - drawing keyboard navigation pans with arrows and zooms with plus/minus without editing geometry
+  ---
+  duration_ms: 4.51689
+  type: 'test'
+  ...
+# Subtest: draw cursor is reprojected from its screen pixel when the map view moves
+ok 22 - draw cursor is reprojected from its screen pixel when the map view moves
+  ---
+  duration_ms: 4.863349
+  type: 'test'
+  ...
+# Subtest: view movement synchronously refreshes the cursor-linked runtime preview before the RAF overlay pass
+ok 23 - view movement synchronously refreshes the cursor-linked runtime preview before the RAF overlay pass
+  ---
+  duration_ms: 11.199746
+  type: 'test'
+  ...
+# Subtest: Free polygon is the first Draw flyout option
+ok 24 - Free polygon is the first Draw flyout option
+  ---
+  duration_ms: 0.730638
+  type: 'test'
+  ...
+# Subtest: draw runtime preview mirrors polygon vertices, live cursor, linework and fill through the map adapter
+ok 25 - draw runtime preview mirrors polygon vertices, live cursor, linework and fill through the map adapter
+  ---
+  duration_ms: 5.668907
+  type: 'test'
+  ...
+# Subtest: shape drawing sends the complete live ring through a native transient vector overlay
+ok 26 - shape drawing sends the complete live ring through a native transient vector overlay
+  ---
+  duration_ms: 4.844083
+  type: 'test'
+  ...
+# Subtest: runtime preview layer is engine-neutral and clears when drawing stops
+ok 27 - runtime preview layer is engine-neutral and clears when drawing stops
+  ---
+  duration_ms: 10.754473
+  type: 'test'
+  ...
+# Subtest: draw preview layer state is initialized before startup can enter renderOverlay
+ok 28 - draw preview layer state is initialized before startup can enter renderOverlay
+  ---
+  duration_ms: 1.572365
+  type: 'test'
+  ...
+# Subtest: OpenLayers transient overlay is the sole live sketch geometry renderer
+ok 29 - OpenLayers transient overlay is the sole live sketch geometry renderer
+  ---
+  duration_ms: 11.3937
+  type: 'test'
+  ...
+# Subtest: generic edit branch helper keeps repeated-world pointer coordinates beside stored geometry
+ok 30 - generic edit branch helper keeps repeated-world pointer coordinates beside stored geometry
+  ---
+  duration_ms: 8.383652
+  type: 'test'
+  ...
+# Subtest: red vertex drag writes the replacement coordinate on the original vertex longitude branch
+ok 31 - red vertex drag writes the replacement coordinate on the original vertex longitude branch
+  ---
+  duration_ms: 2.582327
+  type: 'test'
+  ...
+# Subtest: edge drag keeps both endpoints on their own stored longitude branches
+ok 32 - edge drag keeps both endpoints on their own stored longitude branches
+  ---
+  duration_ms: 4.496241
+  type: 'test'
+  ...
+# Subtest: whole-feature screen movement preserves the stored branch but still crosses the dateline continuously
+ok 33 - whole-feature screen movement preserves the stored branch but still crosses the dateline continuously
+  ---
+  duration_ms: 10.646239
+  type: 'test'
+  ...
+# Subtest: geographic centre movement removes repeated-world offset before metre-space calculations
+ok 34 - geographic centre movement removes repeated-world offset before metre-space calculations
+  ---
+  duration_ms: 2.223675
+  type: 'test'
+  ...
+# Subtest: DOM draggable overlays and true-circle centre editing preserve their pre-drag longitude branch
+ok 35 - DOM draggable overlays and true-circle centre editing preserve their pre-drag longitude branch
+  ---
+  duration_ms: 0.850293
+  type: 'test'
+  ...
+# Subtest: EPZ module publishes the canonical lossless project-container contract
+ok 36 - EPZ module publishes the canonical lossless project-container contract
+  ---
+  duration_ms: 2.05023
+  type: 'test'
+  ...
+# Subtest: EPZ manifest validator rejects unrelated and newer project containers
+ok 37 - EPZ manifest validator rejects unrelated and newer project containers
+  ---
+  duration_ms: 1.391717
+  type: 'test'
+  ...
+# Subtest: EPZ archive creation keeps the canonical project JSON intact and adds integrity metadata
+ok 38 - EPZ archive creation keeps the canonical project JSON intact and adds integrity metadata
+  ---
+  duration_ms: 14.545908
+  type: 'test'
+  ...
+# Subtest: EPZ archive loading verifies and returns the exact project payload
+ok 39 - EPZ archive loading verifies and returns the exact project payload
+  ---
+  duration_ms: 3.401407
+  type: 'test'
+  ...
+# Subtest: application uses only .epz for project save/open and loads the format module before the app
+ok 40 - application uses only .epz for project save/open and loads the format module before the app
+  ---
+  duration_ms: 2.496696
+  type: 'test'
+  ...
+# Subtest: opening an EPZ starts a clean, non-undoable editing session
+ok 41 - opening an EPZ starts a clean, non-undoable editing session
+  ---
+  duration_ms: 3.37975
+  type: 'test'
+  ...
+# Subtest: filter workspace exposes a persistent active state with match and hidden counts
+ok 42 - filter workspace exposes a persistent active state with match and hidden counts
+  ---
+  duration_ms: 1.010993
+  type: 'test'
+  ...
+# Subtest: filter state remains visible from the tab and attribute table
+ok 43 - filter state remains visible from the tab and attribute table
+  ---
+  duration_ms: 0.186138
+  type: 'test'
+  ...
+# Subtest: filter state controls provide direct edit and clear actions
+ok 44 - filter state controls provide direct edit and clear actions
+  ---
+  duration_ms: 0.283371
+  type: 'test'
+  ...
+# Subtest: Fix geometries normalises winding after GEOS MakeValid
+ok 45 - Fix geometries normalises winding after GEOS MakeValid
+  ---
+  duration_ms: 20.020088
+  type: 'test'
+  ...
+# Subtest: line to points gives each vertex a useful generated name and preserves the source name
+ok 46 - line to points gives each vertex a useful generated name and preserves the source name
+  ---
+  duration_ms: 7.382688
+  type: 'test'
+  ...
+# Subtest: points along line names generated points by distance while preserving the source name
+ok 47 - points along line names generated points by distance while preserving the source name
+  ---
+  duration_ms: 1.951124
+  type: 'test'
+  ...
+# Subtest: Geometry code is restored to the known-good polygon-only implementation
+ok 48 - Geometry code is restored to the known-good polygon-only implementation
+  ---
+  duration_ms: 1.454625
+  type: 'test'
+  ...
+# Subtest: generic Point and Line Inspectors no longer receive the failed geometry-code retrofit
+ok 49 - generic Point and Line Inspectors no longer receive the failed geometry-code retrofit
+  ---
+  duration_ms: 1.624533
+  type: 'test'
+  ...
+# Subtest: polygon Geometry-code styling uses the original v53 details host without generic accordion overrides
+ok 50 - polygon Geometry-code styling uses the original v53 details host without generic accordion overrides
+  ---
+  duration_ms: 0.4697
+  type: 'test'
+  ...
+# Subtest: Geometry Health assets load in safe dependency order
+ok 51 - Geometry Health assets load in safe dependency order
+  ---
+  duration_ms: 1.662784
+  type: 'test'
+  ...
+# Subtest: layer GIS menu exposes Geometry Health without a release-version badge
+ok 52 - layer GIS menu exposes Geometry Health without a release-version badge
+  ---
+  duration_ms: 1.313591
+  type: 'test'
+  ...
+# Subtest: Geometry Health bridge materialises an undoable derived layer with provenance
+ok 53 - Geometry Health bridge materialises an undoable derived layer with provenance
+  ---
+  duration_ms: 5.398311
+  type: 'test'
+  ...
+# Subtest: guided UI uses plain-language exclusive risk categories and preserves source layer
+ok 54 - guided UI uses plain-language exclusive risk categories and preserves source layer
+  ---
+  duration_ms: 0.47554
+  type: 'test'
+  ...
+# Subtest: review repairs are explicitly previewed and never include automatic duplicate-feature deletion
+ok 55 - review repairs are explicitly previewed and never include automatic duplicate-feature deletion
+  ---
+  duration_ms: 0.322314
+  type: 'test'
+  ...
+# Subtest: Geometry Health runs long work in a dedicated worker and supports cancellation
+ok 56 - Geometry Health runs long work in a dedicated worker and supports cancellation
+  ---
+  duration_ms: 0.216566
+  type: 'test'
+  ...
+# Subtest: Geometry Health reuses the Inspector column and established Inspector section language
+ok 57 - Geometry Health reuses the Inspector column and established Inspector section language
+  ---
+  duration_ms: 0.375223
+  type: 'test'
+  ...
+# Subtest: Geometry Health groups diagnostics by feature and keeps the issue list compact
+ok 58 - Geometry Health groups diagnostics by feature and keeps the issue list compact
+  ---
+  duration_ms: 0.343543
+  type: 'test'
+  ...
+# Subtest: robust polygon validation and MakeValid are wired to pinned GEOS-WASM with an explicit fallback
+ok 59 - robust polygon validation and MakeValid are wired to pinned GEOS-WASM with an explicit fallback
+  ---
+  duration_ms: 0.645538
+  type: 'test'
+  ...
+# Subtest: repair provenance retains engine status, warnings and unresolved issue summary
+ok 60 - repair provenance retains engine status, warnings and unresolved issue summary
+  ---
+  duration_ms: 3.285935
+  type: 'test'
+  ...
+# Subtest: legacy file-validator fallback uses conservative defaults only
+ok 61 - legacy file-validator fallback uses conservative defaults only
+  ---
+  duration_ms: 0.557454
+  type: 'test'
+  ...
+# Subtest: advanced rules are staged until the user explicitly reruns the check
+ok 62 - advanced rules are staged until the user explicitly reruns the check
+  ---
+  duration_ms: 0.263504
+  type: 'test'
+  ...
+# Subtest: advanced rule controls are geometry-aware
+ok 63 - advanced rule controls are geometry-aware
+  ---
+  duration_ms: 0.604482
+  type: 'test'
+  ...
+# Subtest: import preview reuses Geometry Health diagnostics instead of generic vertex-count heuristics
+ok 64 - import preview reuses Geometry Health diagnostics instead of generic vertex-count heuristics
+  ---
+  duration_ms: 0.372708
+  type: 'test'
+  ...
+# Subtest: repair preview folds safe normalisation into proposals and marks invalid metrics as not comparable
+ok 65 - repair preview folds safe normalisation into proposals and marks invalid metrics as not comparable
+  ---
+  duration_ms: 0.289883
+  type: 'test'
+  ...
+# Subtest: layer warning badges use Geometry Health validation and repaired outputs discard stale raw warnings
+ok 66 - layer warning badges use Geometry Health validation and repaired outputs discard stale raw warnings
+  ---
+  duration_ms: 0.791442
+  type: 'test'
+  ...
+# Subtest: multiple dangling endpoints are condensed in the issue UI
+ok 67 - multiple dangling endpoints are condensed in the issue UI
+  ---
+  duration_ms: 0.153136
+  type: 'test'
+  ...
+# Subtest: creates a simple browser-local GIS state by default
+ok 68 - creates a simple browser-local GIS state by default
+  ---
+  duration_ms: 0.849151
+  type: 'test'
+  ...
+# Subtest: normalises sources, layers and removes orphan layer references
+ok 69 - normalises sources, layers and removes orphan layer references
+  ---
+  duration_ms: 0.797544
+  type: 'test'
+  ...
+# Subtest: validates XYZ and TMS URL templates
+ok 70 - validates XYZ and TMS URL templates
+  ---
+  duration_ms: 0.40029
+  type: 'test'
+  ...
+# Subtest: converts TileJSON into a persisted XYZ source
+ok 71 - converts TileJSON into a persisted XYZ source
+  ---
+  duration_ms: 0.380242
+  type: 'test'
+  ...
+# Subtest: describes remote source privacy accurately
+ok 72 - describes remote source privacy accurately
+  ---
+  duration_ms: 0.347721
+  type: 'test'
+  ...
+# Subtest: normalises common CRS identifiers and detects WKT authority codes
+ok 73 - normalises common CRS identifiers and detects WKT authority codes
+  ---
+  duration_ms: 2.008331
+  type: 'test'
+  ...
+# Subtest: Web Mercator round trip preserves Brisbane coordinates
+ok 74 - Web Mercator round trip preserves Brisbane coordinates
+  ---
+  duration_ms: 9.993948
+  type: 'test'
+  ...
+# Subtest: MGA zone 56 uses 500000 m easting on the central meridian and round trips
+ok 75 - MGA zone 56 uses 500000 m easting on the central meridian and round trips
+  ---
+  duration_ms: 0.490809
+  type: 'test'
+  ...
+# Subtest: geometry reprojection preserves nesting and non-spatial ordinates
+ok 76 - geometry reprojection preserves nesting and non-spatial ordinates
+  ---
+  duration_ms: 0.607698
+  type: 'test'
+  ...
+# Subtest: suggests an appropriate southern UTM/MGA zone
+ok 77 - suggests an appropriate southern UTM/MGA zone
+  ---
+  duration_ms: 0.298629
+  type: 'test'
+  ...
+# Subtest: projected GeoJSON with an explicit CRS is prepared in WGS84
+ok 78 - projected GeoJSON with an explicit CRS is prepared in WGS84
+  ---
+  duration_ms: 0.639618
+  type: 'test'
+  ...
+# Subtest: creates CRS WKT and geometry WKT for exports
+ok 79 - creates CRS WKT and geometry WKT for exports
+  ---
+  duration_ms: 0.99894
+  type: 'test'
+  ...
+# Subtest: CRS core loads before the main application
+ok 80 - CRS core loads before the main application
+  ---
+  duration_ms: 1.375215
+  type: 'test'
+  ...
+# Subtest: application exposes assignment, coordinate interpretation and CRS-aware export APIs
+ok 81 - application exposes assignment, coordinate interpretation and CRS-aware export APIs
+  ---
+  duration_ms: 4.644669
+  type: 'test'
+  ...
+# Subtest: CRS interface clearly separates metadata assignment from reprojection
+ok 82 - CRS interface clearly separates metadata assignment from reprojection
+  ---
+  duration_ms: 0.255699
+  type: 'test'
+  ...
+# Subtest: CRS release detects ArcGIS source CRS and offers multi-format export
+ok 83 - CRS release detects ArcGIS source CRS and offers multi-format export
+  ---
+  duration_ms: 1.631997
+  type: 'test'
+  ...
+# Subtest: field schema is inferred
+ok 84 - field schema is inferred
+  ---
+  duration_ms: 8.41511
+  type: 'test'
+  ...
+# Subtest: text and numeric filtering works
+ok 85 - text and numeric filtering works
+  ---
+  duration_ms: 0.86993
+  type: 'test'
+  ...
+# Subtest: unique values count categories
+ok 86 - unique values count categories
+  ---
+  duration_ms: 1.135366
+  type: 'test'
+  ...
+# Subtest: numeric stats and breaks are valid
+ok 87 - numeric stats and breaks are valid
+  ---
+  duration_ms: 33.843803
+  type: 'test'
+  ...
+# Subtest: field calculator supports references arithmetic concatenation and index
+ok 88 - field calculator supports references arithmetic concatenation and index
+  ---
+  duration_ms: 0.718266
+  type: 'test'
+  ...
+# Subtest: attribute tools initialise immediately when loaded after DOMContentLoaded
+ok 89 - attribute tools initialise immediately when loaded after DOMContentLoaded
+  ---
+  duration_ms: 1.308962
+  type: 'test'
+  ...
+# Subtest: attribute tools observe editable GIS rows rendered after startup
+ok 90 - attribute tools observe editable GIS rows rendered after startup
+  ---
+  duration_ms: 0.289352
+  type: 'test'
+  ...
+# Subtest: attribute tools expose a supported manual recovery hook
+ok 91 - attribute tools expose a supported manual recovery hook
+  ---
+  duration_ms: 0.28333
+  type: 'test'
+  ...
+# Subtest: v1.54 recognises ordinary point, open line and polygon geometry as ready
+ok 92 - v1.54 recognises ordinary point, open line and polygon geometry as ready
+  ---
+  duration_ms: 4.435929
+  type: 'test'
+  ...
+# Subtest: exact neighbouring duplicate vertices are a safe shape-preserving cleanup
+ok 93 - exact neighbouring duplicate vertices are a safe shape-preserving cleanup
+  ---
+  duration_ms: 1.089912
+  type: 'test'
+  ...
+# Subtest: a duplicate neighbouring polygon vertex is not misclassified as a self-intersection
+ok 94 - a duplicate neighbouring polygon vertex is not misclassified as a self-intersection
+  ---
+  duration_ms: 0.632935
+  type: 'test'
+  ...
+# Subtest: unclosed polygon boundaries require review and are never closed by safe repair
+ok 95 - unclosed polygon boundaries require review and are never closed by safe repair
+  ---
+  duration_ms: 0.758301
+  type: 'test'
+  ...
+# Subtest: self-intersecting polygon gets a located review issue and make-valid proposal
+ok 96 - self-intersecting polygon gets a located review issue and make-valid proposal
+  ---
+  duration_ms: 0.801711
+  type: 'test'
+  ...
+# Subtest: hole outside shell is explained as reviewable geometry rather than silently removed
+ok 97 - hole outside shell is explained as reviewable geometry rather than silently removed
+  ---
+  duration_ms: 1.072289
+  type: 'test'
+  ...
+# Subtest: exact duplicate features are optional manual-review findings and safe repair never deletes them
+ok 98 - exact duplicate features are optional manual-review findings and safe repair never deletes them
+  ---
+  duration_ms: 1.362402
+  type: 'test'
+  ...
+# Subtest: feature summary categories are exclusive and use the most serious issue
+ok 99 - feature summary categories are exclusive and use the most serious issue
+  ---
+  duration_ms: 0.535453
+  type: 'test'
+  ...
+# Subtest: MultiPoint duplicate cleanup is safe and deterministic
+ok 100 - MultiPoint duplicate cleanup is safe and deterministic
+  ---
+  duration_ms: 2.321438
+  type: 'test'
+  ...
+# Subtest: coordinates outside WGS84 storage range are a CRS/manual-review problem
+ok 101 - coordinates outside WGS84 storage range are a CRS/manual-review problem
+  ---
+  duration_ms: 0.686956
+  type: 'test'
+  ...
+# Subtest: touching MultiPolygon parts are not called overlaps, while interior overlap is
+ok 102 - touching MultiPolygon parts are not called overlaps, while interior overlap is
+  ---
+  duration_ms: 1.778682
+  type: 'test'
+  ...
+# Subtest: optional line rules do not redefine ordinary line validity
+ok 103 - optional line rules do not redefine ordinary line validity
+  ---
+  duration_ms: 0.734135
+  type: 'test'
+  ...
+# Subtest: worker validates ordinary open lines and returns progress plus structured result
+ok 104 - worker validates ordinary open lines and returns progress plus structured result
+  ---
+  duration_ms: 7.567062
+  type: 'test'
+  ...
+# Subtest: worker safe repair revalidates output without deleting records
+ok 105 - worker safe repair revalidates output without deleting records
+  ---
+  duration_ms: 6.75913
+  type: 'test'
+  ...
+# Subtest: worker augments polygon diagnostics and make-valid previews with GEOS when available
+ok 106 - worker augments polygon diagnostics and make-valid previews with GEOS when available
+  ---
+  duration_ms: 12.270503
+  type: 'test'
+  ...
+# Subtest: make-valid preview folds harmless ring-direction cleanup into the proposal
+ok 107 - make-valid preview folds harmless ring-direction cleanup into the proposal
+  ---
+  duration_ms: 3.869096
+  type: 'test'
+  ...
+# Subtest: GEOS adapter exposes the pinned robust engine version
+ok 108 - GEOS adapter exposes the pinned robust engine version
+  ---
+  duration_ms: 3.167673
+  type: 'test'
+  ...
+# Subtest: GEOS validity converts GeoJSON safely and returns the diagnostic reason
+ok 109 - GEOS validity converts GeoJSON safely and returns the diagnostic reason
+  ---
+  duration_ms: 4.10624
+  type: 'test'
+  ...
+# Subtest: GEOS MakeValid keeps polygonal output and reports discarded lower-dimensional pieces
+ok 110 - GEOS MakeValid keeps polygonal output and reports discarded lower-dimensional pieces
+  ---
+  duration_ms: 1.572796
+  type: 'test'
+  ...
+# Subtest: GEOS adapter routes robust overlay and maintenance operations through the low-level API
+ok 111 - GEOS adapter routes robust overlay and maintenance operations through the low-level API
+  ---
+  duration_ms: 2.041544
+  type: 'test'
+  ...
+# Subtest: GEOS adapter reads metric distance through the supported Emscripten double accessor
+ok 112 - GEOS adapter reads metric distance through the supported Emscripten double accessor
+  ---
+  duration_ms: 1.185891
+  type: 'test'
+  ...
+# Subtest: GEOS adapter retains a typed-memory fallback for builds without Module.getValue
+ok 113 - GEOS adapter retains a typed-memory fallback for builds without Module.getValue
+  ---
+  duration_ms: 0.974164
+  type: 'test'
+  ...
+# Subtest: attribute joins preserve leading-zero text identifiers and null keys never match
+ok 114 - attribute joins preserve leading-zero text identifiers and null keys never match
+  ---
+  duration_ms: 3.955038
+  type: 'test'
+  ...
+# Subtest: text matching options are explicit and do not rewrite stored values
+ok 115 - text matching options are explicit and do not rewrite stored values
+  ---
+  duration_ms: 0.716983
+  type: 'test'
+  ...
+# Subtest: typed key compatibility permits whole-number integer/decimal joins but blocks fractions
+ok 116 - typed key compatibility permits whole-number integer/decimal joins but blocks fractions
+  ---
+  duration_ms: 0.226184
+  type: 'test'
+  ...
+# Subtest: duplicate matches are blocked until the user chooses first or expansion
+ok 117 - duplicate matches are blocked until the user chooses first or expansion
+  ---
+  duration_ms: 14.635281
+  type: 'test'
+  ...
+# Subtest: left and inner joins produce predictable counts and resolve field conflicts
+ok 118 - left and inner joins produce predictable counts and resolve field conflicts
+  ---
+  duration_ms: 0.49141
+  type: 'test'
+  ...
+# Subtest: grouped summaries support multiple group fields, typed calculations and stable output names
+ok 119 - grouped summaries support multiple group fields, typed calculations and stable output names
+  ---
+  duration_ms: 1.875012
+  type: 'test'
+  ...
+# Subtest: summary validation rejects operations that do not match the field type
+ok 120 - summary validation rejects operations that do not match the field type
+  ---
+  duration_ms: 0.489857
+  type: 'test'
+  ...
+# Subtest: CSV lookup parsing handles quoting, BOMs, tabs and duplicate headings
+ok 121 - CSV lookup parsing handles quoting, BOMs, tabs and duplicate headings
+  ---
+  duration_ms: 1.019429
+  type: 'test'
+  ...
+# Subtest: spatial worker joins points to containing polygons and summarizes all matches
+ok 122 - spatial worker joins points to containing polygons and summarizes all matches
+  ---
+  duration_ms: 9.180675
+  type: 'test'
+  ...
+# Subtest: spatial worker finds nearest point, reports geodesic distance and honours a limit
+ok 123 - spatial worker finds nearest point, reports geodesic distance and honours a limit
+  ---
+  duration_ms: 2.415413
+  type: 'test'
+  ...
+# Subtest: spatial worker reports invalid geometry instead of silently treating it as a match
+ok 124 - spatial worker reports invalid geometry instead of silently treating it as a match
+  ---
+  duration_ms: 3.409527
+  type: 'test'
+  ...
+# Subtest: spatial worker can expand multiple intersections and omit unmatched targets
+ok 125 - spatial worker can expand multiple intersections and omit unmatched targets
+  ---
+  duration_ms: 2.069265
+  type: 'test'
+  ...
+# Subtest: spatial worker summarizes numeric values from all intersecting source features
+ok 126 - spatial worker summarizes numeric values from all intersecting source features
+  ---
+  duration_ms: 4.098426
+  type: 'test'
+  ...
+# Subtest: processing scopes are explicit and presentation visibility never changes membership
+ok 127 - processing scopes are explicit and presentation visibility never changes membership
+  ---
+  duration_ms: 4.631935
+  type: 'test'
+  ...
+# Subtest: generic preflight validates multiple inputs, geometry, fields, scopes and parameters
+ok 128 - generic preflight validates multiple inputs, geometry, fields, scopes and parameters
+  ---
+  duration_ms: 24.287469
+  type: 'test'
+  ...
+# Subtest: geometry-constrained inputs use compatible features inside mixed-geometry layers
+ok 129 - geometry-constrained inputs use compatible features inside mixed-geometry layers
+  ---
+  duration_ms: 4.217569
+  type: 'test'
+  ...
+# Subtest: same-layer polygon overlays are rejected instead of producing degenerate self-overlays
+ok 130 - same-layer polygon overlays are rejected instead of producing degenerate self-overlays
+  ---
+  duration_ms: 2.429521
+  type: 'test'
+  ...
+# Subtest: same-layer nearest preflight explains self-exclusion instead of silently producing self matches
+ok 131 - same-layer nearest preflight explains self-exclusion instead of silently producing self matches
+  ---
+  duration_ms: 2.038447
+  type: 'test'
+  ...
+# Subtest: requests support layer, in-place and selection result policies without per-tool UI contracts
+ok 132 - requests support layer, in-place and selection result policies without per-tool UI contracts
+  ---
+  duration_ms: 1.84241
+  type: 'test'
+  ...
+# Subtest: provenance records generic inputs, output policy and actual processing engine/CRS
+ok 133 - provenance records generic inputs, output policy and actual processing engine/CRS
+  ---
+  duration_ms: 2.447314
+  type: 'test'
+  ...
+# Subtest: metric processing CRS resolves locally where possible and broad/global jobs use the fallback
+ok 134 - metric processing CRS resolves locally where possible and broad/global jobs use the fallback
+  ---
+  duration_ms: 3.683258
+  type: 'test'
+  ...
+# Subtest: summary and failure contracts remain explicit for partial per-feature jobs
+ok 135 - summary and failure contracts remain explicit for partial per-feature jobs
+  ---
+  duration_ms: 2.287504
+  type: 'test'
+  ...
+# Subtest: engine performs pure conversion tools without creating separate implementations in the application
+ok 136 - engine performs pure conversion tools without creating separate implementations in the application
+  ---
+  duration_ms: 9.584651
+  type: 'test'
+  ...
+# Subtest: typed select-by-attribute uses schema inference rather than a text-only comparator
+ok 137 - typed select-by-attribute uses schema inference rather than a text-only comparator
+  ---
+  duration_ms: 4.34725
+  type: 'test'
+  ...
+# Subtest: typed selection honours the authoritative layer schema when raw values are strings
+ok 138 - typed selection honours the authoritative layer schema when raw values are strings
+  ---
+  duration_ms: 1.56978
+  type: 'test'
+  ...
+# Subtest: selection and maintenance tools return the generic result contract
+ok 139 - selection and maintenance tools return the generic result contract
+  ---
+  duration_ms: 1.567826
+  type: 'test'
+  ...
+# Subtest: same-layer nearest searches exclude the source feature itself instead of returning zero
+ok 140 - same-layer nearest searches exclude the source feature itself instead of returning zero
+  ---
+  duration_ms: 2.910642
+  type: 'test'
+  ...
+# Subtest: different layers may legitimately contain the same feature ids without being treated as self matches
+ok 141 - different layers may legitimately contain the same feature ids without being treated as self matches
+  ---
+  duration_ms: 3.308066
+  type: 'test'
+  ...
+# Subtest: overlay and dissolve route through the shared GEOS adapter
+ok 142 - overlay and dissolve route through the shared GEOS adapter
+  ---
+  duration_ms: 3.152033
+  type: 'test'
+  ...
+# Subtest: every v1.56.1 catalogue tool has an executable engine path
+ok 143 - every v1.56.1 catalogue tool has an executable engine path
+  ---
+  duration_ms: 13.163795
+  type: 'test'
+  ...
+# Subtest: v1.56.1 registry publishes the complete planned Processing Toolbox catalogue
+ok 144 - v1.56.1 registry publishes the complete planned Processing Toolbox catalogue
+  ---
+  duration_ms: 6.918948
+  type: 'test'
+  ...
+# Subtest: tool metadata describes inputs, result kinds, engines and mutation policies declaratively
+ok 145 - tool metadata describes inputs, result kinds, engines and mutation policies declaratively
+  ---
+  duration_ms: 2.313804
+  type: 'test'
+  ...
+# Subtest: catalogue is clone-safe and searchable across titles, descriptions, categories and keywords
+ok 146 - catalogue is clone-safe and searchable across titles, descriptions, categories and keywords
+  ---
+  duration_ms: 1.838213
+  type: 'test'
+  ...
+# Subtest: remote-source resolver loads before the application and workspace
+ok 147 - remote-source resolver loads before the application and workspace
+  ---
+  duration_ms: 1.385505
+  type: 'test'
+  ...
+# Subtest: application exposes discovery and batch ArcGIS import APIs
+ok 148 - application exposes discovery and batch ArcGIS import APIs
+  ---
+  duration_ms: 2.07161
+  type: 'test'
+  ...
+# Subtest: workspace presents a simple find, choose and import flow
+ok 149 - workspace presents a simple find, choose and import flow
+  ---
+  duration_ms: 0.322865
+  type: 'test'
+  ...
+# Subtest: classifies common ArcGIS and GeoJSON links
+ok 150 - classifies common ArcGIS and GeoJSON links
+  ---
+  duration_ms: 2.911463
+  type: 'test'
+  ...
+# Subtest: builds a safe GeoJSON query while preserving user filters
+ok 151 - builds a safe GeoJSON query while preserving user filters
+  ---
+  duration_ms: 0.981428
+  type: 'test'
+  ...
+# Subtest: discovers services and folders from an ArcGIS directory link
+ok 152 - discovers services and folders from an ArcGIS directory link
+  ---
+  duration_ms: 1.833494
+  type: 'test'
+  ...
+# Subtest: discovers layers from a FeatureServer and resolves the selected layer
+ok 153 - discovers layers from a FeatureServer and resolves the selected layer
+  ---
+  duration_ms: 1.496433
+  type: 'test'
+  ...
+# Subtest: resolves an ArcGIS item page to its underlying public service
+ok 154 - resolves an ArcGIS item page to its underlying public service
+  ---
+  duration_ms: 1.371669
+  type: 'test'
+  ...
+# Subtest: recognises direct GeoJSON and retains the downloaded data for import
+ok 155 - recognises direct GeoJSON and retains the downloaded data for import
+  ---
+  duration_ms: 0.584394
+  type: 'test'
+  ...
+# Subtest: turns an HTML response into an actionable message rather than a JSON parser error
+ok 156 - turns an HTML response into an actionable message rather than a JSON parser error
+  ---
+  duration_ms: 0.915615
+  type: 'test'
+  ...
+# Subtest: conservatively infers typed fields from imported values
+ok 157 - conservatively infers typed fields from imported values
+  ---
+  duration_ms: 5.171486
+  type: 'test'
+  ...
+# Subtest: existing schema fields survive even when every feature is missing the property
+ok 158 - existing schema fields survive even when every feature is missing the property
+  ---
+  duration_ms: 0.531806
+  type: 'test'
+  ...
+# Subtest: typed coercion rejects incompatible values and preserves nullability
+ok 159 - typed coercion rejects incompatible values and preserves nullability
+  ---
+  duration_ms: 0.423623
+  type: 'test'
+  ...
+# Subtest: conversion preview reports incompatible rows before schema changes
+ok 160 - conversion preview reports incompatible rows before schema changes
+  ---
+  duration_ms: 0.463238
+  type: 'test'
+  ...
+# Subtest: compound typed filters support AND, OR, ranges, dates and booleans
+ok 161 - compound typed filters support AND, OR, ranges, dates and booleans
+  ---
+  duration_ms: 1.399161
+  type: 'test'
+  ...
+# Subtest: multi-column typed sorting is stable and keeps null values last
+ok 162 - multi-column typed sorting is stable and keeps null values last
+  ---
+  duration_ms: 12.746533
+  type: 'test'
+  ...
+# Subtest: calculator evaluates deterministic expressions and type-validates previews
+ok 163 - calculator evaluates deterministic expressions and type-validates previews
+  ---
+  duration_ms: 1.865995
+  type: 'test'
+  ...
+# Subtest: spatial index returns only bbox candidates
+ok 164 - spatial index returns only bbox candidates
+  ---
+  duration_ms: 4.168337
+  type: 'test'
+  ...
+# Subtest: shared relationship and matching engine applies exact predicates after indexing
+ok 165 - shared relationship and matching engine applies exact predicates after indexing
+  ---
+  duration_ms: 2.693044
+  type: 'test'
+  ...
+# Subtest: nearest feature accepts one authoritative distance function
+ok 166 - nearest feature accepts one authoritative distance function
+  ---
+  duration_ms: 1.236355
+  type: 'test'
+  ...
+# Subtest: shared aggregation and collision-safe property combination support joins and spatial summaries
+ok 167 - shared aggregation and collision-safe property combination support joins and spatial summaries
+  ---
+  duration_ms: 1.62882
+  type: 'test'
+  ...
+# Subtest: GIS UI module is loaded after the data tools
+ok 168 - GIS UI module is loaded after the data tools
+  ---
+  duration_ms: 1.457129
+  type: 'test'
+  ...
+# Subtest: selected feature bridge exposes inspector data and edits
+ok 169 - selected feature bridge exposes inspector data and edits
+  ---
+  duration_ms: 1.071317
+  type: 'test'
+  ...
+# Subtest: layer integration provides every grouped GIS workspace action
+ok 170 - layer integration provides every grouped GIS workspace action
+  ---
+  duration_ms: 0.338474
+  type: 'test'
+  ...
+# Subtest: inspector integration supports summary, all fields and editing
+ok 171 - inspector integration supports summary, all fields and editing
+  ---
+  duration_ms: 0.214191
+  type: 'test'
+  ...
+# Subtest: hidden and locked dataset features remain recoverable in the layer list
+ok 172 - hidden and locked dataset features remain recoverable in the layer list
+  ---
+  duration_ms: 0.623348
+  type: 'test'
+  ...
+# Subtest: GIS UI refresh is scoped away from the map DOM
+ok 173 - GIS UI refresh is scoped away from the map DOM
+  ---
+  duration_ms: 0.17643
+  type: 'test'
+  ...
+# Subtest: lightweight layer snapshots do not calculate CRS bounds during UI refresh
+ok 174 - lightweight layer snapshots do not calculate CRS bounds during UI refresh
+  ---
+  duration_ms: 0.57163
+  type: 'test'
+  ...
+# Subtest: GIS shortcut menu stays bounded and restores keyboard focus
+ok 175 - GIS shortcut menu stays bounded and restores keyboard focus
+  ---
+  duration_ms: 0.166271
+  type: 'test'
+  ...
+# Subtest: standalone Point models are healed to canonical CRS84 longitude
+ok 176 - standalone Point models are healed to canonical CRS84 longitude
+  ---
+  duration_ms: 1.630043
+  type: 'test'
+  ...
+# Subtest: point creation and point editing never persist a repeated-world longitude
+ok 177 - point creation and point editing never persist a repeated-world longitude
+  ---
+  duration_ms: 2.113839
+  type: 'test'
+  ...
+# Subtest: true circle keeps a canonical model centre while display materialisation uses the active world copy
+ok 178 - true circle keeps a canonical model centre while display materialisation uses the active world copy
+  ---
+  duration_ms: 0.890137
+  type: 'test'
+  ...
+# Subtest: history restore invalidates spatial and vector caches after installing restored state
+ok 179 - history restore invalidates spatial and vector caches after installing restored state
+  ---
+  duration_ms: 1.926398
+  type: 'test'
+  ...
+# Subtest: OSM can display beyond its native tile pyramid without requesting unsupported z20+ source tiles
+ok 180 - OSM can display beyond its native tile pyramid without requesting unsupported z20+ source tiles
+  ---
+  duration_ms: 0.458589
+  type: 'test'
+  ...
+# Subtest: feature zoom caps point/degenerate extents below extreme basemap zooms
+ok 181 - feature zoom caps point/degenerate extents below extreme basemap zooms
+  ---
+  duration_ms: 0.422952
+  type: 'test'
+  ...
+# Subtest: VStop has one stable history-aware implementation and no late compatibility wrapper
+ok 182 - VStop has one stable history-aware implementation and no late compatibility wrapper
+  ---
+  duration_ms: 3.510746
+  type: 'test'
+  ...
+# Subtest: history restoration closes vertex editing without painting pre-history geometry
+ok 183 - history restoration closes vertex editing without painting pre-history geometry
+  ---
+  duration_ms: 0.384731
+  type: 'test'
+  ...
+# Subtest: history cache invalidation advances an authoritative render generation
+ok 184 - history cache invalidation advances an authoritative render generation
+  ---
+  duration_ms: 1.452501
+  type: 'test'
+  ...
+# Subtest: restored model invalidates caches after replacement and before the authoritative paint
+ok 185 - restored model invalidates caches after replacement and before the authoritative paint
+  ---
+  duration_ms: 0.343904
+  type: 'test'
+  ...
+# Subtest: vertex and edge pointerdown do not create no-op undo entries
+ok 186 - vertex and edge pointerdown do not create no-op undo entries
+  ---
+  duration_ms: 1.192042
+  type: 'test'
+  ...
+# Subtest: delayed vertex guard cannot survive editor shutdown into an undo restore
+ok 187 - delayed vertex guard cannot survive editor shutdown into an undo restore
+  ---
+  duration_ms: 0.813564
+  type: 'test'
+  ...
+# Subtest: point and circle drag history starts on movement rather than pointerdown and cancelled overlays do not commit
+ok 188 - point and circle drag history starts on movement rather than pointerdown and cancelled overlays do not commit
+  ---
+  duration_ms: 1.033286
+  type: 'test'
+  ...
+# Subtest: history restoration creates a hard native-render authority boundary
+ok 189 - history restoration creates a hard native-render authority boundary
+  ---
+  duration_ms: 0.316352
+  type: 'test'
+  ...
+# Subtest: cached renderer identity includes actual geometry content and history epoch
+ok 190 - cached renderer identity includes actual geometry content and history epoch
+  ---
+  duration_ms: 1.92226
+  type: 'test'
+  ...
+# Subtest: committed manual geometry retires transient native edit materialisation
+ok 191 - committed manual geometry retires transient native edit materialisation
+  ---
+  duration_ms: 0.666398
+  type: 'test'
+  ...
+# Subtest: map adapter tracks editable layer ownership and content, and can hard-purge it
+ok 192 - map adapter tracks editable layer ownership and content, and can hard-purge it
+  ---
+  duration_ms: 0.323176
+  type: 'test'
+  ...
+# Subtest: join engine loads before the application and uses a dedicated worker
+ok 193 - join engine loads before the application and uses a dedicated worker
+  ---
+  duration_ms: 1.862919
+  type: 'test'
+  ...
+# Subtest: application exposes materialised join, summary and spatial APIs
+ok 194 - application exposes materialised join, summary and spatial APIs
+  ---
+  duration_ms: 7.532649
+  type: 'test'
+  ...
+# Subtest: Join & summarize interface contains previews, scopes, duplicate handling and cancellation
+ok 195 - Join & summarize interface contains previews, scopes, duplicate handling and cancellation
+  ---
+  duration_ms: 0.479148
+  type: 'test'
+  ...
+# Subtest: non-spatial summary tables remain editable but are excluded from map-only tools
+ok 196 - non-spatial summary tables remain editable but are excluded from map-only tools
+  ---
+  duration_ms: 1.221168
+  type: 'test'
+  ...
+# Subtest: join outputs retain provenance and show a persistent result explanation
+ok 197 - join outputs retain provenance and show a persistent result explanation
+  ---
+  duration_ms: 0.51749
+  type: 'test'
+  ...
+# Subtest: join outputs and typed calculations invalidate indexes through the public GIS API
+ok 198 - join outputs and typed calculations invalidate indexes through the public GIS API
+  ---
+  duration_ms: 1.668696
+  type: 'test'
+  ...
+# Subtest: join completion wording distinguishes output rows from actual matches
+ok 199 - join completion wording distinguishes output rows from actual matches
+  ---
+  duration_ms: 0.381064
+  type: 'test'
+  ...
+# Subtest: Layers panel has a persisted horizontal resizer with enforced bounds
+ok 200 - Layers panel has a persisted horizontal resizer with enforced bounds
+  ---
+  duration_ms: 3.802973
+  type: 'test'
+  ...
+# Subtest: mobile mode disables desktop horizontal resizing
+ok 201 - mobile mode disables desktop horizontal resizing
+  ---
+  duration_ms: 0.253525
+  type: 'test'
+  ...
+# Subtest: compact Layers actions and accurate result counts remain wired
+ok 202 - compact Layers actions and accurate result counts remain wired
+  ---
+  duration_ms: 1.508706
+  type: 'test'
+  ...
+# Subtest: layer More menu is grouped, geometry-aware and viewport-safe
+ok 203 - layer More menu is grouped, geometry-aware and viewport-safe
+  ---
+  duration_ms: 6.123959
+  type: 'test'
+  ...
+# Subtest: layer More menu keeps styling concise and destructive actions separate
+ok 204 - layer More menu keeps styling concise and destructive actions separate
+  ---
+  duration_ms: 0.602649
+  type: 'test'
+  ...
+# Subtest: v1.56.1 loads the sole OpenLayers dependency before the map adapter and application
+ok 205 - v1.56.1 loads the sole OpenLayers dependency before the map adapter and application
+  ---
+  duration_ms: 1.2978
+  type: 'test'
+  ...
+# Subtest: application creates and publishes the sole map runtime through the adapter
+ok 206 - application creates and publishes the sole map runtime through the adapter
+  ---
+  duration_ms: 2.70175
+  type: 'test'
+  ...
+# Subtest: editor viewport, coordinate and interaction calls route through MAP_RUNTIME
+ok 207 - editor viewport, coordinate and interaction calls route through MAP_RUNTIME
+  ---
+  duration_ms: 11.495601
+  type: 'test'
+  ...
+# Subtest: application does not reach into native map implementation details
+ok 208 - application does not reach into native map implementation details
+  ---
+  duration_ms: 2.788212
+  type: 'test'
+  ...
+# Subtest: main map event subscriptions use normalised adapter events
+ok 209 - main map event subscriptions use normalised adapter events
+  ---
+  duration_ms: 1.276631
+  type: 'test'
+  ...
+# Subtest: OpenLayers runtime owns editable, service and reference primitives
+ok 210 - OpenLayers runtime owns editable, service and reference primitives
+  ---
+  duration_ms: 4.30875
+  type: 'test'
+  ...
+# Subtest: built-in basemaps, GIS tile services and cached editable vectors use the shared runtime contract
+ok 211 - built-in basemaps, GIS tile services and cached editable vectors use the shared runtime contract
+  ---
+  duration_ms: 2.70696
+  type: 'test'
+  ...
+# Subtest: vertex dragging live-updates cached geometry without committing history on every pointermove
+ok 212 - vertex dragging live-updates cached geometry without committing history on every pointermove
+  ---
+  duration_ms: 0.38953
+  type: 'test'
+  ...
+# Subtest: map adapter publishes one runtime factory and no transition-era runtime aliases
+ok 213 - map adapter publishes one runtime factory and no transition-era runtime aliases
+  ---
+  duration_ms: 6.176267
+  type: 'test'
+  ...
+# Subtest: sole runtime fails clearly when OpenLayers is unavailable
+ok 214 - sole runtime fails clearly when OpenLayers is unavailable
+  ---
+  duration_ms: 1.465315
+  type: 'test'
+  ...
+# Subtest: shared point, extent and geometry fingerprint helpers remain runtime-neutral
+ok 215 - shared point, extent and geometry fingerprint helpers remain runtime-neutral
+  ---
+  duration_ms: 1.707308
+  type: 'test'
+  ...
+# Subtest: OpenLayers view and controls preserve canonical lon/lat application state
+ok 216 - OpenLayers view and controls preserve canonical lon/lat application state
+  ---
+  duration_ms: 2.559474
+  type: 'test'
+  ...
+# Subtest: OpenLayers forward and inverse pixel conversion preserve active repeated-world longitude
+ok 217 - OpenLayers forward and inverse pixel conversion preserve active repeated-world longitude
+  ---
+  duration_ms: 2.632541
+  type: 'test'
+  ...
+# Subtest: OpenLayers runtime owns tile, WMS and editable vector construction
+ok 218 - OpenLayers runtime owns tile, WMS and editable vector construction
+  ---
+  duration_ms: 2.939545
+  type: 'test'
+  ...
+# Subtest: editable vectors share identical styles and skip decluttering when no text is present
+ok 219 - editable vectors share identical styles and skip decluttering when no text is present
+  ---
+  duration_ms: 1.747142
+  type: 'test'
+  ...
+# Subtest: OpenLayers runtime owns reference GeoJSON and static image layers
+ok 220 - OpenLayers runtime owns reference GeoJSON and static image layers
+  ---
+  duration_ms: 1.899427
+  type: 'test'
+  ...
+# Subtest: interaction toggles and public drawing navigation stay adapter-owned
+ok 221 - interaction toggles and public drawing navigation stay adapter-owned
+  ---
+  duration_ms: 2.229967
+  type: 'test'
+  ...
+# Subtest: transient vector overlays and DOM handles are native map-runtime primitives
+ok 222 - transient vector overlays and DOM handles are native map-runtime primitives
+  ---
+  duration_ms: 3.380061
+  type: 'test'
+  ...
+# Subtest: click delivery is native and has no compatibility DOM surface
+ok 223 - click delivery is native and has no compatibility DOM surface
+  ---
+  duration_ms: 1.598764
+  type: 'test'
+  ...
+# Subtest: runtime reuses one GeoJSON formatter across layer creation and live geometry updates
+ok 224 - runtime reuses one GeoJSON formatter across layer creation and live geometry updates
+  ---
+  duration_ms: 2.784826
+  type: 'test'
+  ...
+# Subtest: zoom lifecycle fanout notifies every subscriber exactly once
+ok 225 - zoom lifecycle fanout notifies every subscriber exactly once
+  ---
+  duration_ms: 1.613812
+  type: 'test'
+  ...
+# Subtest: DOM overlays share runtime-level map subscriptions instead of adding listeners per overlay
+ok 226 - DOM overlays share runtime-level map subscriptions instead of adding listeners per overlay
+  ---
+  duration_ms: 2.624485
+  type: 'test'
+  ...
+# Subtest: canonical repeated-world geometry is projected without breaking dateline continuity
+ok 227 - canonical repeated-world geometry is projected without breaking dateline continuity
+  ---
+  duration_ms: 1.075594
+  type: 'test'
+  ...
+# Subtest: tile layers distinguish display max zoom from native tile max zoom
+ok 228 - tile layers distinguish display max zoom from native tile max zoom
+  ---
+  duration_ms: 1.274236
+  type: 'test'
+  ...
+# Subtest: editable layer geometry identity and hard purge stay inside the map adapter
+ok 229 - editable layer geometry identity and hard purge stay inside the map adapter
+  ---
+  duration_ms: 2.051874
+  type: 'test'
+  ...
+# Subtest: map click selection uses one unified geometry-aware hit-test path
+ok 230 - map click selection uses one unified geometry-aware hit-test path
+  ---
+  duration_ms: 3.451895
+  type: 'test'
+  ...
+# Subtest: map click semantics match the Layers selection model
+ok 231 - map click semantics match the Layers selection model
+  ---
+  duration_ms: 0.539821
+  type: 'test'
+  ...
+# Subtest: selection state refreshes the authoritative cached renderer immediately through the authoritative renderer
+ok 232 - selection state refreshes the authoritative cached renderer immediately through the authoritative renderer
+  ---
+  duration_ms: 1.385385
+  type: 'test'
+  ...
+# Subtest: overlap picker is geometry neutral
+ok 233 - overlap picker is geometry neutral
+  ---
+  duration_ms: 2.421986
+  type: 'test'
+  ...
+# Subtest: click selection tests true circles against the exact materialised geometry rendered on the map
+ok 234 - click selection tests true circles against the exact materialised geometry rendered on the map
+  ---
+  duration_ms: 0.40579
+  type: 'test'
+  ...
+# Subtest: OpenLayers click delivery is owned by the native OL map with no compatibility-surface fallback
+ok 235 - OpenLayers click delivery is owned by the native OL map with no compatibility-surface fallback
+  ---
+  duration_ms: 0.56621
+  type: 'test'
+  ...
+# Subtest: critical map click-selection functions are not overwritten later in the monolithic compatibility script
+ok 236 - critical map click-selection functions are not overwritten later in the monolithic compatibility script
+  ---
+  duration_ms: 5.185001
+  type: 'test'
+  ...
+# Subtest: saved distance and area measurements expose draggable vertices and midpoint insertion handles
+ok 237 - saved distance and area measurements expose draggable vertices and midpoint insertion handles
+  ---
+  duration_ms: 1.77299
+  type: 'test'
+  ...
+# Subtest: editing a saved measurement does not use pointer movement as an extra trailing vertex
+ok 238 - editing a saved measurement does not use pointer movement as an extra trailing vertex
+  ---
+  duration_ms: 0.3522
+  type: 'test'
+  ...
+# Subtest: measurement create edit and delete actions participate in project undo redo
+ok 239 - measurement create edit and delete actions participate in project undo redo
+  ---
+  duration_ms: 9.283468
+  type: 'test'
+  ...
+# Subtest: full structural history snapshots also retain saved measurements
+ok 240 - full structural history snapshots also retain saved measurements
+  ---
+  duration_ms: 0.847778
+  type: 'test'
+  ...
+# Subtest: mobile controller is loaded after GIS integration and identifies the current parity release
+ok 241 - mobile controller is loaded after GIS integration and identifies the current parity release
+  ---
+  duration_ms: 1.650001
+  type: 'test'
+  ...
+# Subtest: mobile layout uses map-first drawers for Layers and Inspector
+ok 242 - mobile layout uses map-first drawers for Layers and Inspector
+  ---
+  duration_ms: 0.427871
+  type: 'test'
+  ...
+# Subtest: Advanced GIS is reachable and stateful on the mobile dock and project sheet
+ok 243 - Advanced GIS is reachable and stateful on the mobile dock and project sheet
+  ---
+  duration_ms: 0.29365
+  type: 'test'
+  ...
+# Subtest: mobile project and context sheets are independent of desktop dropdown geometry
+ok 244 - mobile project and context sheets are independent of desktop dropdown geometry
+  ---
+  duration_ms: 0.257443
+  type: 'test'
+  ...
+# Subtest: mobile document no longer presents a desktop-preference gate
+ok 245 - mobile document no longer presents a desktop-preference gate
+  ---
+  duration_ms: 0.409497
+  type: 'test'
+  ...
+# Subtest: mobile document prevents page-level horizontal overflow and preserves safe areas
+ok 246 - mobile document prevents page-level horizontal overflow and preserves safe areas
+  ---
+  duration_ms: 0.210394
+  type: 'test'
+  ...
+# Subtest: mobile parity styles provide touch targets for GIS, layer management and OpenLayers controls
+ok 247 - mobile parity styles provide touch targets for GIS, layer management and OpenLayers controls
+  ---
+  duration_ms: 2.101936
+  type: 'test'
+  ...
+# Subtest: mobile layer and GIS action popovers remain touchable above the Layers drawer
+ok 248 - mobile layer and GIS action popovers remain touchable above the Layers drawer
+  ---
+  duration_ms: 0.558135
+  type: 'test'
+  ...
+# Subtest: map runtime owns transient vector overlays and draggable DOM map handles
+ok 249 - map runtime owns transient vector overlays and draggable DOM map handles
+  ---
+  duration_ms: 1.759295
+  type: 'test'
+  ...
+# Subtest: Geometry Health and processing previews use map-runtime overlays through the map-runtime contract
+ok 250 - Geometry Health and processing previews use map-runtime overlays through the map-runtime contract
+  ---
+  duration_ms: 1.265981
+  type: 'test'
+  ...
+# Subtest: point and true-circle editing handles are engine-neutral DOM overlays
+ok 251 - point and true-circle editing handles are engine-neutral DOM overlays
+  ---
+  duration_ms: 1.563478
+  type: 'test'
+  ...
+# Subtest: measurements and selected-line endpoint markers use native runtime overlays
+ok 252 - measurements and selected-line endpoint markers use native runtime overlays
+  ---
+  duration_ms: 1.136418
+  type: 'test'
+  ...
+# Subtest: OpenLayers CDN bootstrap no longer uses parser-blocking document.write
+ok 253 - OpenLayers CDN bootstrap no longer uses parser-blocking document.write
+  ---
+  duration_ms: 0.369151
+  type: 'test'
+  ...
+# Subtest: OpenLayers DOM overlays use a dedicated pane above the OL viewport
+ok 254 - OpenLayers DOM overlays use a dedicated pane above the OL viewport
+  ---
+  duration_ms: 0.283131
+  type: 'test'
+  ...
+# Subtest: cached vector signatures include active and picked selection state for immediate redraw
+ok 255 - cached vector signatures include active and picked selection state for immediate redraw
+  ---
+  duration_ms: 1.992862
+  type: 'test'
+  ...
+# Subtest: saved measurement clicks select without immediately re-entering edit mode
+ok 256 - saved measurement clicks select without immediately re-entering edit mode
+  ---
+  duration_ms: 0.399328
+  type: 'test'
+  ...
+# Subtest: retired compatibility surface and legacy editable renderer are absent
+ok 257 - retired compatibility surface and legacy editable renderer are absent
+  ---
+  duration_ms: 4.835516
+  type: 'test'
+  ...
+# Subtest: OpenLayers reference vectors, tiles and GeoTIFF previews use map-runtime primitives
+ok 258 - OpenLayers reference vectors, tiles and GeoTIFF previews use map-runtime primitives
+  ---
+  duration_ms: 1.237268
+  type: 'test'
+  ...
+# Subtest: retired reference renderer is absent and old reference installer delegates to the authoritative runtime
+ok 259 - retired reference renderer is absent and old reference installer delegates to the authoritative runtime
+  ---
+  duration_ms: 1.256132
+  type: 'test'
+  ...
+# Subtest: reference deletion, restoration and GIS reordering remove layers through the map-runtime path
+ok 260 - reference deletion, restoration and GIS reordering remove layers through the map-runtime path
+  ---
+  duration_ms: 1.622842
+  type: 'test'
+  ...
+# Subtest: georeferenceable image overlays stay engine-neutral DOM content
+ok 261 - georeferenceable image overlays stay engine-neutral DOM content
+  ---
+  duration_ms: 0.273121
+  type: 'test'
+  ...
+# Subtest: map adapter exposes native OpenLayers reference vector and static-image primitives
+ok 262 - map adapter exposes native OpenLayers reference vector and static-image primitives
+  ---
+  duration_ms: 0.529962
+  type: 'test'
+  ...
+# Subtest: Point/Line module stays isolated while the final live Inspector renderer reconciles it
+ok 263 - Point/Line module stays isolated while the final live Inspector renderer reconciles it
+  ---
+  duration_ms: 2.887248
+  type: 'test'
+  ...
+# Subtest: restored polygon Geometry code remains polygon-only and the failed generic retrofit stays absent
+ok 264 - restored polygon Geometry code remains polygon-only and the failed generic retrofit stays absent
+  ---
+  duration_ms: 1.835338
+  type: 'test'
+  ...
+# Subtest: Point and MultiPoint code validates and normalises to canonical 2D numbers
+ok 265 - Point and MultiPoint code validates and normalises to canonical 2D numbers
+  ---
+  duration_ms: 1.588275
+  type: 'test'
+  ...
+# Subtest: LineString and MultiLineString code validates without changing geometry family
+ok 266 - LineString and MultiLineString code validates without changing geometry family
+  ---
+  duration_ms: 1.002929
+  type: 'test'
+  ...
+# Subtest: Point and Line validation uses type-aware Geometry Health rather than polygon-only validation
+ok 267 - Point and Line validation uses type-aware Geometry Health rather than polygon-only validation
+  ---
+  duration_ms: 1.005022
+  type: 'test'
+  ...
+# Subtest: cross-family, invalid-range, collection and too-short replacements are rejected
+ok 268 - cross-family, invalid-range, collection and too-short replacements are rejected
+  ---
+  duration_ms: 0.538869
+  type: 'test'
+  ...
+# Subtest: apply path is canonical and separately identifiable from polygon Geometry code
+ok 269 - apply path is canonical and separately identifiable from polygon Geometry code
+  ---
+  duration_ms: 0.25599
+  type: 'test'
+  ...
+# Subtest: Point/Line Geometry-code card is stable in the desktop Inspector layout
+ok 270 - Point/Line Geometry-code card is stable in the desktop Inspector layout
+  ---
+  duration_ms: 1.441881
+  type: 'test'
+  ...
+# Subtest: points along a drawn straight segment follow rhumb geometry instead of Turf great-circle along()
+ok 271 - points along a drawn straight segment follow rhumb geometry instead of Turf great-circle along()
+  ---
+  duration_ms: 5.721116
+  type: 'test'
+  ...
+# Subtest: points along a multi-segment line advance through segments without rescanning the line
+ok 272 - points along a multi-segment line advance through segments without rescanning the line
+  ---
+  duration_ms: 1.002438
+  type: 'test'
+  ...
+# Subtest: large points-along-line output stays on the linear rhumb sampler path
+ok 273 - large points-along-line output stays on the linear rhumb sampler path
+  ---
+  duration_ms: 34.14645
+  type: 'test'
+  ...
+# Subtest: preview fingerprint is deterministic and ignores commit-only output settings
+ok 274 - preview fingerprint is deterministic and ignores commit-only output settings
+  ---
+  duration_ms: 5.326345
+  type: 'test'
+  ...
+# Subtest: preview fingerprint changes for data, schema, parameters, selection and CRS
+ok 275 - preview fingerprint changes for data, schema, parameters, selection and CRS
+  ---
+  duration_ms: 2.048958
+  type: 'test'
+  ...
+# Subtest: preview catalogue distinguishes geometry, selection and data result previews
+ok 276 - preview catalogue distinguishes geometry, selection and data result previews
+  ---
+  duration_ms: 6.264984
+  type: 'test'
+  ...
+# Subtest: Simplify and Densify declare live logarithmic metre sliders while Snap stays manual
+ok 277 - Simplify and Densify declare live logarithmic metre sliders while Snap stays manual
+  ---
+  duration_ms: 1.881324
+  type: 'test'
+  ...
+# Subtest: Processing UI source contains explicit activation, stale refresh, data tables and rich maintenance metrics
+ok 278 - Processing UI source contains explicit activation, stale refresh, data tables and rich maintenance metrics
+  ---
+  duration_ms: 0.708657
+  type: 'test'
+  ...
+# Subtest: preview policies are declarative with manual defaults and specialised maintenance policies
+ok 279 - preview policies are declarative with manual defaults and specialised maintenance policies
+  ---
+  duration_ms: 5.173007
+  type: 'test'
+  ...
+# Subtest: authoritative bridge owns prepared preview commits behind fingerprint validation
+ok 280 - authoritative bridge owns prepared preview commits behind fingerprint validation
+  ---
+  duration_ms: 3.783617
+  type: 'test'
+  ...
+# Subtest: Processing UI supports live preview and verified prepared-result reuse with stale fallback
+ok 281 - Processing UI supports live preview and verified prepared-result reuse with stale fallback
+  ---
+  duration_ms: 0.424915
+  type: 'test'
+  ...
+# Subtest: preview task clones exact filtered scope and preserves canonical ids/schema
+ok 282 - preview task clones exact filtered scope and preserves canonical ids/schema
+  ---
+  duration_ms: 5.744389
+  type: 'test'
+  ...
+# Subtest: layer preview renders an isolated overlay and never mutates project data
+ok 283 - layer preview renders an isolated overlay and never mutates project data
+  ---
+  duration_ms: 3.552203
+  type: 'test'
+  ...
+# Subtest: selection preview highlights matches without applying selection
+ok 284 - selection preview highlights matches without applying selection
+  ---
+  duration_ms: 1.346432
+  type: 'test'
+  ...
+# Subtest: clearing preview removes only the temporary overlay
+ok 285 - clearing preview removes only the temporary overlay
+  ---
+  duration_ms: 0.903232
+  type: 'test'
+  ...
+# Subtest: completed processing and preview results keep the preflight snapshot used by the run
+not ok 286 - completed processing and preview results keep the preflight snapshot used by the run
+  ---
+  duration_ms: 3.313816
+  type: 'test'
+  location: '/home/runner/work/GIS/GIS/tests/processing-result-preflight.test.mjs:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /function invalidateResult\(\)\{state\.result=null;state\.progress=null;clearPreviewState\(\{cancel:true\}\)/. Input:
+    
+    '(function(global){\n' +
+      "'use strict';\n" +
+      '\n' +
+      "const VERSION='1.56.1';\n" +
+      'const PREVIEW_RENDER_LIMIT=5000;\n' +
+      'const registry=()=>global.EditPolygonGISProcessingRegistry;\n' +
+      'const core=()=>global.EditPolygonGISProcessingCore;\n' +
+      'const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));\n' +
+      `const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));\n` +
+      'const assetKey=(()=>{\n' +
+      '  try{\n' +
+      "    const src=global.document?.currentScript?.src||'';\n" +
+      "    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v6';\n" +
+      '  }catch(_){}\n' +
+      "  return '20260820-v1561-processing-preview-v6';\n" +
+      '})();\n' +
+      '\n' +
+      'const state={\n' +
+      '  host:null,api:null,status:null,onOpenOutput:null,\n' +
+      "  sourceLayerId:'',sourceScope:'',toolId:'buffer',query:'',\n" +
+      '  request:null,preflight:null,running:false,progress:null,result:null,\n' +
+      '  previewing:false,previewProgress:null,previewResult:null,previewSerial:0,\n' +
+      '  previewTimer:null,livePreview:true,previewActivated:false,previewStale:false\n' +
+      '};\n' +
+      '\n' +
+      'const previewRuntime={\n' +
+      '  worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null\n' +
+      '};\n' +
+      '\n' +
+      'function layers(){return (state.api?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}\n' +
+      'function selectionIds(api=state.api){const ids=api?.getSelection?.().ids;return Array.isArray(ids)?ids:[];}\n' +
+      'function layerById(id){return layers().find(layer=>layer.id===id)||null;}\n' +
+      'function fields(layer){const found=new Set();for(const feature of layer?.features||[])for(const key of Object.keys(feature.properties||{}))found.add(key);return [...found].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));}\n' +
+      "function scopedForLabel(layer,scope){const selected=new Set(selectionIds()),features=layer?.features||[];return scope==='selected'?features.filter(feature=>selected.has(feature.id)):scope==='filtered'?features.filter(feature=>!feature.filtered):features;}\n" +
+      "function scopeLabel(layer,scope,definition=null){const scoped=scopedForLabel(layer,scope),allowed=definition?.families||['point','line','polygon'],compatible=scoped.filter(feature=>allowed.includes(core().family(feature.geometryType||feature.geometry?.type))),label=scope==='all'?'All features':scope==='filtered'?'Filtered features':'Selected features';return compatible.length===scoped.length?`${label} (${compatible.length.toLocaleString()})`:`${label} (${compatible.length.toLocaleString()} compatible of ${scoped.length.toLocaleString()})`;}\n" +
+      "function compatibleLayers(definition){return layers().filter(layer=>{const allowed=definition.families||['point','line','polygon'],features=layer.features||[];return !features.length||features.some(feature=>allowed.includes(core().family(feature.geometryType||feature.geometry?.type)));});}\n" +
+      "function inputLayerOptions(tool,definition,sourceLayerId=''){const available=compatibleLayers(definition);return tool?.execution==='overlay'&&definition.id!=='source'?available.filter(layer=>layer.id!==sourceLayerId):available;}\n" +
+      "function defaultRequest(sourceLayerId=state.sourceLayerId,toolId=state.toolId,sourceScope=state.sourceScope){const tool=registry()?.getTool(toolId),available=layers(),inputs={};for(const definition of tool?.inputs||[]){let layer=null;if(definition.id==='source')layer=available.find(item=>item.id===sourceLayerId)||compatibleLayers(definition)[0]||available[0];else{const options=inputLayerOptions(tool,definition,inputs.source?.layerId);layer=options[0]||null;}const allowed=definition.scopes||['all','filtered','selected'],scope=definition.id==='source'&&allowed.includes(sourceScope)?sourceScope:'all';inputs[definition.id]={layerId:layer?.id||'',scope};}const source=layerById(inputs.source?.layerId);return core().normaliseRequest({toolId,inputs,parameters:{},output:{mode:'new-layer',name:core().defaultOutputName(tool,source)}});}\n" +
+      "function ensureRequest(){const available=layers();if(!state.sourceLayerId||!available.some(layer=>layer.id===state.sourceLayerId))state.sourceLayerId=available[0]?.id||'';if(!state.request)state.request=defaultRequest();state.request.toolId=state.toolId;}\n" +
+      'function preflight(){ensureRequest();try{state.preflight=state.api?.previewProcessingRequest?.(clone(state.request))||core().preflight(state.request,{layers:layers(),selectionIds:selectionIds()});}catch(error){state.preflight={valid:false,errors:[error.message],warnings:[],request:clone(state.request),tool:registry()?.getTool(state.toolId),counts:{source:0,overlay:0}};}if(state.preflight?.request)state.request=clone(state.preflight.request);return state.preflight;}\n' +
+      'function busy(){return state.running||state.previewing;}\n' +
+      '\n' +
+      '\n' +
+      'function sliderPosition(value,meta={}){\n' +
+      '  const min=Math.max(1e-9,Number(meta.min)||1),max=Math.max(min*1.000001,Number(meta.max)||100000),number=Math.max(min,Math.min(max,Number(value)||min));\n' +
+      '  return Math.round(1000*Math.log(number/min)/Math.log(max/min));\n' +
+      '}\n' +
+      'function sliderValue(position,meta={}){\n' +
+      '  const min=Math.max(1e-9,Number(meta.min)||1),max=Math.max(min*1.000001,Number(meta.max)||100000),fraction=Math.max(0,Math.min(1000,Number(position)||0))/1000,raw=min*Math.pow(max/min,fraction);\n' +
+      '  return raw<10?Number(raw.toFixed(2)):raw<100?Number(raw.toFixed(1)):Math.round(raw);\n' +
+      '}\n' +
+      'function previewKind(tool=registry()?.getTool(state.toolId)){\n' +
+      "  return tool?.previewPolicy?.kind||(tool?.resultKind==='selection'?'selection':'geometry');\n" +
+      '}\n' +
+      'function previewActionLabel(tool=registry()?.getTool(state.toolId)){\n' +
+      "  if(state.previewStale)return 'Refresh preview';\n" +
+      "  if(tool?.resultKind==='selection')return 'Preview matches';\n" +
+      "  return previewKind(tool)==='data'?'Preview data':'Preview on map';\n" +
+      '}\n' +
+      'function currentPreviewPolicy(){\n' +
+      "  return registry()?.getTool(state.toolId)?.previewPolicy||{enabled:true,mode:'manual',debounceMs:250,maxAutoFeatures:2500,expensive:false,metrics:['features','vertices']};\n" +
+      '}\n' +
+      'function clearPreviewTimer(){\n' +
+      '  if(state.previewTimer){global.clearTimeout?.(state.previewTimer);state.previewTimer=null;}\n' +
+      '}\n' +
+      'function scheduleAutoPreview(){\n' +
+      '  clearPreviewTimer();\n' +
+      '  const policy=currentPreviewPolicy();\n' +
+      "  if(!state.previewActivated||!state.livePreview||policy.mode!=='live'||busy())return;\n" +
+      '  const pf=preflight(),count=Number(pf?.counts?.source||0),limit=Number(policy.maxAutoFeatures||2500);\n' +
+      '  if(!pf?.valid||count>limit)return;\n' +
+      '  state.previewTimer=global.setTimeout?.(()=>{\n' +
+      '    state.previewTimer=null;\n' +
+      '    runPreview({automatic:true});\n' +
+      '  },Math.max(100,Number(policy.debounceMs)||250));\n' +
+      '}\n' +
+      '\n' +
+      '/* Read-only Processing preview bridge.\n' +
+      '   The authoritative application bridge remains the only code that commits\n' +
+      '   processing results. Preview clones canonical project features, executes the\n' +
+      '   same worker/engine, and renders only into an isolated map overlay. */\n' +
+      'function projectFiles(){\n' +
+      '  const payload=global.compactProjectState?.();\n' +
+      "  if(!Array.isArray(payload?.files))throw new Error('A read-only project snapshot is unavailable for Processing preview.');\n" +
+      '  return payload.files;\n' +
+      '}\n' +
+      'function projectFile(id){return projectFiles().find(file=>file.id===id)||null;}\n' +
+      'function displayGeometry(feature){return feature?.geometry||feature?.renderedGeometry||feature?.sourceGeometry||null;}\n' +
+      "function scopedProjectFeatures(file,scope='all',selectedIds=[]){\n" +
+      '  const selected=new Set(selectedIds||[]);\n' +
+      "  return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:true);\n" +
+      '}\n' +
+      'function taskFeature(feature){\n' +
+      '  const geometry=displayGeometry(feature);\n' +
+      '  if(!geometry)return null;\n' +
+      '  return {\n' +
+      "    type:'Feature',\n" +
+      '    id:feature.id,\n' +
+      '    properties:{...(clone(feature.properties||{})),name:feature.name},\n' +
+      '    geometry:clone(geometry)\n' +
+      '  };\n' +
+      '}\n' +
+      'function buildPreviewTask(pf,api=global.EditPolygonGIS){\n' +
+      "  if(!pf?.valid)throw new Error(pf?.errors?.[0]||'The processing request is invalid.');\n" +
+      '  const selected=selectionIds(api),inputs={},inputSchemas={},inputLayerIds={},allFeatures=[];\n' +
+      '  for(const definition of pf.tool?.inputs||[]){\n' +
+      '    const layer=pf.inputs?.[definition.id],file=layer?projectFile(layer.id):null;\n' +
+      '    if(!file)throw new Error(`${definition.label||definition.id} not found.`);\n' +
+      '    const compatibleIds=new Set((pf.inputFeatures?.[definition.id]||[]).map(feature=>feature.id));\n' +
+      "    const scoped=scopedProjectFeatures(file,pf.request.inputs?.[definition.id]?.scope||'all',selected);\n" +
+      '    const features=scoped.filter(feature=>compatibleIds.has(feature.id)).map(taskFeature).filter(Boolean);\n' +
+      '    inputs[definition.id]=features;\n' +
+      '    inputSchemas[definition.id]=clone(file.gisSchema||layer.schema||null);\n' +
+      '    inputLayerIds[definition.id]=file.id;\n' +
+      '    allFeatures.push(...features);\n' +
+      '  }\n' +
+      '  return {\n' +
+      '    toolId:pf.tool.id,\n' +
+      '    inputs,inputSchemas,inputLayerIds,\n' +
+      '    parameters:clone(pf.request.parameters||{}),\n' +
+      '    output:clone(pf.request.output||{}),\n' +
+      '    currentSelectionIds:selected,\n' +
+      '    processingCrs:core().resolveProcessingCrs(pf.tool,allFeatures,global.EditPolygonCRS)\n' +
+      '  };\n' +
+      '}\n' +
+      "function previewCancelError(message='Processing preview cancelled. Project data was not changed.'){\n" +
+      '  const error=new Error(message);error.processingPreviewCancelled=true;return error;\n' +
+      '}\n' +
+      "function terminatePreviewWorker(message='Processing preview cancelled. Project data was not changed.'){\n" +
+      '  const worker=previewRuntime.worker,job=previewRuntime.job;\n' +
+      '  previewRuntime.worker=null;previewRuntime.job=null;\n' +
+      '  try{worker?.terminate?.();}catch(_){}\n' +
+      '  if(job){try{job.reject(previewCancelError(message));}catch(_){}}\n' +
+      '}\n' +
+      'function previewWorker(task,onProgress=()=>{},token){\n' +
+      "  if(typeof global.Worker==='undefined'){\n" +
+      '    const engine=global.EditPolygonGISProcessingEngine;\n' +
+      "    if(!engine)throw new Error('The processing engine is unavailable.');\n" +
+      '    return Promise.resolve(engine.execute(task,{turf:global.turf,crs:global.EditPolygonCRS,onProgress})).then(result=>({result,worker:false,token}));\n' +
+      '  }\n' +
+      '  terminatePreviewWorker();\n' +
+      '  const worker=new global.Worker(`assets/gis-processing-worker.js?v=${assetKey}`);\n' +
+      '  previewRuntime.worker=worker;\n' +
+      '  const id=++previewRuntime.jobSeq;\n' +
+      '  return new Promise((resolve,reject)=>{\n' +
+      '    previewRuntime.job={id,reject'... 43967 more characters
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: |-
+    (function(global){
+    'use strict';
+    
+    const VERSION='1.56.1';
+    const PREVIEW_RENDER_LIMIT=5000;
+    const registry=()=>global.EditPolygonGISProcessingRegistry;
+    const core=()=>global.EditPolygonGISProcessingCore;
+    const clone=value=>value==null?value:JSON.parse(JSON.stringify(value));
+    const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    const assetKey=(()=>{
+      try{
+        const src=global.document?.currentScript?.src||'';
+        if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v6';
+      }catch(_){}
+      return '20260820-v1561-processing-preview-v6';
+    })();
+    
+    const state={
+      host:null,api:null,status:null,onOpenOutput:null,
+      sourceLayerId:'',sourceScope:'',toolId:'buffer',query:'',
+      request:null,preflight:null,running:false,progress:null,result:null,
+      previewing:false,previewProgress:null,previewResult:null,previewSerial:0,
+      previewTimer:null,livePreview:true,previewActivated:false,previewStale:false
+    };
+    
+    const previewRuntime={
+      worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null
+    };
+    
+    function layers(){return (state.api?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}
+    function selectionIds(api=state.api){const ids=api?.getSelection?.().ids;return Array.isArray(ids)?ids:[];}
+    function layerById(id){return layers().find(layer=>layer.id===id)||null;}
+    function fields(layer){const found=new Set();for(const feature of layer?.features||[])for(const key of Object.keys(feature.properties||{}))found.add(key);return [...found].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));}
+    function scopedForLabel(layer,scope){const selected=new Set(selectionIds()),features=layer?.features||[];return scope==='selected'?features.filter(feature=>selected.has(feature.id)):scope==='filtered'?features.filter(feature=>!feature.filtered):features;}
+    function scopeLabel(layer,scope,definition=null){const scoped=scopedForLabel(layer,scope),allowed=definition?.families||['point','line','polygon'],compatible=scoped.filter(feature=>allowed.includes(core().family(feature.geometryType||feature.geometry?.type))),label=scope==='all'?'All features':scope==='filtered'?'Filtered features':'Selected features';return compatible.length===scoped.length?`${label} (${compatible.length.toLocaleString()})`:`${label} (${compatible.length.toLocaleString()} compatible of ${scoped.length.toLocaleString()})`;}
+    function compatibleLayers(definition){return layers().filter(layer=>{const allowed=definition.families||['point','line','polygon'],features=layer.features||[];return !features.length||features.some(feature=>allowed.includes(core().family(feature.geometryType||feature.geometry?.type)));});}
+    function inputLayerOptions(tool,definition,sourceLayerId=''){const available=compatibleLayers(definition);return tool?.execution==='overlay'&&definition.id!=='source'?available.filter(layer=>layer.id!==sourceLayerId):available;}
+    function defaultRequest(sourceLayerId=state.sourceLayerId,toolId=state.toolId,sourceScope=state.sourceScope){const tool=registry()?.getTool(toolId),available=layers(),inputs={};for(const definition of tool?.inputs||[]){let layer=null;if(definition.id==='source')layer=available.find(item=>item.id===sourceLayerId)||compatibleLayers(definition)[0]||available[0];else{const options=inputLayerOptions(tool,definition,inputs.source?.layerId);layer=options[0]||null;}const allowed=definition.scopes||['all','filtered','selected'],scope=definition.id==='source'&&allowed.includes(sourceScope)?sourceScope:'all';inputs[definition.id]={layerId:layer?.id||'',scope};}const source=layerById(inputs.source?.layerId);return core().normaliseRequest({toolId,inputs,parameters:{},output:{mode:'new-layer',name:core().defaultOutputName(tool,source)}});}
+    function ensureRequest(){const available=layers();if(!state.sourceLayerId||!available.some(layer=>layer.id===state.sourceLayerId))state.sourceLayerId=available[0]?.id||'';if(!state.request)state.request=defaultRequest();state.request.toolId=state.toolId;}
+    function preflight(){ensureRequest();try{state.preflight=state.api?.previewProcessingRequest?.(clone(state.request))||core().preflight(state.request,{layers:layers(),selectionIds:selectionIds()});}catch(error){state.preflight={valid:false,errors:[error.message],warnings:[],request:clone(state.request),tool:registry()?.getTool(state.toolId),counts:{source:0,overlay:0}};}if(state.preflight?.request)state.request=clone(state.preflight.request);return state.preflight;}
+    function busy(){return state.running||state.previewing;}
+    
+    
+    function sliderPosition(value,meta={}){
+      const min=Math.max(1e-9,Number(meta.min)||1),max=Math.max(min*1.000001,Number(meta.max)||100000),number=Math.max(min,Math.min(max,Number(value)||min));
+      return Math.round(1000*Math.log(number/min)/Math.log(max/min));
+    }
+    function sliderValue(position,meta={}){
+      const min=Math.max(1e-9,Number(meta.min)||1),max=Math.max(min*1.000001,Number(meta.max)||100000),fraction=Math.max(0,Math.min(1000,Number(position)||0))/1000,raw=min*Math.pow(max/min,fraction);
+      return raw<10?Number(raw.toFixed(2)):raw<100?Number(raw.toFixed(1)):Math.round(raw);
+    }
+    function previewKind(tool=registry()?.getTool(state.toolId)){
+      return tool?.previewPolicy?.kind||(tool?.resultKind==='selection'?'selection':'geometry');
+    }
+    function previewActionLabel(tool=registry()?.getTool(state.toolId)){
+      if(state.previewStale)return 'Refresh preview';
+      if(tool?.resultKind==='selection')return 'Preview matches';
+      return previewKind(tool)==='data'?'Preview data':'Preview on map';
+    }
+    function currentPreviewPolicy(){
+      return registry()?.getTool(state.toolId)?.previewPolicy||{enabled:true,mode:'manual',debounceMs:250,maxAutoFeatures:2500,expensive:false,metrics:['features','vertices']};
+    }
+    function clearPreviewTimer(){
+      if(state.previewTimer){global.clearTimeout?.(state.previewTimer);state.previewTimer=null;}
+    }
+    function scheduleAutoPreview(){
+      clearPreviewTimer();
+      const policy=currentPreviewPolicy();
+      if(!state.previewActivated||!state.livePreview||policy.mode!=='live'||busy())return;
+      const pf=preflight(),count=Number(pf?.counts?.source||0),limit=Number(policy.maxAutoFeatures||2500);
+      if(!pf?.valid||count>limit)return;
+      state.previewTimer=global.setTimeout?.(()=>{
+        state.previewTimer=null;
+        runPreview({automatic:true});
+      },Math.max(100,Number(policy.debounceMs)||250));
+    }
+    
+    /* Read-only Processing preview bridge.
+       The authoritative application bridge remains the only code that commits
+       processing results. Preview clones canonical project features, executes the
+       same worker/engine, and renders only into an isolated map overlay. */
+    function projectFiles(){
+      const payload=global.compactProjectState?.();
+      if(!Array.isArray(payload?.files))throw new Error('A read-only project snapshot is unavailable for Processing preview.');
+      return payload.files;
+    }
+    function projectFile(id){return projectFiles().find(file=>file.id===id)||null;}
+    function displayGeometry(feature){return feature?.geometry||feature?.renderedGeometry||feature?.sourceGeometry||null;}
+    function scopedProjectFeatures(file,scope='all',selectedIds=[]){
+      const selected=new Set(selectedIds||[]);
+      return (file?.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:true);
+    }
+    function taskFeature(feature){
+      const geometry=displayGeometry(feature);
+      if(!geometry)return null;
+      return {
+        type:'Feature',
+        id:feature.id,
+        properties:{...(clone(feature.properties||{})),name:feature.name},
+        geometry:clone(geometry)
+      };
+    }
+    function buildPreviewTask(pf,api=global.EditPolygonGIS){
+      if(!pf?.valid)throw new Error(pf?.errors?.[0]||'The processing request is invalid.');
+      const selected=selectionIds(api),inputs={},inputSchemas={},inputLayerIds={},allFeatures=[];
+      for(const definition of pf.tool?.inputs||[]){
+        const layer=pf.inputs?.[definition.id],file=layer?projectFile(layer.id):null;
+        if(!file)throw new Error(`${definition.label||definition.id} not found.`);
+        const compatibleIds=new Set((pf.inputFeatures?.[definition.id]||[]).map(feature=>feature.id));
+        const scoped=scopedProjectFeatures(file,pf.request.inputs?.[definition.id]?.scope||'all',selected);
+        const features=scoped.filter(feature=>compatibleIds.has(feature.id)).map(taskFeature).filter(Boolean);
+        inputs[definition.id]=features;
+        inputSchemas[definition.id]=clone(file.gisSchema||layer.schema||null);
+        inputLayerIds[definition.id]=file.id;
+        allFeatures.push(...features);
+      }
+      return {
+        toolId:pf.tool.id,
+        inputs,inputSchemas,inputLayerIds,
+        parameters:clone(pf.request.parameters||{}),
+        output:clone(pf.request.output||{}),
+        currentSelectionIds:selected,
+        processingCrs:core().resolveProcessingCrs(pf.tool,allFeatures,global.EditPolygonCRS)
+      };
+    }
+    function previewCancelError(message='Processing preview cancelled. Project data was not changed.'){
+      const error=new Error(message);error.processingPreviewCancelled=true;return error;
+    }
+    function terminatePreviewWorker(message='Processing preview cancelled. Project data was not changed.'){
+      const worker=previewRuntime.worker,job=previewRuntime.job;
+      previewRuntime.worker=null;previewRuntime.job=null;
+      try{worker?.terminate?.();}catch(_){}
+      if(job){try{job.reject(previewCancelError(message));}catch(_){}}
+    }
+    function previewWorker(task,onProgress=()=>{},token){
+      if(typeof global.Worker==='undefined'){
+        const engine=global.EditPolygonGISProcessingEngine;
+        if(!engine)throw new Error('The processing engine is unavailable.');
+        return Promise.resolve(engine.execute(task,{turf:global.turf,crs:global.EditPolygonCRS,onProgress})).then(result=>({result,worker:false,token}));
+      }
+      terminatePreviewWorker();
+      const worker=new global.Worker(`assets/gis-processing-worker.js?v=${assetKey}`);
+      previewRuntime.worker=worker;
+      const id=++previewRuntime.jobSeq;
+      return new Promise((resolve,reject)=>{
+        previewRuntime.job={id,reject,token};
+        worker.onmessage=event=>{
+          const message=event.data||{};
+          if(message.id!==id)return;
+          if(message.type==='progress'){
+            try{onProgress({stage:message.stage||'Previewing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(96,Math.round((Number(message.percent)||0)*.96)))});}catch(_){}
+            return;
+          }
+          try{worker.terminate();}catch(_){}
+          if(previewRuntime.worker===worker)previewRuntime.worker=null;
+          if(previewRuntime.job?.id===id)previewRuntime.job=null;
+          if(message.type==='error'){reject(new Error(message.message||'Processing preview failed.'));return;}
+          resolve({result:message.result||{kind:'layer',features:[],failures:[]},worker:true,token});
+        };
+        worker.onerror=event=>{
+          try{worker.terminate();}catch(_){}
+          if(previewRuntime.worker===worker)previewRuntime.worker=null;
+          if(previewRuntime.job?.id===id)previewRuntime.job=null;
+          reject(new Error(event.message||'The processing preview worker failed.'));
+        };
+        worker.postMessage({id,task});
+      });
+    }
+    function ensurePreviewOverlay(){
+      const map=global.EditPolygonMap;
+      if(!map?.createVectorOverlayLayer)return null;
+      if(!previewRuntime.overlay)previewRuntime.overlay=map.createVectorOverlayLayer({zIndex:1580});
+      return previewRuntime.overlay;
+    }
+    function clearPreviewOverlay(){
+      try{if(previewRuntime.overlay)global.EditPolygonMap?.clearVectorOverlayLayer?.(previewRuntime.overlay);}catch(_){}
+    }
+    function previewStyle(kind='layer',geometryType=''){
+      if(kind==='selection')return {color:'#d97706',weight:4,opacity:1,dashArray:'5,4',fillColor:'#d97706',fillOpacity:.12,radius:8};
+      if(/Point$/.test(geometryType))return {color:'#7c3aed',weight:3,opacity:1,dashArray:'4,3',fillColor:'#7c3aed',fillOpacity:.05,radius:8};
+      if(/LineString$/.test(geometryType))return {color:'#7c3aed',weight:4,opacity:.98,dashArray:'8,5',fillOpacity:0,radius:7};
+      return {color:'#7c3aed',weight:3,opacity:.98,dashArray:'8,5',fillColor:'#7c3aed',fillOpacity:.08,radius:7};
+    }
+    function geometryVertexCount(geometry){
+      if(!geometry)return 0;
+      if(geometry.type==='Point')return 1;
+      if(geometry.type==='MultiPoint'||geometry.type==='LineString')return geometry.coordinates?.length||0;
+      if(geometry.type==='MultiLineString')return (geometry.coordinates||[]).reduce((sum,line)=>sum+(line?.length||0),0);
+      if(geometry.type==='Polygon')return (geometry.coordinates||[]).reduce((sum,ring)=>sum+Math.max(0,(ring?.length||0)-1),0);
+      if(geometry.type==='MultiPolygon')return (geometry.coordinates||[]).reduce((sum,poly)=>sum+(poly||[]).reduce((inner,ring)=>inner+Math.max(0,(ring?.length||0)-1),0),0);
+      if(geometry.type==='GeometryCollection')return (geometry.geometries||[]).reduce((sum,item)=>sum+geometryVertexCount(item),0);
+      return 0;
+    }
+    function previewMetrics(features=[]){
+      let vertices=0,polygonAreaM2=0,lineLengthM=0,polygonCount=0,lineCount=0,pointCount=0;
+      const turf=global.turf;
+      for(const item of features||[]){
+        const geometry=item?.geometry;if(!geometry)continue;
+        vertices+=geometryVertexCount(geometry);
+        const type=geometry.type||'';
+        try{
+          if(/Polygon$/.test(type)){polygonCount++;if(turf?.area)polygonAreaM2+=Number(turf.area({type:'Feature',properties:{},geometry}))||0;}
+          else if(/LineString$/.test(type)){lineCount++;if(turf?.length)lineLengthM+=(Number(turf.length({type:'Feature',properties:{},geometry},{units:'kilometers'}))||0)*1000;}
+          else if(/Point$/.test(type))pointCount++;
+        }catch(_){}
+      }
+      let bounds=null;
+      try{if(features.length&&turf?.bbox)bounds=turf.bbox({type:'FeatureCollection',features:features.map(item=>({type:'Feature',properties:{},geometry:item.geometry}))});}catch(_){}
+      return {features:features.length,vertices,polygonCount,lineCount,pointCount,polygonAreaM2,lineLengthM,bounds};
+    }
+    
+    function geometryVertexPositions(geometry,out=[]){
+      if(!geometry)return out;
+      const point=value=>Array.isArray(value)&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));
+      const addLine=line=>{for(const coordinate of line||[])if(point(coordinate))out.push([Number(coordinate[0]),Number(coordinate[1])]);};
+      const addRing=ring=>{const end=Math.max(0,(ring?.length||0)-1);for(let index=0;index<end;index++){const coordinate=ring[index];if(point(coordinate))out.push([Number(coordinate[0]),Number(coordinate[1])]);}};
+      if(geometry.type==='Point'){if(point(geometry.coordinates))out.push([Number(geometry.coordinates[0]),Number(geometry.coordinates[1])]);}
+      else if(geometry.type==='MultiPoint'||geometry.type==='LineString')addLine(geometry.coordinates);
+      else if(geometry.type==='MultiLineString')for(const line of geometry.coordinates||[])addLine(line);
+      else if(geometry.type==='Polygon')for(const ring of geometry.coordinates||[])addRing(ring);
+      else if(geometry.type==='MultiPolygon')for(const polygon of geometry.coordinates||[])for(const ring of polygon||[])addRing(ring);
+      else if(geometry.type==='GeometryCollection')for(const child of geometry.geometries||[])geometryVertexPositions(child,out);
+      return out;
+    }
+    function previewVertexPositions(features=[]){const out=[];for(const feature of features||[])geometryVertexPositions(feature?.geometry,out);return out;}
+    function coordinateDistanceM(a,b){
+      if(!Array.isArray(a)||!Array.isArray(b))return 0;
+      try{if(global.turf?.distance)return (Number(global.turf.distance(a,b,{units:'kilometers'}))||0)*1000;}catch(_){}
+      const rad=Math.PI/180,lat1=Number(a[1])*rad,lat2=Number(b[1])*rad,dlat=(Number(b[1])-Number(a[1]))*rad,dlon=(Number(b[0])-Number(a[0]))*rad,h=Math.sin(dlat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dlon/2)**2;
+      return 12742000*Math.asin(Math.min(1,Math.sqrt(h)));
+    }
+    function geometryLines(geometry,out=[]){
+      if(!geometry)return out;
+      if(geometry.type==='LineString')out.push(geometry.coordinates||[]);
+      else if(geometry.type==='MultiLineString'||geometry.type==='Polygon')out.push(...(geometry.coordinates||[]));
+      else if(geometry.type==='MultiPolygon')for(const polygon of geometry.coordinates||[])out.push(...(polygon||[]));
+      else if(geometry.type==='GeometryCollection')for(const child of geometry.geometries||[])geometryLines(child,out);
+      return out;
+    }
+    function longestSegmentM(features=[]){
+      let longest=0;
+      for(const feature of features||[])for(const line of geometryLines(feature?.geometry,[]))for(let index=1;index<(line?.length||0);index++)longest=Math.max(longest,coordinateDistanceM(line[index-1],line[index]));
+      return longest;
+    }
+    function snapComparison(before=[],after=[]){
+      const byId=new Map((after||[]).map((feature,index)=>[feature?.id??`#${index}`,feature]));
+      let verticesMoved=0,maxDisplacementM=0,featuresUnchanged=0,featuresChanged=0;
+      (before||[]).forEach((source,index)=>{
+        const output=byId.get(source?.id??`#${index}`)||after?.[index];if(!output)return;
+        if(JSON.stringify(source?.geometry||null)===JSON.stringify(output?.geometry||null)){featuresUnchanged++;return;}
+        featuresChanged++;
+        const a=geometryVertexPositions(source?.geometry,[]),b=geometryVertexPositions(output?.geometry,[]);
+        for(let i=0;i<Math.min(a.length,b.length);i++){const distance=coordinateDistanceM(a[i],b[i]);if(distance>.001){verticesMoved++;maxDisplacementM=Math.max(maxDisplacementM,distance);}}
+      });
+      return {verticesMoved,maxDisplacementM,featuresUnchanged,featuresChanged};
+    }
+    function previewComparisonMetrics(task,result,features){
+      const source=task.inputs?.source||[],before=previewMetrics(source),after=previewMetrics(features),metrics={...after,inputVertices:before.vertices,outputVertices:after.vertices};
+      if(task.toolId==='simplify'){
+        metrics.verticesRemoved=Math.max(0,before.vertices-after.vertices);metrics.reductionPct=before.vertices?metrics.verticesRemoved/before.vertices*100:0;
+      }else if(task.toolId==='densify'){
+        metrics.verticesAdded=Math.max(0,after.vertices-before.vertices);metrics.longestSegmentBeforeM=longestSegmentM(source);metrics.longestSegmentAfterM=longestSegmentM(features);
+      }else if(task.toolId==='snap')Object.assign(metrics,snapComparison(source,features));
+      return metrics;
+    }
+    function previewDataResult(task,features=[]){
+      const sourceFields=new Set();for(const feature of task.inputs?.source||[])for(const key of Object.keys(feature?.properties||{}))sourceFields.add(key);
+      const all=[];const seen=new Set();for(const feature of features||[])for(const key of Object.keys(feature?.properties||{}))if(!seen.has(key)){seen.add(key);all.push(key);}
+      all.sort((a,b)=>sourceFields.has(a)===sourceFields.has(b)?a.localeCompare(b):sourceFields.has(a)?1:-1);
+      const fields=all.slice(0,8),rows=(features||[]).slice(0,8).map(feature=>fields.map(field=>feature?.properties?.[field]??''));
+      return {fields,rows,totalRows:features.length,totalFields:all.length,truncated:features.length>8||all.length>8};
+    }
+    function previewFeaturesFromResult(task,result){
+      if(result?.kind==='selection'){
+        const wanted=new Set(result.selectionIds||[]);
+        return (task.inputs?.source||[]).filter(feature=>wanted.has(feature.id));
+      }
+      return Array.isArray(result?.features)?result.features.filter(feature=>feature?.geometry):[];
+    }
+    function renderPreviewOverlay(task,result){
+      clearPreviewOverlay();
+      const features=previewFeaturesFromResult(task,result),kind=result?.kind==='selection'?'selection':'layer',overlay=ensurePreviewOverlay();
+      const rendered=features.slice(0,PREVIEW_RENDER_LIMIT);
+      if(overlay&&rendered.length){
+        global.EditPolygonMap?.setVectorOverlayFeatures?.(overlay,rendered.map((feature,index)=>({
+          id:`processing-preview-${index}`,
+          geometry:clone(feature.geometry),
+          style:previewStyle(kind,feature.geometry?.type)
+        })));
+      }
+      return {features,renderedCount:rendered.length,truncated:features.length>rendered.length};
+    }
+    async function isolatedPreview(api,request={},onProgress=()=>{}){
+      if(!api?.previewProcessingRequest)throw new Error('The Processing preview bridge is unavailable.');
+      const pf=api.previewProcessingRequest(clone(request));
+      if(!pf?.valid)throw new Error(pf?.errors?.[0]||'The processing request is invalid.');
+      terminatePreviewWorker();
+      clearPreviewOverlay();
+      const token=++previewRuntime.token,task=buildPreviewTask(pf,api),fingerprint=typeof api.getProcessingPreviewFingerprint==='function'?api.getProcessingPreviewFingerprint(clone(request)):core().previewFingerprint(task),started=(global.performance?.now?.()??Date.now());
+      onProgress({stage:'Preparing preview',done:0,total:task.inputs.source?.length||0,percent:0});
+      const execution=await previewWorker(task,onProgress,token);
+      if(token!==previewRuntime.token)throw previewCancelError('A newer Processing preview replaced this result.');
+      onProgress({stage:'Rendering preview',done:pf.counts?.source||0,total:pf.counts?.source||0,percent:98});
+      const kind=previewKind(pf.tool),previewFeatures=previewFeaturesFromResult(task,execution.result),rendered=kind==='data'?{features:previewFeatures,renderedCount:0,truncated:false}:renderPreviewOverlay(task,execution.result);
+      if(token!==previewRuntime.token){clearPreviewOverlay();throw previewCancelError('A newer Processing preview replaced this result.');}
+      const elapsedMs=Math.max(0,Math.round((global.performance?.now?.()??Date.now())-started));
+      const metrics=previewComparisonMetrics(task,execution.result,rendered.features);
+      const summary=clone(execution.result?.summary||{input:pf.counts?.source||0,processed:pf.counts?.source||0,output:rendered.features.length,failed:execution.result?.failures?.length||0,partial:!!execution.result?.failures?.length});
+      const preview={
+        kind:'preview',
+        resultKind:execution.result?.kind||pf.tool.resultKind||'layer',
+        toolId:pf.tool.id,
+        previewKind:kind,
+        dataPreview:kind==='data'?previewDataResult(task,rendered.features):null,
+        fingerprint,
+        preparedResult:{...clone(execution.result),_previewWorker:execution.worker},
+        summary,
+        failures:clone(execution.result?.failures||[]),
+        selectionIds:execution.result?.kind==='selection'?clone(execution.result.selectionIds||[]):undefined,
+        metrics,
+        renderedCount:rendered.renderedCount,
+        truncated:rendered.truncated,
+        renderLimit:PREVIEW_RENDER_LIMIT,
+        processingCrs:execution.result?.processingCrs||task.processingCrs||'EPSG:4326',
+        mapCrs:'EPSG:4326',
+        engine:execution.result?.engine||pf.tool.engine||'browser',
+        worker:execution.worker,
+        elapsedMs,
+        temporary:true
+      };
+      previewRuntime.last=clone({...preview,preparedResult:undefined});
+      onProgress({stage:'Preview ready',done:summary.input||0,total:summary.input||0,percent:100});
+      return preview;
+    }
+    function clearProcessingPreview(){
+      ++previewRuntime.token;
+      terminatePreviewWorker();
+      clearPreviewOverlay();
+      previewRuntime.last=null;
+      return true;
+    }
+    function cancelProcessingPreview(){
+      ++previewRuntime.token;
+      terminatePreviewWorker();
+      clearPreviewOverlay();
+      previewRuntime.last=null;
+      return true;
+    }
+    function installPreviewBridge(api){
+      if(!api||typeof api!=='object')return api;
+      if(typeof api.runProcessingPreview!=='function')api.runProcessingPreview=(request,onProgress)=>isolatedPreview(api,request,onProgress);
+      if(typeof api.cancelProcessingPreview!=='function')api.cancelProcessingPreview=cancelProcessingPreview;
+      if(typeof api.clearProcessingPreview!=='function')api.clearProcessingPreview=clearProcessingPreview;
+      if(typeof api.getProcessingPreviewState!=='function')api.getProcessingPreviewState=()=>clone(previewRuntime.last);
+      return api;
+    }
+    installPreviewBridge(global.EditPolygonGIS);
+    
+    /* Toolbox UI. */
+    function toolButtons(){const tools=registry()?.search(state.query)||[],categories=registry()?.getCategories()||[];if(!tools.length)return '<p class="gis-processing-empty">No processing tools match this search.</p>';return categories.map(category=>{const items=tools.filter(tool=>tool.category===category.id);if(!items.length)return'';return `<section class="gis-processing-tool-group"><h4>${esc(category.title)}</h4>${items.map(tool=>`<button type="button" class="gis-processing-tool ${tool.id===state.toolId?'active':''}" data-processing-tool="${esc(tool.id)}" ${busy()?'disabled':''}><strong>${esc(tool.title)}</strong><span>${esc(tool.description)}</span></button>`).join('')}</section>`;}).join('');}
+    function scopeOptions(layer,current,allowed=['all','filtered','selected'],definition=null){return allowed.map(scope=>`<option value="${scope}" ${scope===current?'selected':''}>${esc(scopeLabel(layer,scope,definition))}</option>`).join('');}
+    function inputControls(tool){return (tool.inputs||[]).map(definition=>{const chosen=layerById(state.request.inputs?.[definition.id]?.layerId),sourceId=state.request.inputs?.source?.layerId||'',available=inputLayerOptions(tool,definition,sourceId),scope=state.request.inputs?.[definition.id]?.scope||'all';return `<label>${esc(definition.label||definition.id)}<select data-processing-input="${esc(definition.id)}"><option value="">Choose layer</option>${available.map(layer=>`<option value="${esc(layer.id)}" ${layer.id===chosen?.id?'selected':''}>${esc(layer.name)}</option>`).join('')}</select></label><label>${esc(definition.label||definition.id)} scope<select data-processing-scope="${esc(definition.id)}">${scopeOptions(chosen,scope,definition.scopes||['all','filtered','selected'],definition)}</select>${definition.id==='source'?'<small>Layer visibility does not change processing membership.</small>':''}</label>`;}).join('');}
+    function parameterControl(definition,value){
+      const help=definition.help?`<small>${esc(definition.help)}</small>`:'',inputLayer=layerById(state.request.inputs?.[definition.input||'source']?.layerId),availableFields=fields(inputLayer);
+      if(definition.type==='select')return `<label>${esc(definition.label)}<select data-processing-param="${esc(definition.id)}">${(definition.options||[]).map(option=>`<option value="${esc(option.value)}" ${option.value===value?'selected':''}>${esc(option.label)}</option>`).join('')}</select>${help}</label>`;
+      if(definition.type==='boolean')return `<label class="gis-processing-check"><input data-processing-param="${esc(definition.id)}" type="checkbox" ${value?'checked':''}><span>${esc(definition.label)}</span>${help}</label>`;
+      if(definition.type==='field')return `<label>${esc(definition.label)}<select data-processing-param="${esc(definition.id)}">${definition.allowBlank?`<option value="">${esc(definition.blankLabel||'None')}</option>`:''}${availableFields.map(field=>`<option value="${esc(field)}" ${field===value?'selected':''}>${esc(field)}</option>`).join('')}</select>${help}</label>`;
+      if(definition.type==='fields'){
+        const values=new Set(Array.isArray(value)?value:[]),selected=availableFields.filter(field=>values.has(field));
+        return `<fieldset class="gis-processing-field-picker" data-processing-fields="${esc(definition.id)}"><legend>${esc(definition.label)}</legend><div class="gis-processing-field-picker-head"><span data-processing-field-count>${selected.length.toLocaleString()} of ${availableFields.length.toLocaleString()} selected</span><div><button type="button" data-processing-fields-action="all">Select all</button><button type="button" data-processing-fields-action="none">Clear</button></div></div><div class="gis-processing-field-options">${availableFields.length?availableFields.map(field=>`<label class="gis-processing-field-option"><input type="checkbox" data-processing-field-param="${esc(definition.id)}" value="${esc(field)}" ${values.has(field)?'checked':''}><span>${esc(field)}</span></label>`).join(''):'<p class="gis-processing-field-empty">No fields are available in this layer.</p>'}</div><small>${definition.allowBlank?'No fields selected means no attributes will be copied.':'Choose one or more fields.'}</small>${help}</fieldset>`;
+      }
+      const type=definition.type==='integer'||definition.type==='number'?'number':'text',numeric=`<input data-processing-param="${esc(definition.id)}" type="${type}" value="${esc(value??'')}" ${Number.isFinite(definition.step)?`step="${definition.step}"`:''} ${Number.isFinite(definition.min)?`min="${definition.min}"`:''} ${Number.isFinite(definition.max)?`max="${definition.max}"`:''}>`;
+      if((definition.type==='integer'||definition.type==='number')&&definition.slider){
+        const labels=(definition.slider.labels||[]).map(label=>`<span>${esc(label)}</span>`).join('');
+        return `<label>${esc(definition.label)}<div class="gis-processing-number-slider">${numeric}<input class="gis-processing-slider" type="range" data-processing-slider="${esc(definition.id)}" min="0" max="1000" step="1" value="${sliderPosition(value,definition.slider)}" aria-label="${esc(definition.label)} slider"><div class="gis-processing-slider-labels">${labels}</div></div>${help}</label>`;
+      }
+      return `<label>${esc(definition.label)}${numeric}${help}</label>`;
+    }
+    function outputControls(tool){if(tool.resultKind==='selection')return '<div class="gis-processing-output-note"><strong>Result</strong><span>This tool changes the current selection and does not create a layer.</span></div>';const canModify=tool.mutationPolicy==='new-or-modify',mode=state.request.output.mode||'new-layer';return `${canModify?`<label>Output behaviour<select id="gisProcessingOutputMode"><option value="new-layer" ${mode==='new-layer'?'selected':''}>Create new layer</option><option value="modify-source" ${mode==='modify-source'?'selected':''}>Modify input layer</option></select><small>Modifying the input is one undoable project operation.</small></label>`:''}${mode==='new-layer'?`<label class="gis-processing-output-name">Output layer name<input id="gisProcessingOutputName" value="${esc(state.request.output.name||'')}"></label>`:'<div class="gis-processing-output-note"><strong>Output</strong><span>The processed features replace the input layer only after the complete result validates.</span></div>'}`;}
+    function preflightHtml(pf){const parts=[];for(const definition of pf?.tool?.inputs||[]){const count=Number(pf?.counts?.[definition.id]||0);parts.push(`${count.toLocaleString()} ${esc(definition.id)} feature${count===1?'':'s'}`);}return `<section class="gis-processing-preflight ${pf?.valid?'valid':'invalid'}"><header><strong>${pf?.valid?'Ready to run':'Needs attention'}</strong><span>${parts.join(' · ')}</span></header>${(pf?.errors||[]).map(message=>`<p class="error">${esc(message)}</p>`).join('')}${(pf?.warnings||[]).map(message=>`<p class="warning">${esc(message)}</p>`).join('')}${pf?.valid&&!pf?.warnings?.length?'<p class="ok">Inputs and parameters are valid. Project changes are committed only after a complete result returns.</p>':''}</section>`;}
+    function activeProgress(){return state.running?state.progress:state.previewing?state.previewProgress:null;}
+    function progressHtml(){const update=activeProgress();if(!update)return'';const prefix=state.previewing?'Preview':'Processing';return `<section class="gis-processing-progress" aria-live="polite"><div><i style="width:${Math.max(0,Math.min(100,Number(update.percent)||0))}%"></i></div><strong>${esc(update.stage||`${prefix}…`)}</strong><span>${update.total?`${Number(update.done||0).toLocaleString()} of ${Number(update.total).toLocaleString()}`:state.previewing?'Computing a temporary result locally':'Working locally in this browser'}</span></section>`;}
+    function fmtMetric(value,unit=''){const number=Number(value)||0;if(!number)return `0${unit?` ${unit}`:''}`;const abs=Math.abs(number);const digits=abs>=1000?0:abs>=100?1:abs>=10?2:3;return `${number.toLocaleString(undefined,{maximumFractionDigits:digits})}${unit?` ${unit}`:''}`;}
+    function previewDataHtml(preview){
+      const data=preview?.dataPreview;if(!data?.fields?.length)return '';
+      return `<div class="gis-processing-data-preview"><div><table><thead><tr>${data.fields.map(field=>`<th>${esc(field)}</th>`).join('')}</tr></thead><tbody>${data.rows.map(row=>`<tr>${row.map(value=>`<td>${esc(value)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><small>Showing ${Math.min(data.rows.length,data.totalRows).toLocaleString()} of ${Number(data.totalRows||0).toLocaleString()} result rows${data.totalFields>data.fields.length?` · ${data.fields.length.toLocaleString()} of ${Number(data.totalFields).toLocaleString()} fields`:''}.</small></div>`;
+    }
+    function previewHtml(){
+      const preview=state.previewResult;if(!preview)return '';
+      const s=preview.summary||{},m=preview.metrics||{},selection=preview.resultKind==='selection',dataMode=preview.previewKind==='data',detail=[];
+      if(Number.isFinite(m.inputVertices)&&Number.isFinite(m.outputVertices)&&m.inputVertices!==m.outputVertices)detail.push(`${Number(m.inputVertices).toLocaleString()} → ${Number(m.outputVertices).toLocaleString()} vertices`);else if(m.vertices)detail.push(`${Number(m.vertices).toLocaleString()} vertices`);
+      if(Number.isFinite(m.verticesRemoved))detail.push(`${Number(m.verticesRemoved).toLocaleString()} ${Number(m.verticesRemoved)===1?'vertex':'vertices'} removed${Number.isFinite(m.reductionPct)?` (${fmtMetric(m.reductionPct,'%')})`:''}`);
+      if(Number.isFinite(m.verticesAdded))detail.push(`${Number(m.verticesAdded).toLocaleString()} ${Number(m.verticesAdded)===1?'vertex':'vertices'} added`);
+      if(Number.isFinite(m.longestSegmentBeforeM)&&Number.isFinite(m.longestSegmentAfterM))detail.push(`longest segment ${fmtMetric(m.longestSegmentBeforeM>=1000?m.longestSegmentBeforeM/1000:m.longestSegmentBeforeM,m.longestSegmentBeforeM>=1000?'km':'m')} → ${fmtMetric(m.longestSegmentAfterM>=1000?m.longestSegmentAfterM/1000:m.longestSegmentAfterM,m.longestSegmentAfterM>=1000?'km':'m')}`);
+      if(m.verticesMoved!=null)detail.push(`${Number(m.verticesMoved).toLocaleString()} ${Number(m.verticesMoved)===1?'vertex':'vertices'} moved`);
+      if(Number.isFinite(m.maxDisplacementM))detail.push(`maximum displacement ${fmtMetric(m.maxDisplacementM>=1000?m.maxDisplacementM/1000:m.maxDisplacementM,m.maxDisplacementM>=1000?'km':'m')}`);
+      if(Number.isFinite(m.featuresUnchanged))detail.push(`${Number(m.featuresUnchanged).toLocaleString()} features unchanged`);
+      if(m.polygonAreaM2)detail.push(m.polygonAreaM2>=1e6?`${fmtMetric(m.polygonAreaM2/1e6,'km²')} total area`:m.polygonAreaM2>=1e4?`${fmtMetric(m.polygonAreaM2/1e4,'ha')} total area`:`${fmtMetric(m.polygonAreaM2,'m²')} total area`);
+      if(m.lineLengthM)detail.push(m.lineLengthM>=1000?`${fmtMetric(m.lineLengthM/1000,'km')} total length`:`${fmtMetric(m.lineLengthM,'m')} total length`);
+      const warning=preview.truncated?`<p class="warning">The map shows the first ${Number(preview.renderedCount).toLocaleString()} of ${Number(m.features||s.output||0).toLocaleString()} preview features to keep the editor responsive. Applying the tool still processes the complete result.</p>`:'';
+      const description=selection?'Selection matches are highlighted without changing the current selection.':dataMode?'Prospective result attributes are shown below without changing project data.':'Dashed geometry is temporary and is drawn over the original for comparison.';
+      return `<section class="gis-processing-result gis-processing-preview"><header><div><strong>Temporary preview</strong><span>${description}</span></div><b>${Number(s.output||0).toLocaleString()} ${selection?'matches':'output'}</b></header><div class="gis-processing-result-grid"><div><span>Input</span><strong>${Number(s.input||0).toLocaleString()}</strong></div><div><span>${selection?'Matches':'Output'}</span><strong>${Number(s.output||0).toLocaleString()}</strong></div><div><span>Failed</span><strong>${Number(s.failed||0).toLocaleString()}</strong></div><div><span>Elapsed</span><strong>${Number(preview.elapsedMs||0).toLocaleString()} ms</strong></div><div><span>Processing CRS</span><strong>${esc(preview.processingCrs||'EPSG:4326')}</strong></div></div>${detail.length?`<p class="ok">${detail.map(esc).join(' · ')}</p>`:''}${previewDataHtml(preview)}${warning}<p class="ok">Nothing has been committed. Run can use this exact result while its fingerprint remains current.</p><div class="gis-button-row"><button type="button" data-processing-action="clear-preview">Clear preview</button></div></section>`;
+    }
+    function resultHtml(){const result=state.result;if(!result)return'';const summary=result.summary||{},failed=Number(summary.failed||0),selection=result.kind==='selection'||result.output?.kind==='selection',modified=result.output?.modified===true;const title=selection?'Selection updated':modified?'Input layer updated':failed?'Processing completed with warnings':'Processing completed',name=selection?`${Number(summary.output||0).toLocaleString()} selected`:result.output?.name||'Output layer';return `<section class="gis-processing-result ${failed?'partial':'success'}"><header><div><strong>${title}</strong><span>${esc(name)}</span></div><b>${Number(summary.output||0).toLocaleString()} ${selection?'selected':'output'}</b></header><div class="gis-processing-result-grid"><div><span>Input</span><strong>${Number(summary.input||0).toLocaleString()}</strong></div><div><span>Processed</span><strong>${Number(summary.processed||0).toLocaleString()}</strong></div><div><span>${selection?'Selected':'Output'}</span><strong>${Number(summary.output||0).toLocaleString()}</strong></div><div><span>Failed</span><strong>${failed.toLocaleString()}</strong></div><div><span>Elapsed</span><strong>${Number(result.elapsedMs||0).toLocaleString()} ms</strong></div></div>${failed?`<details><summary>Show ${failed} failure${failed===1?'':'s'}</summary><div class="gis-processing-failures">${(result.failures||[]).slice(0,50).map(item=>`<p><strong>${esc(item.featureName||item.featureId||`Feature ${Number(item.index)+1}`)}</strong><span>${esc(item.message)}</span></p>`).join('')}</div></details>`:''}<div class="gis-button-row">${!selection&&result.output?.id?'<button type="button" data-processing-action="open-output">Open layer</button><button type="button" data-processing-action="zoom-output">Zoom to result</button>':''}<button type="button" data-processing-action="run-again">Run again</button></div></section>`;}
+    function supportsPreview(){return currentPreviewPolicy().enabled!==false&&typeof state.api?.runProcessingPreview==='function';}
+    
+    function livePreviewControls(pf,tool){
+      const policy=tool?.previewPolicy||currentPreviewPolicy();
+      if(policy.mode!=='live')return '';
+      const count=Number(pf?.counts?.source||0),limit=Number(policy.maxAutoFeatures||2500),paused=count>limit;
+      return `<div class="gis-processing-live-preview"><label class="gis-processing-check"><input type="checkbox" data-processing-live-preview="1" ${state.livePreview?'checked':''}><span>Live preview</span></label><small>${paused?`Live preview is paused above ${limit.toLocaleString()} input features; use ${tool.resultKind==='selection'?'Preview matches':'Preview result'} manually.`:`Changes preview automatically after ${Number(policy.debounceMs||250).toLocaleString()} ms.`}</small></div>`;
+    }
+    
+    function parameterView(pf){const tool=pf.tool||registry()?.getTool(state.toolId);if(!tool)return '<section class="gis-processing-config"><p>Choose a processing tool.</p></section>';const params=(tool.parameters||[]).filter(item=>!item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join(''),advanced=(tool.parameters||[]).filter(item=>item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join(''),runLabel=tool.resultKind==='selection'?'Run selection':state.request.output.mode==='modify-source'?'Run and modify layer':'Run and create layer',previewLabel=previewActionLabel(tool);return `<section class="gis-processing-config"><div class="gis-processing-heading"><div><span>${esc(registry()?.getCategory(tool.category)?.title||'Processing')}</span><h2>${esc(tool.title)}</h2><p>${esc(tool.description)}</p></div><strong>${esc(tool.outputGeometry||tool.resultKind||'Result')}</strong></div><fieldset class="gis-processing-parameter-lock" ${busy()?'disabled':''}><div class="gis-processing-form">${inputControls(tool)}${params}${outputControls(tool)}</div>${advanced?`<details class="gis-processing-advanced"><summary>Advanced parameters</summary><div class="gis-processing-form">${advanced}</div></details>`:''}</fieldset>${livePreviewControls(pf,tool)}<div id="gisProcessingPreflight">${preflightHtml(pf)}</div>${progressHtml()}${previewHtml()}${resultHtml()}<div class="gis-processing-actions">${supportsPreview()?`<button type="button" data-processing-action="preview" ${busy()||!pf.valid?'disabled':''}>${state.previewing?'Previewing…':previewLabel}</button>`:''}<button type="button" class="primary" data-processing-action="run" ${busy()||!pf.valid?'disabled':''}>${state.running?'Processing…':runLabel}</button><button type="button" data-processing-action="cancel" ${busy()?'':'disabled'}>Cancel</button></div></section>`;}
+    function render(){if(!state.host)return;ensureRequest();const pf=(state.result||state.previewResult)&&state.preflight?state.preflight:preflight();state.host.innerHTML=`<div class="gis-processing-layout"><aside class="gis-processing-browser"><label>Find a tool<input id="gisProcessingSearch" type="search" placeholder="Search buffer, dissolve, spatial join…" value="${esc(state.query)}"></label><div class="gis-processing-tools">${toolButtons()}</div></aside>${parameterView(pf)}</div>`;}
+    function refreshPreflight(){if(!state.host)return;const pf=preflight(),target=state.host.querySelector('#gisProcessingPreflight');if(target)target.innerHTML=preflightHtml(pf);const run=state.host.querySelector('[data-processing-action="run"]'),preview=state.host.querySelector('[data-processing-action="preview"]');if(run)run.disabled=busy()||!pf.valid;if(preview){preview.disabled=busy()||!pf.valid;preview.textContent=state.previewing?'Previewing…':previewActionLabel(pf.tool);}}
+    function clearPreviewState({cancel=true,renderNow=false,preserveActivation=false}={}){clearPreviewTimer();state.previewSerial++;if(cancel&&state.previewing)state.api?.cancelProcessingPreview?.();else state.api?.clearProcessingPreview?.();state.previewing=false;state.previewProgress=null;state.previewResult=null;state.previewStale=false;if(!preserveActivation)state.previewActivated=false;if(renderNow)render();}
+    function invalidateResult(){const activated=state.previewActivated||state.previewing||!!state.previewResult;state.result=null;state.progress=null;clearPreviewState({cancel:true,preserveActivation:activated});state.previewActivated=activated;state.previewStale=activated;if(state.host){for(const node of state.host.querySelectorAll('.gis-processing-preview,.gis-processing-result,.gis-processing-progress'))node.remove();}}
+    function changeTool(id){if(busy())return;clearPreviewState({cancel:true});const sourceId=state.request?.inputs?.source?.layerId||state.sourceLayerId,sourceScope=state.request?.inputs?.source?.scope||state.sourceScope||'all';state.toolId=id;state.livePreview=true;state.previewActivated=false;state.previewStale=false;state.request=defaultRequest(sourceId,id,sourceScope);state.result=null;state.progress=null;render();}
+    function fieldPickerCount(picker){const boxes=[...picker.querySelectorAll('[data-processing-field-param]')],selected=boxes.filter(box=>box.checked),counter=picker.querySelector('[data-processing-field-count]');if(counter)counter.textContent=`${selected.length.toLocaleString()} of ${boxes.length.toLocaleString()} selected`;return selected.map(box=>box.value);}
+    function fieldPickerAction(button){if(busy()||!state.request)return;const picker=button.closest('[data-processing-fields]');if(!picker)return;const paramId=picker.dataset.processingFields,selectAll=button.dataset.processingFieldsAction==='all',boxes=[...picker.querySelectorAll(`[data-processing-field-param="${paramId}"]`)];for(const box of boxes)box.checked=selectAll;state.request.parameters[paramId]=fieldPickerCount(picker);invalidateResult();refreshPreflight();scheduleAutoPreview();}
+    function readControl(target){
+      if(busy()||!state.request)return;
+      if(target.dataset.processingLivePreview!==undefined){
+        state.livePreview=!!target.checked;
+        if(state.livePreview)scheduleAutoPreview();else clearPreviewTimer();
+        return;
+      }
+      if(target.dataset.processingSlider!==undefined){
+        const paramId=target.dataset.processingSlider,definition=registry().getTool(state.toolId)?.parameters?.find(item=>item.id===paramId),value=sliderValue(target.value,definition?.slider||{});
+        state.request.parameters[paramId]=value;const number=state.host?.querySelector(`[data-processing-param="${paramId}"]`);if(number)number.value=String(value);invalidateResult();refreshPreflight();scheduleAutoPreview();return;
+      }
+      if(target.dataset.processingFieldParam){
+        const picker=target.closest('[data-processing-fields]'),paramId=target.dataset.processingFieldParam;
+        if(picker&&paramId){state.request.parameters[paramId]=fieldPickerCount(picker);invalidateResult();refreshPreflight();scheduleAutoPreview();}
+        return;
+      }
+      if(target.dataset.processingInput){
+        const id=target.dataset.processingInput;
+        state.request.inputs[id].layerId=target.value;
+        if(id==='source'){
+          state.sourceLayerId=target.value;
+          if(registry()?.getTool(state.toolId)?.execution==='overlay'&&state.request.inputs.overlay?.layerId===target.value)state.request.inputs.overlay.layerId='';
+        }
+        invalidateResult();render();scheduleAutoPreview();return;
+      }
+      if(target.dataset.processingScope){
+        state.request.inputs[target.dataset.processingScope].scope=target.value;
+        invalidateResult();render();scheduleAutoPreview();return;
+      }
+      if(target.id==='gisProcessingOutputMode'){
+        state.request.output.mode=target.value;
+        state.result=null;state.progress=null;render();return;
+      }
+      if(target.id==='gisProcessingOutputName'){
+        state.request.output.name=target.value;
+        state.result=null;state.progress=null;refreshPreflight();return;
+      }
+      if(target.dataset.processingParam){
+        const definition=registry().getTool(state.toolId)?.parameters?.find(item=>item.id===target.dataset.processingParam);
+        let value=target.value;
+        if(definition?.type==='number'||definition?.type==='integer')value=Number(value);
+        else if(definition?.type==='boolean')value=!!target.checked;
+        state.request.parameters[target.dataset.processingParam]=value;
+        if(definition?.slider){const slider=state.host?.querySelector(`[data-processing-slider="${definition.id}"]`);if(slider)slider.value=String(sliderPosition(value,definition.slider));}
+        invalidateResult();refreshPreflight();scheduleAutoPreview();
+      }
+    }
+    function updateProgressDom(update,prefix='Processing'){const node=state.host?.querySelector('.gis-processing-progress');if(!node)return;node.querySelector('i')?.style.setProperty('width',`${Math.max(0,Math.min(100,Number(update.percent)||0))}%`);const strong=node.querySelector('strong');if(strong)strong.textContent=update.stage||`${prefix}…`;const span=node.querySelector('span');if(span&&update.total)span.textContent=`${Number(update.done||0).toLocaleString()} of ${Number(update.total).toLocaleString()}`;}
+    async function runPreview({automatic=false}={}){
+      clearPreviewTimer();
+      if(busy()||!supportsPreview())return;
+      const pf=preflight();
+      if(!pf.valid){render();return;}
+      const policy=currentPreviewPolicy(),count=Number(pf.counts?.source||0);
+      state.previewActivated=true;state.previewStale=false;
+      if(automatic&&count>Number(policy.maxAutoFeatures||2500))return;
+      const serial=++state.previewSerial;
+      state.previewing=true;
+      state.previewProgress={stage:'Preparing preview',percent:0,done:0,total:pf.counts.source};
+      state.previewResult=null;state.result=null;state.progress=null;render();
+      try{
+        const result=await state.api.runProcessingPreview(clone(state.request),update=>{
+          if(serial!==state.previewSerial)return;
+          state.previewProgress=update;updateProgressDom(update,'Previewing');
+        });
+        if(serial!==state.previewSerial)return;
+        state.previewing=false;state.previewProgress=null;state.previewResult=result;state.previewActivated=true;state.previewStale=false;
+        state.status?.(`${automatic?'Live p':'P'}review ready: ${Number(result.summary?.output||0).toLocaleString()} ${result.resultKind==='selection'?'match':'output feature'}${Number(result.summary?.output||0)===1?'':'s'}. Nothing was changed.`,'ok');
+        render();
+      }catch(error){
+        if(serial!==state.previewSerial||error?.processingPreviewCancelled)return;
+        state.previewing=false;state.previewProgress=null;state.previewResult=null;state.status?.(error.message,'error');render();
+      }
+    }
+    async function run(){
+      if(busy())return;
+      const pf=preflight();
+      if(!pf.valid){render();return;}
+      const prepared=state.previewResult?.fingerprint&&state.previewResult?.preparedResult?clone(state.previewResult):null;
+      clearPreviewState({cancel:false});
+      state.running=true;state.progress={stage:'Preparing input',percent:0,done:0,total:pf.counts.source};state.result=null;render();
+      const started=global.performance?.now?.()??Date.now();
+      try{
+        let result=null;
+        if(prepared&&typeof state.api.commitPreparedProcessingResult==='function'){
+          const reused=await state.api.commitPreparedProcessingResult(clone(state.request),clone(prepared.preparedResult),prepared.fingerprint,update=>{
+            state.progress=update;updateProgressDom(update,'Processing');
+          });
+          if(reused?.reused)result=reused;
+        }
+        if(!result)result=await state.api.runProcessingRequest(clone(state.request),update=>{
+          state.progress=update;updateProgressDom(update,'Processing');
+        });
+        state.running=false;
+        state.progress={stage:'Complete',percent:100,done:result.summary?.input||0,total:result.summary?.input||0};
+        state.result={...result,elapsedMs:Math.max(0,Math.round((global.performance?.now?.()??Date.now())-started))};
+        const what=result.kind==='selection'?`${result.summary?.output||0} feature${result.summary?.output===1?'':'s'} selected`:result.output?.modified?`Updated ${result.output.name}`:`Created ${result.output?.name}`;
+        state.status?.(`${what}.${result.reused?' Used the verified preview result.':''}`,result.summary?.failed?'error':'ok');
+        render();
+      }catch(error){
+        state.running=false;state.progress=null;state.status?.(error.message,'error');render();
+      }
+    }
+    function cancel(){clearPreviewTimer();if(state.previewing){state.previewSerial++;state.api?.cancelProcessingPreview?.();state.previewing=false;state.previewProgress=null;state.previewResult=null;state.previewActivated=false;state.previewStale=false;state.status?.('Processing preview cancelled. Project data was not changed.','error');render();return true;}if(state.running){state.api?.cancelProcessing?.();state.running=false;state.progress=null;state.status?.('Processing cancelled. No project data was changed.','error');render();return true;}return false;}
+    function click(event){const fieldsAction=event.target.closest('[data-processing-fields-action]');if(fieldsAction){fieldPickerAction(fieldsAction);return;}const tool=event.target.closest('[data-processing-tool]');if(tool){changeTool(tool.dataset.processingTool);return;}const action=event.target.closest('[data-processing-action]')?.dataset.processingAction;if(action==='preview')runPreview();else if(action==='clear-preview')clearPreviewState({cancel:false,renderNow:true});else if(action==='run')run();else if(action==='cancel')cancel();else if(action==='open-output'&&state.result?.output)state.onOpenOutput?.(state.result.output);else if(action==='zoom-output'&&state.result?.output)state.api?.zoomLayer?.(state.result.output.id);else if(action==='run-again'){state.result=null;state.progress=null;render();}}
+    function input(event){const target=event.target;if(target.id==='gisProcessingSearch'){state.query=target.value;const list=state.host.querySelector('.gis-processing-tools');if(list)list.innerHTML=toolButtons();return;}if(target.tagName!=='SELECT'||target.multiple||target.type==='checkbox'||target.id==='gisProcessingOutputName')readControl(target);}
+    function change(event){readControl(event.target);}
+    function bind(host){if(host._editPolygonProcessingBound)return;host._editPolygonProcessingBound=true;host.addEventListener('click',click);host.addEventListener('input',input);host.addEventListener('change',change);}
+    function mount(host,{layerId='',toolId='',sourceScope='',api=null,status=null,onOpenOutput=null}={}){state.host=host;state.api=installPreviewBridge(api||global.EditPolygonGIS);state.status=status;state.onOpenOutput=onOpenOutput;const requested=toolId&&registry()?.getTool(toolId)?toolId:'',requestedScope=['all','filtered','selected'].includes(sourceScope)?sourceScope:'';if(!state.request||state.sourceLayerId!==layerId||requested||requestedScope){clearPreviewState({cancel:true});state.sourceLayerId=layerId;state.sourceScope=requestedScope;state.toolId=requested||'buffer';state.query='';state.request=null;state.preflight=null;state.result=null;state.progress=null;}bind(host);render();state.sourceScope='';return true;}
+    function isRunning(){return busy();}
+    function cancelIfRunning(){return cancel();}
+    function reset(){if(busy())cancel();clearPreviewState({cancel:true});state.request=null;state.preflight=null;state.result=null;state.progress=null;}
+    
+    function externalStateChanged(){
+      if(!state.previewTimer&&!state.previewing&&!state.previewResult)return;
+      clearPreviewState({cancel:true});
+      if(state.host?.isConnected)render();
+    }
+    global.addEventListener?.('editpolygon:gis-changed',externalStateChanged);
+    global.addEventListener?.('editpolygon:gis-selection-changed',externalStateChanged);
+    
+    global.__editPolygonGISProcessingPreview=Object.freeze({
+      version:VERSION,
+      buildTask:(pf,api=global.EditPolygonGIS)=>buildPreviewTask(pf,api),
+      metrics:previewMetrics,
+      comparisonMetrics:previewComparisonMetrics,
+      dataResult:previewDataResult,
+      sliderPosition,sliderValue,
+      clear:clearProcessingPreview,
+      cancel:cancelProcessingPreview,
+      renderLimit:PREVIEW_RENDER_LIMIT
+    });
+    global.EditPolygonGISProcessingUI=Object.freeze({version:VERSION,mount,isRunning,cancelIfRunning,reset});
+    })(typeof window!=='undefined'?window:globalThis);
+    
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file:///home/runner/work/GIS/GIS/tests/processing-result-preflight.test.mjs:9:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: Processing Toolbox modules load in dependency order and the retired worker is gone
+ok 287 - Processing Toolbox modules load in dependency order and the retired worker is gone
+  ---
+  duration_ms: 1.728658
+  type: 'test'
+  ...
+# Subtest: application bridge exposes generic layer, in-place and selection commits behind one cancellable lifecycle
+ok 288 - application bridge exposes generic layer, in-place and selection commits behind one cancellable lifecycle
+  ---
+  duration_ms: 1.739107
+  type: 'test'
+  ...
+# Subtest: processing UI provides search, generic inputs/scopes/parameters, mutation policy, progress, results and cancellation
+ok 289 - processing UI provides search, generic inputs/scopes/parameters, mutation policy, progress, results and cancellation
+  ---
+  duration_ms: 0.473096
+  type: 'test'
+  ...
+# Subtest: processing worker delegates execution to shared processing, spatial and GEOS engines
+ok 290 - processing worker delegates execution to shared processing, spatial and GEOS engines
+  ---
+  duration_ms: 0.247304
+  type: 'test'
+  ...
+# Subtest: Simple Editor delegates serious GIS processing to the Toolbox and keeps only direct shape editing
+ok 291 - Simple Editor delegates serious GIS processing to the Toolbox and keeps only direct shape editing
+  ---
+  duration_ms: 12.987515
+  type: 'test'
+  ...
+# Subtest: all local runtime assets use the v1.56.1 release cache key
+ok 292 - all local runtime assets use the v1.56.1 release cache key
+  ---
+  duration_ms: 4.853072
+  type: 'test'
+  ...
+# Subtest: bulk editable vectors use the adapter-owned persistent native source path
+ok 293 - bulk editable vectors use the adapter-owned persistent native source path
+  ---
+  duration_ms: 4.536126
+  type: 'test'
+  ...
+# Subtest: map movement skips image rendering for vector-only projects
+ok 294 - map movement skips image rendering for vector-only projects
+  ---
+  duration_ms: 0.569156
+  type: 'test'
+  ...
+# Subtest: performance release uses a fresh application cache key
+ok 295 - performance release uses a fresh application cache key
+  ---
+  duration_ms: 0.195045
+  type: 'test'
+  ...
+# Subtest: cached vector swaps add the replacement before removing the old layer to avoid pan flicker
+ok 296 - cached vector swaps add the replacement before removing the old layer to avoid pan flicker
+  ---
+  duration_ms: 0.634749
+  type: 'test'
+  ...
+# Subtest: cached editable renderer does not rebuild solely because viewport coordinates changed
+ok 297 - cached editable renderer does not rebuild solely because viewport coordinates changed
+  ---
+  duration_ms: 0.548187
+  type: 'test'
+  ...
+# Subtest: large remote editable layers are performance-managed without simplifying their geometry
+ok 298 - large remote editable layers are performance-managed without simplifying their geometry
+  ---
+  duration_ms: 1.958638
+  type: 'test'
+  ...
+# Subtest: heavy editable layers keep a fast background and isolate selection/editing in a precise focused overlay
+ok 299 - heavy editable layers keep a fast background and isolate selection/editing in a precise focused overlay
+  ---
+  duration_ms: 1.017085
+  type: 'test'
+  ...
+# Subtest: focused edit overlay is the live geometry target and suppresses the stale background copy only during precision editing
+ok 300 - focused edit overlay is the live geometry target and suppresses the stale background copy only during precision editing
+  ---
+  duration_ms: 0.561692
+  type: 'test'
+  ...
+# Subtest: selected polygon toolbar stays out of the hot pan loop and uses cached feature bounds
+ok 301 - selected polygon toolbar stays out of the hot pan loop and uses cached feature bounds
+  ---
+  duration_ms: 0.672891
+  type: 'test'
+  ...
+# Subtest: heavy OpenLayers sources stay persistent instead of rebuilding on viewport membership changes
+ok 302 - heavy OpenLayers sources stay persistent instead of rebuilding on viewport membership changes
+  ---
+  duration_ms: 0.829264
+  type: 'test'
+  ...
+# Subtest: single-runtime cleanup removes the dead map-pan recovery listener stack
+ok 303 - single-runtime cleanup removes the dead map-pan recovery listener stack
+  ---
+  duration_ms: 2.977477
+  type: 'test'
+  ...
+# Subtest: enhanced mouse coordinate readout replaces rather than stacks the core pointermove handler
+ok 304 - enhanced mouse coordinate readout replaces rather than stacks the core pointermove handler
+  ---
+  duration_ms: 0.642774
+  type: 'test'
+  ...
+# Subtest: v1.56.1 publishes one final runtime-authority snapshot at the end of the application scope
+ok 305 - v1.56.1 publishes one final runtime-authority snapshot at the end of the application scope
+  ---
+  duration_ms: 3.296654
+  type: 'test'
+  ...
+# Subtest: retired pan-recovery drag hook cannot abort startup before Advanced GIS installs
+ok 306 - retired pan-recovery drag hook cannot abort startup before Advanced GIS installs
+  ---
+  duration_ms: 1.663756
+  type: 'test'
+  ...
+# Subtest: core public runtime entry points keep stable function identities
+ok 307 - core public runtime entry points keep stable function identities
+  ---
+  duration_ms: 17.254948
+  type: 'test'
+  ...
+# Subtest: circle and point editors use central lifecycle hooks rather than late selection/history patches
+ok 308 - circle and point editors use central lifecycle hooks rather than late selection/history patches
+  ---
+  duration_ms: 9.246739
+  type: 'test'
+  ...
+# Subtest: authoritative cached editable rendering stays behind the map contract
+ok 309 - authoritative cached editable rendering stays behind the map contract
+  ---
+  duration_ms: 0.739695
+  type: 'test'
+  ...
+# Subtest: true-circle click testing is shared with the authoritative rendered geometry
+ok 310 - true-circle click testing is shared with the authoritative rendered geometry
+  ---
+  duration_ms: 0.296105
+  type: 'test'
+  ...
+# Subtest: selection highlight refresh always uses the authoritative renderer
+ok 311 - selection highlight refresh always uses the authoritative renderer
+  ---
+  duration_ms: 0.932367
+  type: 'test'
+  ...
+# Subtest: reference overlays and GIS services share runtime-owned layer state
+ok 312 - reference overlays and GIS services share runtime-owned layer state
+  ---
+  duration_ms: 0.939389
+  type: 'test'
+  ...
+# Subtest: native OpenLayers implementation stays confined to the adapter and no retired runtime remains
+ok 313 - native OpenLayers implementation stays confined to the adapter and no retired runtime remains
+  ---
+  duration_ms: 2.978118
+  type: 'test'
+  ...
+# Subtest: undo and redo announce restored project history to open GIS workspaces
+ok 314 - undo and redo announce restored project history to open GIS workspaces
+  ---
+  duration_ms: 1.1746
+  type: 'test'
+  ...
+# Subtest: Fields & stats refreshes and clears stale schema editor state after history restoration
+ok 315 - Fields & stats refreshes and clears stale schema editor state after history restoration
+  ---
+  duration_ms: 0.222847
+  type: 'test'
+  ...
+# Subtest: native form-control undo is not intercepted as project undo
+ok 316 - native form-control undo is not intercepted as project undo
+  ---
+  duration_ms: 0.253695
+  type: 'test'
+  ...
+# Subtest: main Select control exposes click, rectangle, polygon and lasso modes
+ok 317 - main Select control exposes click, rectangle, polygon and lasso modes
+  ---
+  duration_ms: 1.739257
+  type: 'test'
+  ...
+# Subtest: map selection provides live geometry and measurement feedback
+ok 318 - map selection provides live geometry and measurement feedback
+  ---
+  duration_ms: 2.596533
+  type: 'test'
+  ...
+# Subtest: selection tools support cancel, finish and keyboard editing
+ok 319 - selection tools support cancel, finish and keyboard editing
+  ---
+  duration_ms: 2.369066
+  type: 'test'
+  ...
+# Subtest: typed schema core loads before the application
+ok 320 - typed schema core loads before the application
+  ---
+  duration_ms: 1.283984
+  type: 'test'
+  ...
+# Subtest: application exposes schema, saved-filter, type-safe calculator and scoped export APIs
+ok 321 - application exposes schema, saved-filter, type-safe calculator and scoped export APIs
+  ---
+  duration_ms: 6.969706
+  type: 'test'
+  ...
+# Subtest: attribute workspace includes typed table controls, schema editing and compound saved filters
+ok 322 - attribute workspace includes typed table controls, schema editing and compound saved filters
+  ---
+  duration_ms: 0.335598
+  type: 'test'
+  ...
+# Subtest: Inspector uses schema types and honours read-only fields
+ok 323 - Inspector uses schema types and honours read-only fields
+  ---
+  duration_ms: 0.204944
+  type: 'test'
+  ...
+# Subtest: typed field API registration remains inside the live application scope
+ok 324 - typed field API registration remains inside the live application scope
+  ---
+  duration_ms: 0.734696
+  type: 'test'
+  ...
+# Subtest: advanced style compilation classifies values without discarding the configured base symbol
+ok 325 - advanced style compilation classifies values without discarding the configured base symbol
+  ---
+  duration_ms: 16.917215
+  type: 'test'
+  ...
+# Subtest: application resolves simple style, advanced style, feature override and temporary highlight in order
+ok 326 - application resolves simple style, advanced style, feature override and temporary highlight in order
+  ---
+  duration_ms: 0.711823
+  type: 'test'
+  ...
+# Subtest: simple editors clearly lock while advanced styling is active
+ok 327 - simple editors clearly lock while advanced styling is active
+  ---
+  duration_ms: 2.929427
+  type: 'test'
+  ...
+# Subtest: manual project save includes the GIS workspace containing remote service definitions
+ok 328 - manual project save includes the GIS workspace containing remote service definitions
+  ---
+  duration_ms: 2.421205
+  type: 'test'
+  ...
+# Subtest: project-file normalisation preserves GIS workspace and reference overlays before restore
+ok 329 - project-file normalisation preserves GIS workspace and reference overlays before restore
+  ---
+  duration_ms: 0.281858
+  type: 'test'
+  ...
+# Subtest: restored project consumes the preserved GIS workspace and rebuilds runtime services
+ok 330 - restored project consumes the preserved GIS workspace and rebuilds runtime services
+  ---
+  duration_ms: 0.386825
+  type: 'test'
+  ...
+# Subtest: GIS core round-trips a WMS source and layer display state without dropping service fields
+ok 331 - GIS core round-trips a WMS source and layer display state without dropping service fields
+  ---
+  duration_ms: 4.385293
+  type: 'test'
+  ...
+# Subtest: WMS display does not force anonymous CORS on image tiles
+ok 332 - WMS display does not force anonymous CORS on image tiles
+  ---
+  duration_ms: 1.23328
+  type: 'test'
+  ...
+# Subtest: GeoServer WMS gets tiled/server hints without provider-specific application code
+ok 333 - GeoServer WMS gets tiled/server hints without provider-specific application code
+  ---
+  duration_ms: 0.175609
+  type: 'test'
+  ...
+# Subtest: WMS capability discovery is best-effort and persists advertised bounds for zooming
+ok 334 - WMS capability discovery is best-effort and persists advertised bounds for zooming
+  ---
+  duration_ms: 2.437135
+  type: 'test'
+  ...
+# Subtest: WMS service visibility owns map membership
+ok 335 - WMS service visibility owns map membership
+  ---
+  duration_ms: 0.283431
+  type: 'test'
+  ...
+# Subtest: longitude-periodic spatial query keeps canonical Australian features visible after repeated world pans
+ok 336 - longitude-periodic spatial query keeps canonical Australian features visible after repeated world pans
+  ---
+  duration_ms: 3.787975
+  type: 'test'
+  ...
+# Subtest: world-wrap query respects continuous-longitude project geometry as well as canonical geometry
+ok 337 - world-wrap query respects continuous-longitude project geometry as well as canonical geometry
+  ---
+  duration_ms: 0.770813
+  type: 'test'
+  ...
+# Subtest: world-wrap query keeps latitude filtering and handles a viewport wider than one world
+ok 338 - world-wrap query keeps latitude filtering and handles a viewport wider than one world
+  ---
+  duration_ms: 0.672509
+  type: 'test'
+  ...
+# Subtest: authoritative viewport renderer and map spatial selection use longitude-periodic spatial queries
+ok 339 - authoritative viewport renderer and map spatial selection use longitude-periodic spatial queries
+  ---
+  duration_ms: 1.976502
+  type: 'test'
+  ...
+# Subtest: map adapter preserves continuous Web Mercator x and exposes nearest-world longitude helper
+ok 340 - map adapter preserves continuous Web Mercator x and exposes nearest-world longitude helper
+  ---
+  duration_ms: 1.830047
+  type: 'test'
+  ...
+1..340
+# tests 340
+# suites 0
+# pass 339
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1937.63786
