@@ -70,6 +70,19 @@ elif 'preserveActivation:activated' not in preflight_text:
     raise RuntimeError('processing preflight regression assertion anchor missing')
 preflight_test.write_text(preflight_text,encoding='utf-8')
 
+# Geometry previews are now deliberately labelled "Preview on map" to distinguish
+# them from selection matches and data-result previews. Keep the original smoke
+# test aligned with that completed UX instead of the earlier generic label.
+preview_smoke=ROOT/'tests/browser-processing-preview-smoke.py'
+preview_smoke_text=preview_smoke.read_text(encoding='utf-8')
+old_label="assert page.locator('[data-processing-action=\"preview\"]').inner_text()=='Preview result'"
+new_label="assert page.locator('[data-processing-action=\"preview\"]').inner_text()=='Preview on map'"
+if old_label in preview_smoke_text:
+    preview_smoke_text=preview_smoke_text.replace(old_label,new_label,1)
+elif "=='Preview on map'" not in preview_smoke_text:
+    raise RuntimeError('legacy processing preview button assertion anchor missing')
+preview_smoke.write_text(preview_smoke_text,encoding='utf-8')
+
 # Keep verification-only bytecode out of repository audits.
 shutil.rmtree(ROOT/'scripts/__pycache__',ignore_errors=True)
 shutil.rmtree(ROOT/'tests/__pycache__',ignore_errors=True)
