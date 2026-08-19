@@ -3,7 +3,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / 'docs/assets/editpolygon-app.js'
 CSS = ROOT / 'docs/assets/editpolygon.css'
-INDEX = ROOT / 'docs/index.html'
 PACKAGE = ROOT / 'package.json'
 CHANGELOG = ROOT / 'CHANGELOG.md'
 BROWSER_TEST = ROOT / 'tests/browser-point-line-geometry-code-v2.py'
@@ -142,14 +141,28 @@ package = replace_once(
 )
 PACKAGE.write_text(package, encoding='utf-8')
 
-# 6. Bust GitHub Pages/browser caches for the updated app and CSS assets.
-index = INDEX.read_text(encoding='utf-8')
+# 6. Advance the v1.56.1 release/cache key everywhere that participates in the
+# runtime contract. Keeping HTML, worker imports, audits and integration tests on
+# one key prevents GitHub Pages from mixing old and new JS/CSS after the hotfix.
 old_key = '20260817-v1561-point-line-geometry-v3'
 new_key = '20260819-v1561-point-line-inspector-v4'
-if old_key not in index:
-    raise RuntimeError('index cache key not found')
-index = index.replace(old_key, new_key)
-INDEX.write_text(index, encoding='utf-8')
+cache_key_files = [
+    ROOT / 'docs/index.html',
+    ROOT / 'docs/assets/editpolygon-app.js',
+    ROOT / 'docs/assets/gis-processing-worker.js',
+    ROOT / 'scripts/audit-runtime.mjs',
+    ROOT / 'tests/release-cache.test.mjs',
+    ROOT / 'tests/gis-crs-integration.test.mjs',
+    ROOT / 'tests/gis-remote-source-integration.test.mjs',
+    ROOT / 'tests/typed-fields-integration.test.mjs',
+    ROOT / 'tests/render-performance.test.mjs',
+    ROOT / 'tests/processing-toolbox-integration.test.mjs',
+]
+for path in cache_key_files:
+    text = path.read_text(encoding='utf-8')
+    if old_key not in text:
+        raise RuntimeError(f'release cache key not found in {path.relative_to(ROOT)}')
+    path.write_text(text.replace(old_key, new_key), encoding='utf-8')
 
 # 7. Record the fix in the live-test hotfix notes.
 changelog = CHANGELOG.read_text(encoding='utf-8')
