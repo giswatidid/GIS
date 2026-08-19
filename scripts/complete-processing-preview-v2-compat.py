@@ -57,6 +57,19 @@ if "step:0.1" not in snap_line:raise RuntimeError('temporary Snap tolerance mark
 registry_text=registry_text[:snap_match.start()]+snap_line.replace("step:0.1","step:.1",1)+registry_text[snap_match.end():]
 registry_path.write_text(registry_text,encoding='utf-8')
 
+# The preflight regression guard must now assert the intentional preview-session
+# invariant: parameter/input edits preserve explicit preview activation, mark the
+# old result stale, and therefore permit live refresh or an explicit Refresh preview.
+preflight_test=ROOT/'tests/processing-result-preflight.test.mjs'
+preflight_text=preflight_test.read_text(encoding='utf-8')
+old_assert="  assert.match(source,/function invalidateResult\\(\\)\\{state\\.result=null;state\\.progress=null;clearPreviewState\\(\\{cancel:true\\}\\)/);"
+new_assert="  assert.match(source,/function invalidateResult\\(\\)\\{const activated=state\\.previewActivated\\|\\|state\\.previewing\\|\\|!!state\\.previewResult;state\\.result=null;state\\.progress=null;clearPreviewState\\(\\{cancel:true,preserveActivation:activated\\}\\)/);\n  assert.match(source,/state\\.previewActivated=activated;state\\.previewStale=activated/);"
+if old_assert in preflight_text:
+    preflight_text=preflight_text.replace(old_assert,new_assert,1)
+elif 'preserveActivation:activated' not in preflight_text:
+    raise RuntimeError('processing preflight regression assertion anchor missing')
+preflight_test.write_text(preflight_text,encoding='utf-8')
+
 # Keep verification-only bytecode out of repository audits.
 shutil.rmtree(ROOT/'scripts/__pycache__',ignore_errors=True)
 shutil.rmtree(ROOT/'tests/__pycache__',ignore_errors=True)
