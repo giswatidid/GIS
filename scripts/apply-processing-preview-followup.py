@@ -134,11 +134,7 @@ test=replace_once(test,
 """,
 """    before=page.evaluate('window.__setCalls')
     assert page.evaluate("typeof window.__mapHandlers.zoomend")=='function'
-    page.evaluate("""() => {
-      window.__overlay.present=false;window.__overlay.items=[];
-      window.__mapHandlers.zoomend();
-      setTimeout(()=>{window.__overlay.present=false;window.__overlay.items=[];},50);
-    }""")
+    page.evaluate("window.__overlay.present=false;window.__overlay.items=[];window.__mapHandlers.zoomend();setTimeout(()=>{window.__overlay.present=false;window.__overlay.items=[];},50)")
     page.wait_for_timeout(230)
     assert page.evaluate('window.__overlay.present') is True
     assert page.evaluate('window.__overlay.items.length')==1
