@@ -28,7 +28,8 @@ function loadPreviewRuntime(){
   globalThis.EditPolygonCRS={};
   globalThis.EditPolygonGISProcessingCore={
     resolveProcessingCrs:()=> 'EPSG:32756',
-    family:type=>/Polygon$/.test(type)?'polygon':'other'
+    family:type=>/Polygon$/.test(type)?'polygon':'other',
+    previewFingerprint:()=> 'test-fingerprint'
   };
   globalThis.EditPolygonGISProcessingRegistry={};
   let setSelectionCalls=0;

@@ -87,5 +87,34 @@ function bboxOfGeometry(geometry){let minX=Infinity,minY=Infinity,maxX=-Infinity
 function combinedBounds(features=[]){let out=null;for(const feature of features){const b=bboxOfGeometry(feature?.geometry);if(!b)continue;out=out?[Math.min(out[0],b[0]),Math.min(out[1],b[1]),Math.max(out[2],b[2]),Math.max(out[3],b[3])]:b.slice();}return out;}
 function resolveProcessingCrs(tool,allFeatures,crsApi){if(tool?.crsPolicy!=='projected-metric')return 'EPSG:4326';const b=combinedBounds(allFeatures);if(!b||!crsApi?.utmForLonLat)return'EPSG:3857';const lon=(b[0]+b[2])/2,lat=(b[1]+b[3])/2;if((b[2]-b[0])>18||(b[3]-b[1])>16)return'EPSG:3857';return crsApi.utmForLonLat(lon,lat,'WGS84');}
 
-global.EditPolygonGISProcessingCore=Object.freeze({version:VERSION,SCOPES:DEFAULT_SCOPES,clone,family,inputDefinitions,normaliseScope,normaliseRequest,scopeFeatures,scopeCount,geometryFamilies,fieldsForLayer,defaultOutputName,validateParameter,preflight,resultSummary,failure,createProvenance,bboxOfGeometry,combinedBounds,resolveProcessingCrs});
+
+function stableValue(value){
+  if(Array.isArray(value))return value.map(stableValue);
+  if(value&&typeof value==='object'){
+    const out={};
+    for(const key of Object.keys(value).sort())out[key]=stableValue(value[key]);
+    return out;
+  }
+  return value;
+}
+function previewFingerprint(task={}){
+  const snapshot={
+    toolId:task.toolId||'',
+    inputs:task.inputs||{},
+    inputSchemas:task.inputSchemas||{},
+    inputLayerIds:task.inputLayerIds||{},
+    parameters:task.parameters||{},
+    currentSelectionIds:task.currentSelectionIds||[],
+    processingCrs:task.processingCrs||'EPSG:4326'
+  };
+  const text=JSON.stringify(stableValue(snapshot));
+  let hash=2166136261;
+  for(let index=0;index<text.length;index++){
+    hash^=text.charCodeAt(index);
+    hash=Math.imul(hash,16777619);
+  }
+  return `p2-${(hash>>>0).toString(16).padStart(8,'0')}-${text.length.toString(36)}`;
+}
+
+global.EditPolygonGISProcessingCore=Object.freeze({version:VERSION,SCOPES:DEFAULT_SCOPES,clone,family,inputDefinitions,normaliseScope,normaliseRequest,scopeFeatures,scopeCount,geometryFamilies,fieldsForLayer,defaultOutputName,validateParameter,preflight,resultSummary,failure,createProvenance,bboxOfGeometry,combinedBounds,resolveProcessingCrs,stableValue,previewFingerprint});
 })(typeof window!=='undefined'?window:globalThis);
