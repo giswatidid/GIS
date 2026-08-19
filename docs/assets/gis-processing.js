@@ -10,9 +10,9 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&
 const assetKey=(()=>{
   try{
     const src=global.document?.currentScript?.src||'';
-    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v7';
+    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v8';
   }catch(_){}
-  return '20260820-v1561-processing-preview-v7';
+  return '20260820-v1561-processing-preview-v8';
 })();
 
 const state={
@@ -24,7 +24,7 @@ const state={
 };
 
 const previewRuntime={
-  worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null,renderItems:[],mapUnbind:null,restoreRaf:0
+  worker:null,job:null,jobSeq:0,token:0,overlay:null,last:null,renderItems:[],mapUnbind:null,restoreRaf:0,restoreTimer:0
 };
 
 function layers(){return (state.api?.getEditableLayers?.()||[]).filter(layer=>!layer.tableOnly);}
@@ -181,19 +181,32 @@ function restorePreviewOverlay(){
   try{map.setVectorOverlayFeatures?.(overlay,clone(items));return true;}catch(_){return false;}
 }
 function schedulePreviewOverlayRestore(){
-  if(!previewRuntime.renderItems?.length||previewRuntime.restoreRaf)return;
-  const restore=()=>{previewRuntime.restoreRaf=0;restorePreviewOverlay();};
-  previewRuntime.restoreRaf=global.requestAnimationFrame?.(restore)||global.setTimeout?.(restore,0)||0;
+  if(!previewRuntime.renderItems?.length)return;
+  if(previewRuntime.restoreTimer){try{global.clearTimeout?.(previewRuntime.restoreTimer);}catch(_){}previewRuntime.restoreTimer=0;}
+  const lateRestore=()=>{previewRuntime.restoreTimer=0;restorePreviewOverlay();};
+  const restore=()=>{
+    previewRuntime.restoreRaf=0;
+    restorePreviewOverlay();
+    previewRuntime.restoreTimer=global.setTimeout?.(lateRestore,120)||0;
+  };
+  if(previewRuntime.restoreRaf)return;
+  if(typeof global.requestAnimationFrame==='function'){
+    previewRuntime.restoreRaf=global.requestAnimationFrame(()=>{
+      previewRuntime.restoreRaf=global.requestAnimationFrame(restore)||0;
+    })||0;
+  }else previewRuntime.restoreRaf=global.setTimeout?.(restore,0)||0;
 }
 function bindPreviewOverlayPersistence(){
   if(previewRuntime.mapUnbind||!global.EditPolygonMap?.on)return;
-  const off=global.EditPolygonMap.on('viewreset resize',schedulePreviewOverlayRestore);
-  previewRuntime.mapUnbind=typeof off==='function'?off:()=>global.EditPolygonMap?.off?.('viewreset resize',schedulePreviewOverlayRestore);
+  const events='zoomstart zoomend viewreset resize';
+  const off=global.EditPolygonMap.on(events,schedulePreviewOverlayRestore);
+  previewRuntime.mapUnbind=typeof off==='function'?off:()=>global.EditPolygonMap?.off?.(events,schedulePreviewOverlayRestore);
 }
 function unbindPreviewOverlayPersistence(){
   try{previewRuntime.mapUnbind?.();}catch(_){}
   previewRuntime.mapUnbind=null;
-  if(previewRuntime.restoreRaf){try{global.cancelAnimationFrame?.(previewRuntime.restoreRaf);}catch(_){}previewRuntime.restoreRaf=0;}
+  if(previewRuntime.restoreRaf){try{global.cancelAnimationFrame?.(previewRuntime.restoreRaf);}catch(_){}try{global.clearTimeout?.(previewRuntime.restoreRaf);}catch(_){}previewRuntime.restoreRaf=0;}
+  if(previewRuntime.restoreTimer){try{global.clearTimeout?.(previewRuntime.restoreTimer);}catch(_){}previewRuntime.restoreTimer=0;}
 }
 function clearPreviewOverlay({forget=false}={}){
   try{if(previewRuntime.overlay)global.EditPolygonMap?.clearVectorOverlayLayer?.(previewRuntime.overlay);}catch(_){}
@@ -444,7 +457,7 @@ function previewModeView(pf){
   const params=(tool.parameters||[]).filter(item=>!item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join('');
   const advanced=(tool.parameters||[]).filter(item=>item.advanced).map(def=>parameterControl(def,state.request.parameters[def.id])).join('');
   const previewLabel=previewActionLabel(tool),runLabel=previewModeRunLabel(tool),issues=!pf.valid||(pf.warnings||[]).length;
-  return `<section class="gis-processing-config gis-processing-map-preview-panel"><div class="gis-processing-preview-mode-head"><div><span>Preview mode</span><h2>${esc(tool.title)}</h2><p>Pan and zoom the map while you tune the processing result.</p></div><button type="button" data-processing-action="back-to-toolbox">Back to Processing</button></div><div class="gis-processing-preview-mode-note"><strong>Nothing is committed yet.</strong><span>The original geometry stays visible underneath the temporary preview.</span></div><fieldset class="gis-processing-parameter-lock" ${busy()?'disabled':''}><div class="gis-processing-form">${inputControls(tool)}${params}</div>${advanced?`<details class="gis-processing-advanced"><summary>Advanced parameters</summary><div class="gis-processing-form">${advanced}</div></details>`:''}</fieldset>${livePreviewControls(pf,tool)}${issues?`<div id="gisProcessingPreflight">${preflightHtml(pf)}</div>`:'<div id="gisProcessingPreflight" hidden></div>'}${progressHtml()}${previewHtml()}<div class="gis-processing-actions gis-processing-preview-mode-actions"><button type="button" data-processing-action="preview" ${busy()||!pf.valid?'disabled':''}>${state.previewing?'Previewing…':previewLabel}</button><button type="button" class="primary" data-processing-action="run" ${busy()||!pf.valid||!state.previewResult?'disabled':''}>${state.running?'Processing…':runLabel}</button><button type="button" data-processing-action="cancel" ${busy()?'':'disabled'}>Cancel</button></div></section>`;
+  return `<section class="gis-processing-config gis-processing-map-preview-panel"><div class="gis-processing-preview-mode-head"><div><span>Preview mode</span><h2>${esc(tool.title)}</h2><p>Pan and zoom the map while you tune the processing result.</p></div><button type="button" data-processing-action="back-to-toolbox">Back to Processing</button></div><div class="gis-processing-preview-mode-note"><strong>Nothing is committed yet.</strong><span>The original geometry stays visible underneath the temporary preview.</span></div><fieldset class="gis-processing-parameter-lock" ${busy()?'disabled':''}><div class="gis-processing-form">${inputControls(tool)}${params}</div>${advanced?`<details class="gis-processing-advanced"><summary>Advanced parameters</summary><div class="gis-processing-form">${advanced}</div></details>`:''}</fieldset>${livePreviewControls(pf,tool)}${issues?`<div id="gisProcessingPreflight">${preflightHtml(pf)}</div>`:'<div id="gisProcessingPreflight" hidden></div>'}${progressHtml()}${previewHtml()}${resultHtml()}<div class="gis-processing-actions gis-processing-preview-mode-actions"><button type="button" data-processing-action="preview" ${busy()||!pf.valid?'disabled':''}>${state.previewing?'Previewing…':previewLabel}</button><button type="button" class="primary" data-processing-action="run" ${busy()||!pf.valid||!state.previewResult?'disabled':''}>${state.running?'Processing…':runLabel}</button><button type="button" data-processing-action="cancel" ${busy()?'':'disabled'}>Cancel</button></div></section>`;
 }
 
 function livePreviewControls(pf,tool){
@@ -539,6 +552,7 @@ async function runPreview({automatic=false}={}){
 }
 async function run(){
   if(busy())return;
+  const stayOnMap=state.mapPreviewMode;
   const pf=preflight();
   if(!pf.valid){render();return;}
   const prepared=state.previewResult?.fingerprint&&state.previewResult?.preparedResult?clone(state.previewResult):null;
@@ -561,9 +575,9 @@ async function run(){
     state.result={...result,elapsedMs:Math.max(0,Math.round((global.performance?.now?.()??Date.now())-started))};
     const what=result.kind==='selection'?`${result.summary?.output||0} feature${result.summary?.output===1?'':'s'} selected`:result.output?.modified?`Updated ${result.output.name}`:`Created ${result.output?.name}`;
     state.status?.(`${what}.${result.reused?' Used the verified preview result.':''}`,result.summary?.failed?'error':'ok');
-    setMapPreviewMode(false,{renderNow:false});render();
+    setMapPreviewMode(stayOnMap,{renderNow:false});render();
   }catch(error){
-    state.running=false;state.progress=null;setMapPreviewMode(false,{renderNow:false});state.status?.(error.message,'error');render();
+    state.running=false;state.progress=null;setMapPreviewMode(stayOnMap,{renderNow:false});state.status?.(error.message,'error');render();
   }
 }
 function cancel(){clearPreviewTimer();if(state.previewing){state.previewSerial++;state.api?.cancelProcessingPreview?.();state.previewing=false;state.previewProgress=null;state.previewResult=null;state.previewActivated=false;state.previewStale=false;state.status?.('Processing preview cancelled. Project data was not changed.','error');render();return true;}if(state.running){state.api?.cancelProcessing?.();state.running=false;state.progress=null;state.status?.('Processing cancelled. No project data was changed.','error');render();return true;}return false;}

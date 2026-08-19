@@ -91,6 +91,11 @@ with sync_playwright() as p:
     assert page.evaluate('window.__runCalls')==1
     assert page.evaluate('window.__mutations')==2
 
+    # Successful Run from Preview Mode intentionally stays map-first. Return to the
+    # full Toolbox before choosing another algorithm.
+    page.locator('[data-processing-action="back-to-toolbox"]').click()
+    page.wait_for_selector('[data-processing-tool="simplify"]')
+
     # Simplify opts into debounced live preview and reports comparison metrics.
     page.locator('[data-processing-tool="simplify"]').click()
     before=page.evaluate('window.__previewCalls')

@@ -25,9 +25,9 @@ with sync_playwright() as p:
       window.compactProjectState=()=>({files:[{id:'source',name:'Source',features:[{id:'a',name:'A',properties:{name:'A'},geometry:{type:'LineString',coordinates:[[153,-27],[153.2,-27.1],[153.4,-27]]}}]}]});
       window.Worker=undefined;window.turf={length:()=>10,bbox:()=>[153,-27.1,153.4,-27]};
       window.EditPolygonGISProcessingEngine={execute:async(task,{onProgress})=>{onProgress({stage:'Simplifying',done:1,total:1,percent:80});return{kind:'layer',features:[{type:'Feature',id:'a',properties:{name:'A'},geometry:{type:'LineString',coordinates:[[153,-27],[153.4,-27]]}}],summary:{input:1,processed:1,output:1,failed:0},failures:[],processingCrs:'EPSG:32756'};}};
-      window.__setCalls=0;window.__addCalls=0;window.__restore=null;window.__overlay=null;
-      window.EditPolygonMap={createVectorOverlayLayer:()=>window.__overlay={present:true,items:[]},clearVectorOverlayLayer:o=>{o.items=[];return true},setVectorOverlayFeatures:(o,items)=>{o.items=items;window.__setCalls++;return true},hasDisplayLayer:o=>!!o.present,addDisplayLayer:o=>{o.present=true;window.__addCalls++;return o},on:(types,handler)=>{window.__restore=handler;return()=>{window.__restore=null}},resize:()=>true};
-      window.EditPolygonGIS={getEditableLayers:()=>[layer],getSelection:()=>({ids:[]}),previewProcessingRequest:preflight,runProcessingRequest:async()=>({kind:'layer',output:{id:'o',name:'Result'},summary:{input:1,processed:1,output:1,failed:0},failures:[]}),cancelProcessing:()=>true};
+      window.__setCalls=0;window.__addCalls=0;window.__mapHandlers={};window.__overlay=null;window.__runCalls=0;
+      window.EditPolygonMap={createVectorOverlayLayer:()=>window.__overlay={present:true,items:[]},clearVectorOverlayLayer:o=>{o.items=[];return true},setVectorOverlayFeatures:(o,items)=>{o.items=items;window.__setCalls++;return true},hasDisplayLayer:o=>!!o.present,addDisplayLayer:o=>{o.present=true;window.__addCalls++;return o},on:(types,handler)=>{for(const type of String(types).split(' ').filter(Boolean))window.__mapHandlers[type]=handler;return()=>{for(const type of String(types).split(' ').filter(Boolean))delete window.__mapHandlers[type]}},resize:()=>true};
+      window.EditPolygonGIS={getEditableLayers:()=>[layer],getSelection:()=>({ids:[]}),previewProcessingRequest:preflight,runProcessingRequest:async()=>{window.__runCalls++;return{kind:'layer',output:{id:'o',name:'Result'},summary:{input:1,processed:1,output:1,failed:0},failures:[]}},cancelProcessing:()=>true};
     }""")
     page.add_style_tag(path=str(CSS));page.add_script_tag(path=str(JS));page.evaluate("window.EditPolygonGISProcessingUI.mount(document.getElementById('host'),{layerId:'source',toolId:'simplify',api:window.EditPolygonGIS})")
     page.locator('[data-processing-action="preview"]').click();page.wait_for_selector('.gis-processing-preview')
@@ -36,8 +36,10 @@ with sync_playwright() as p:
     assert page.locator('.gis-processing-preview-mode-head').count()==1
     assert page.locator('#gisDataModal').evaluate("e=>getComputedStyle(e).pointerEvents")=='none'
     assert page.evaluate('window.__setCalls')>=1 and page.evaluate('window.__overlay.items.length')==1
-    before=page.evaluate('window.__setCalls');page.evaluate("window.__overlay.present=false;window.__overlay.items=[];window.__restore()")
-    page.wait_for_timeout(60)
+    before=page.evaluate('window.__setCalls')
+    assert page.evaluate("typeof window.__mapHandlers.zoomend")=='function'
+    page.evaluate("window.__overlay.present=false;window.__overlay.items=[];window.__mapHandlers.zoomend();setTimeout(()=>{window.__overlay.present=false;window.__overlay.items=[];},50)")
+    page.wait_for_timeout(230)
     assert page.evaluate('window.__overlay.present') is True
     assert page.evaluate('window.__overlay.items.length')==1
     assert page.evaluate('window.__setCalls')>before and page.evaluate('window.__addCalls')>=1
@@ -45,6 +47,14 @@ with sync_playwright() as p:
     assert not page.locator('#gisDataModal').evaluate("e=>e.classList.contains('gis-processing-map-preview')")
     assert page.locator('.gis-processing-browser').count()==1
     assert page.evaluate('window.__overlay.items.length')==1,'returning to the Toolbox must preserve the current preview'
+    # This fixture intentionally constrains the modal height; invoke the visible control directly
+    # rather than making pointer geometry part of this lifecycle regression.
+    page.locator('[data-processing-action="preview"]').evaluate("e=>e.click()");page.wait_for_selector('.gis-processing-preview')
+    assert page.locator('#gisDataModal').evaluate("e=>e.classList.contains('gis-processing-map-preview')")
+    page.locator('[data-processing-action="run"]').click();page.wait_for_selector('.gis-processing-result')
+    assert page.locator('#gisDataModal').evaluate("e=>e.classList.contains('gis-processing-map-preview')"),'committing from Preview Mode must stay on the map'
+    assert page.evaluate('window.__runCalls')==1
+    assert 'Processing completed' in page.locator('.gis-processing-result').inner_text()
     assert not errors,errors
     browser.close()
 print('Processing map preview mode browser smoke test passed.')
