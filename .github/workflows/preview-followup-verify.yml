@@ -38,13 +38,24 @@ jobs:
           python scripts/apply-processing-preview-followup.py
           python - <<'PY'
           from pathlib import Path
-          path=Path('tests/browser-processing-preview-reuse-smoke.py')
-          text=path.read_text(encoding='utf-8')
+
+          reuse=Path('tests/browser-processing-preview-reuse-smoke.py')
+          text=reuse.read_text(encoding='utf-8')
           old='''    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
           new='''    # Successful Run from Preview Mode intentionally stays map-first. Return to the\n    # full Toolbox before choosing another algorithm.\n    page.locator('[data-processing-action="back-to-toolbox"]').click()\n    page.wait_for_selector('[data-processing-tool="simplify"]')\n\n    # Simplify opts into debounced live preview and reports comparison metrics.\n    page.locator('[data-processing-tool="simplify"]').click()'''
           if text.count(old)!=1:
               raise SystemExit(f'preview reuse map-mode transition: expected one anchor, found {text.count(old)}')
-          path.write_text(text.replace(old,new),encoding='utf-8')
+          reuse.write_text(text.replace(old,new),encoding='utf-8')
+
+          map_smoke=Path('tests/browser-processing-preview-map-mode-smoke.py')
+          text=map_smoke.read_text(encoding='utf-8')
+          old='''    assert page.evaluate('window.__overlay.items.length')==1,'returning to the Toolbox must preserve the current preview'\n    page.locator('[data-processing-action="preview"]').click();page.wait_for_selector('.gis-processing-preview')'''
+          new='''    assert page.evaluate('window.__overlay.items.length')==1,'returning to the Toolbox must preserve the current preview'\n    # This fixture intentionally constrains the modal height; invoke the visible control directly\n    # rather than making pointer geometry part of this lifecycle regression.\n    page.locator('[data-processing-action="preview"]').evaluate("e=>e.click()");page.wait_for_selector('.gis-processing-preview')'''
+          if text.count(old)!=1:
+              raise SystemExit(f'map preview re-entry anchor: expected one match, found {text.count(old)}')
+          text=text.replace(old,new,1)
+          text=text.replace("String(types).split(/\\s+/).filter(Boolean)","String(types).split(' ').filter(Boolean)")
+          map_smoke.write_text(text,encoding='utf-8')
           PY
           git rm -f scripts/apply-processing-preview-followup.py .github/workflows/preview-followup-verify.yml
           rm -rf scripts/__pycache__ tests/__pycache__
