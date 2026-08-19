@@ -36,6 +36,25 @@ jobs:
       - name: Apply Point-Line validation fix
         run: python3 scripts/fix-point-line-geometry-validation.py
 
+      - name: Correct browser regression to run validation explicitly
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('tests/browser-point-line-geometry-code-v2.py')
+          text=path.read_text(encoding='utf-8')
+          text=text.replace(
+              "    page.locator('.plgce-code').fill('{\"type\":\"Point\",\"coordinates\":[154,-28]}')\n    page.wait_for_function(\"document.querySelector('.plgce-report')?.classList.contains('ok')\")",
+              "    page.locator('.plgce-code').fill('{\"type\":\"Point\",\"coordinates\":[154,-28]}')\n    page.locator('[data-plgce=\"check\"]').click()\n    page.wait_for_function(\"document.querySelector('.plgce-report')?.classList.contains('ok')\")",
+              1,
+          )
+          text=text.replace(
+              "    page.locator('.plgce-code').fill('{\"type\":\"LineString\",\"coordinates\":[[153,-27],[155,-29],[156,-30]]}')\n    page.wait_for_function(\"document.querySelector('.plgce-report')?.classList.contains('ok')\")",
+              "    page.locator('.plgce-code').fill('{\"type\":\"LineString\",\"coordinates\":[[153,-27],[155,-29],[156,-30]]}')\n    page.locator('[data-plgce=\"check\"]').click()\n    page.wait_for_function(\"document.querySelector('.plgce-report')?.classList.contains('ok')\")",
+              1,
+          )
+          path.write_text(text,encoding='utf-8')
+          PY
+
       - name: Verify targeted repository contracts
         run: |
           git diff --check
