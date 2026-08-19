@@ -56,6 +56,15 @@ jobs:
           python -m py_compile scripts/apply-processing-preview-map-mode.py
           rm -rf scripts/__pycache__ tests/__pycache__
           python scripts/apply-processing-preview-map-mode.py
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/audit-runtime.mjs')
+          text=path.read_text(encoding='utf-8')
+          old='20260820-v1561-processing-preview-v6'
+          new='20260820-v1561-processing-preview-v7'
+          if text.count(old)!=1:raise SystemExit(f'runtime audit cache key: expected one v6 key, found {text.count(old)}')
+          path.write_text(text.replace(old,new),encoding='utf-8')
+          PY
           git rm -f scripts/apply-processing-preview-map-mode.py .github/workflows/preview-map-mode-verify.yml
           rm -rf scripts/__pycache__ tests/__pycache__
           git diff --check
