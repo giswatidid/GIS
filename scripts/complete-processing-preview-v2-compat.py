@@ -22,9 +22,20 @@ new="function changeTool(id){if(busy())return;const sourceId=state.request?.inpu
 if old in text:text=text.replace(old,new,1)
 path.write_text(text,encoding='utf-8')
 
-# Apply the final interactive/semantic preview layer.
+# Apply the final interactive/semantic preview layer. The v3 source originally
+# used a uniqueness assertion for a helper fragment shared by both layerTool and
+# selectTool; make those two replacements sequential instead.
 v3=ROOT/'scripts/complete-processing-preview-v3.py'
-exec(compile(v3.read_text(encoding='utf-8'),str(v3),'exec'),globals(),globals())
+v3_source=v3.read_text(encoding='utf-8')
+old_line="registry=replace_once(registry,\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'geometry'),inputs:\",'registry layer preview kind')"
+new_line="registry=registry.replace(\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'geometry'),inputs:\",1)"
+if old_line not in v3_source:raise RuntimeError('v3 layer preview-kind patch anchor missing')
+v3_source=v3_source.replace(old_line,new_line,1)
+old_line="registry=replace_once(registry,\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'selection'),inputs:\",'registry selection preview kind')"
+new_line="registry=registry.replace(\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'selection'),inputs:\",1)"
+if old_line not in v3_source:raise RuntimeError('v3 selection preview-kind patch anchor missing')
+v3_source=v3_source.replace(old_line,new_line,1)
+exec(compile(v3_source,str(v3),'exec'),globals(),globals())
 
 # Keep verification-only bytecode out of repository audits.
 shutil.rmtree(ROOT/'scripts/__pycache__',ignore_errors=True)
