@@ -35,6 +35,24 @@ jobs:
 
       - name: Apply map preview mode patch
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/apply-processing-preview-map-mode.py')
+          text=path.read_text(encoding='utf-8')
+          old="""pkg=PKG.read_text(encoding='utf-8')
+          pkg=replace_once(pkg,
+          'python tests/browser-processing-preview-interactive-smoke.py',
+          'python tests/browser-processing-preview-interactive-smoke.py && python tests/browser-processing-preview-map-mode-smoke.py',
+          'browser smoke package chain')
+          PKG.write_text(pkg,encoding='utf-8')"""
+          new="""pkg=PKG.read_text(encoding='utf-8')
+          needle='python tests/browser-processing-preview-interactive-smoke.py'
+          if pkg.count(needle)!=2:raise SystemExit(f'browser smoke package chain: expected two matches, found {pkg.count(needle)}')
+          pkg=pkg.replace(needle,needle+' && python tests/browser-processing-preview-map-mode-smoke.py')
+          PKG.write_text(pkg,encoding='utf-8')"""
+          if old not in text:raise SystemExit('package matcher patch anchor missing')
+          path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
           python -m py_compile scripts/apply-processing-preview-map-mode.py
           rm -rf scripts/__pycache__ tests/__pycache__
           python scripts/apply-processing-preview-map-mode.py
