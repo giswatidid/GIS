@@ -219,6 +219,12 @@ ui=replace_once(
     "  previewRuntime.last=clone({...preview,preparedResult:undefined});",
     'ui public preview state sanitisation'
 )
+ui=replace_once(
+    ui,
+    "const detail=[];if(m.vertices)detail.push(`${Number(m.vertices).toLocaleString()} vertices`);",
+    "const detail=[];if(Number.isFinite(m.inputVertices)&&Number.isFinite(m.outputVertices)&&m.inputVertices!==m.outputVertices)detail.push(`${Number(m.inputVertices).toLocaleString()} → ${Number(m.outputVertices).toLocaleString()} vertices`);else if(m.vertices)detail.push(`${Number(m.vertices).toLocaleString()} vertices`);if(Number.isFinite(m.verticesRemoved))detail.push(`${Number(m.verticesRemoved).toLocaleString()} ${Number(m.verticesRemoved)===1?'vertex':'vertices'} removed${Number.isFinite(m.reductionPct)?` (${fmtMetric(m.reductionPct,'%')})`:''}`);if(Number.isFinite(m.verticesAdded))detail.push(`${Number(m.verticesAdded).toLocaleString()} ${Number(m.verticesAdded)===1?'vertex':'vertices'} added`);if(m.verticesMoved!=null)detail.push(`${Number(m.verticesMoved).toLocaleString()} ${Number(m.verticesMoved)===1?'vertex':'vertices'} moved`);",
+    'ui specialised metric display'
+)
 
 live_controls=r"""
 function livePreviewControls(pf,tool){
@@ -580,7 +586,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     assert page.evaluate('window.__previewCalls')>before
     page.wait_for_selector('.gis-processing-preview')
-    assert '1 vertices removed' in page.locator('.gis-processing-preview').inner_text().lower()
+    assert '1 vertex removed' in page.locator('.gis-processing-preview').inner_text().lower()
     assert page.locator('[data-processing-live-preview]').is_checked()
     assert not errors,errors
     browser.close()
