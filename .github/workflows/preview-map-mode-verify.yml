@@ -32,6 +32,7 @@ jobs:
       - name: Install browser-test runtime
         run: python -m pip install --disable-pip-version-check playwright
 
+      # The verifier is intentionally one-shot: it deletes itself from the candidate tree.
       - name: Apply map preview mode patch
         run: |
           python -m py_compile scripts/apply-processing-preview-map-mode.py
