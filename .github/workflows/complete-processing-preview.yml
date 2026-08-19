@@ -39,9 +39,9 @@ jobs:
 
       - name: Reconstruct and apply completion patch
         run: |
-          cat scripts/.processing-preview-patch.part* > /tmp/complete-processing-preview.py
-          python -m py_compile /tmp/complete-processing-preview.py
-          python /tmp/complete-processing-preview.py
+          cat scripts/.processing-preview-patch.part* > scripts/complete-processing-preview.py
+          python -m py_compile scripts/complete-processing-preview.py
+          python scripts/complete-processing-preview.py
 
       - name: Verify source and repository contracts
         run: |
@@ -64,12 +64,13 @@ jobs:
       - name: Remove one-shot staging machinery
         run: |
           rm -f scripts/.processing-preview-patch.part*
+          rm -f scripts/complete-processing-preview.py
           rm -f .github/workflows/complete-processing-preview.yml
 
       - name: Commit verified preview completion
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "418982e+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "feat: complete Processing preview workflow"
           git push origin HEAD:feat/processing-preview-v156
