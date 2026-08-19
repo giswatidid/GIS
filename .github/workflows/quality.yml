@@ -33,30 +33,36 @@ jobs:
           python -m pip install --disable-pip-version-check playwright
           python -m playwright install --with-deps chromium
 
-      - name: Apply and verify Processing preview completion
+      - name: Apply, assert and verify completed Processing preview
         shell: bash
         run: |
           set +e
-          LOG=/tmp/processing-preview-verifier.log
+          LOG=/tmp/processing-preview-v2.log
           : > "$LOG"
           {
-            echo '=== reconstruct patch ==='
-            cat scripts/.processing-preview-patch.part* > scripts/complete-processing-preview.py
-            python -m py_compile scripts/complete-processing-preview.py
-            python scripts/complete-processing-preview.py
+            echo '=== patch syntax ==='
+            python -m py_compile scripts/complete-processing-preview-v2.py
+            echo '=== apply readable completion patch ==='
+            python scripts/complete-processing-preview-v2.py
+            echo '=== required architecture in working tree ==='
+            grep -q 'previewPolicy' docs/assets/gis-processing-registry.js
+            grep -q 'previewFingerprint' docs/assets/gis-processing-core.js
+            grep -q 'commitPreparedProcessingResult' docs/assets/editpolygon-app.js
+            grep -q 'scheduleAutoPreview' docs/assets/gis-processing.js
             echo '=== syntax and diff checks ==='
             git diff --check
             node --check docs/assets/gis-processing.js
             node --check docs/assets/gis-processing-registry.js
             node --check docs/assets/gis-processing-core.js
             node --check docs/assets/editpolygon-app.js
-            python -m py_compile tests/browser-processing-preview-smoke.py
-            echo '=== repository + node gate ==='
+            python -m py_compile tests/browser-processing-preview-smoke.py tests/browser-processing-preview-reuse-smoke.py
+            echo '=== repository audits + node tests ==='
             npm run check
-            echo '=== full browser smoke gate ==='
+            echo '=== full browser smoke suite ==='
             npm run test:browser-smoke
           } >"$LOG" 2>&1
           STATUS=$?
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -108,10 +114,11 @@ jobs:
           if [ "$STATUS" -ne 0 ]; then
             git reset --hard HEAD
             restore_quality
+            rm -f scripts/complete-processing-preview-v2.py
             rm -f .github/workflows/complete-processing-preview.yml
             cp "$LOG" PREVIEW_VERIFIER_FAILURE.txt
             git add -A
-            git commit -m "test: record Processing preview verifier failure"
+            git commit -m "test: record Processing preview completion failure"
             git push origin HEAD:feat/processing-preview-v156
             cat "$LOG"
             exit "$STATUS"
@@ -119,8 +126,7 @@ jobs:
 
           restore_quality
           rm -f PREVIEW_VERIFIER_FAILURE.txt
-          rm -f scripts/.processing-preview-patch.part*
-          rm -f scripts/complete-processing-preview.py
+          rm -f scripts/complete-processing-preview-v2.py
           rm -f .github/workflows/complete-processing-preview.yml
           git add -A
           git commit -m "feat: complete Processing preview workflow"
