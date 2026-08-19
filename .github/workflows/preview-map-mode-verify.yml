@@ -56,7 +56,7 @@ jobs:
           python -m py_compile scripts/apply-processing-preview-map-mode.py
           rm -rf scripts/__pycache__ tests/__pycache__
           python scripts/apply-processing-preview-map-mode.py
-          git rm scripts/apply-processing-preview-map-mode.py .github/workflows/preview-map-mode-verify.yml
+          git rm -f scripts/apply-processing-preview-map-mode.py .github/workflows/preview-map-mode-verify.yml
           rm -rf scripts/__pycache__ tests/__pycache__
           git diff --check
           node --check docs/assets/gis-processing.js
