@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -22,9 +23,9 @@ new="function changeTool(id){if(busy())return;const sourceId=state.request?.inpu
 if old in text:text=text.replace(old,new,1)
 path.write_text(text,encoding='utf-8')
 
-# Apply the final interactive/semantic preview layer. The v3 source originally
-# used a uniqueness assertion for a helper fragment shared by both layerTool and
-# selectTool; make those two replacements sequential instead.
+# The v3 source has two intentionally shared helper fragments. Make the layer/
+# selection replacements sequential, and temporarily spell Snap's numeric step
+# as 0.1 so the Simplify tolerance metadata has a unique exact match.
 v3=ROOT/'scripts/complete-processing-preview-v3.py'
 v3_source=v3.read_text(encoding='utf-8')
 old_line="registry=replace_once(registry,\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'geometry'),inputs:\",'registry layer preview kind')"
@@ -35,7 +36,26 @@ old_line="registry=replace_once(registry,\"previewPolicy:previewPolicy(value.pre
 new_line="registry=registry.replace(\"previewPolicy:previewPolicy(value.previewPolicy),inputs:\",\"previewPolicy:previewPolicy(value.previewPolicy,'selection'),inputs:\",1)"
 if old_line not in v3_source:raise RuntimeError('v3 selection preview-kind patch anchor missing')
 v3_source=v3_source.replace(old_line,new_line,1)
+
+registry_path=ROOT/'docs/assets/gis-processing-registry.js'
+registry_text=registry_path.read_text(encoding='utf-8')
+snap_match=re.search(r"  layerTool\(\{id:'snap'[^\n]*",registry_text)
+if not snap_match:raise RuntimeError('Snap registry line missing before v3')
+snap_line=snap_match.group(0)
+if "step:.1" not in snap_line:raise RuntimeError('Snap tolerance step anchor missing before v3')
+registry_text=registry_text[:snap_match.start()]+snap_line.replace("step:.1","step:0.1",1)+registry_text[snap_match.end():]
+registry_path.write_text(registry_text,encoding='utf-8')
+
 exec(compile(v3_source,str(v3),'exec'),globals(),globals())
+
+# Restore the equivalent compact spelling used throughout the registry.
+registry_text=registry_path.read_text(encoding='utf-8')
+snap_match=re.search(r"  layerTool\(\{id:'snap'[^\n]*",registry_text)
+if not snap_match:raise RuntimeError('Snap registry line missing after v3')
+snap_line=snap_match.group(0)
+if "step:0.1" not in snap_line:raise RuntimeError('temporary Snap tolerance marker missing after v3')
+registry_text=registry_text[:snap_match.start()]+snap_line.replace("step:0.1","step:.1",1)+registry_text[snap_match.end():]
+registry_path.write_text(registry_text,encoding='utf-8')
 
 # Keep verification-only bytecode out of repository audits.
 shutil.rmtree(ROOT/'scripts/__pycache__',ignore_errors=True)
