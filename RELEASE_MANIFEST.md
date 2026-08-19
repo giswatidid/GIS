@@ -42,6 +42,9 @@ Retired/forbidden architecture:
 - Every layer input supports **All / Filtered / Selected** where applicable; presentation visibility never changes analysis membership.
 - Parameter controls are generated from registry metadata, including field/fields/select/number/boolean/text controls.
 - Result kinds are layer or selection. Maintenance tools may declare **new layer or modify input**; cardinality/schema-changing tools remain new-layer only.
+- Preview policies are declarative: geometry previews render a temporary map overlay, selection previews highlight prospective matches without changing selection, and data-result previews show prospective attributes without committing project state.
+- Simplify and Densify use exact numeric inputs plus logarithmic-style sliders. After an explicit first preview, eligible small jobs live-refresh after a debounce; expensive or large jobs become stale and require **Refresh preview**.
+- Preview results are cancellable and invalidated when their authoritative inputs change. A fingerprint-current prepared preview can be committed through the existing application commit bridge, so the geometry previewed is exactly the geometry committed; otherwise Processing reruns normally.
 - One active worker job is cancellable. Worker failure/cancellation creates no partial project state.
 - New-layer and in-place mutations are one undoable history transaction.
 - Processing requests carry authoritative layer schemas to typed operations.
@@ -76,7 +79,7 @@ npm run test:browser-processing-execution
 
 It executes real worker + GEOS-WASM processing when the test environment is permitted to load the pinned CDN module, and reports a skip when that external import is administratively blocked.
 
-Automated release verification for this package: **319/319 Node tests**, **11/11 browser smoke suites**, **1,676 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Automated release verification for this package: **340/340 Node tests**, **15/15 browser smoke suites**, **1,688 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Next milestone
 
