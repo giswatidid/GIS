@@ -72,7 +72,7 @@ with sync_playwright() as p:
     page.evaluate("""EditPolygonGISProcessingUI.mount(document.getElementById('host'),{
       layerId:'source',api:EditPolygonGIS,status:(m,t)=>document.getElementById('status').textContent=m
     })""")
-    assert page.locator('[data-processing-action="preview"]').inner_text()=='Preview result'
+    assert page.locator('[data-processing-action="preview"]').inner_text()=='Preview on map'
     assert page.evaluate('window.__mutations')==0
     page.locator('[data-processing-action="preview"]').click()
     page.wait_for_selector('.gis-processing-preview')

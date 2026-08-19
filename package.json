@@ -8,7 +8,7 @@
     "check": "node scripts/check-repo.mjs && node scripts/audit-runtime.mjs && node scripts/audit-bindings.mjs && npm test",
     "test:browser-crs": "python tests/browser-crs-smoke.py",
     "test:browser-remote": "python tests/browser-remote-source-smoke.py",
-    "test:browser-smoke": "python tests/browser-openlayers-parity-smoke.py && python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py && python tests/browser-geometry-health-smoke.py && python tests/browser-geometry-code-smoke.py && python tests/browser-point-line-geometry-code-v2.py && python tests/browser-mobile-parity-smoke.py && python tests/browser-mobile-layer-actions-smoke.py && python tests/browser-processing-smoke.py && python tests/browser-processing-overlay-input-smoke.py && python tests/browser-processing-preview-smoke.py",
+    "test:browser-smoke": "python tests/browser-openlayers-parity-smoke.py && python tests/browser-crs-smoke.py && python tests/browser-remote-source-smoke.py && python tests/browser-data-schema-smoke.py && python tests/browser-join-smoke.py && python tests/browser-geometry-health-smoke.py && python tests/browser-geometry-code-smoke.py && python tests/browser-point-line-geometry-code-v2.py && python tests/browser-mobile-parity-smoke.py && python tests/browser-mobile-layer-actions-smoke.py && python tests/browser-processing-smoke.py && python tests/browser-processing-overlay-input-smoke.py && python tests/browser-processing-preview-smoke.py && python tests/browser-processing-preview-reuse-smoke.py && python tests/browser-processing-preview-interactive-smoke.py",
     "test:browser-data": "python tests/browser-data-schema-smoke.py",
     "test:browser-join": "python tests/browser-join-smoke.py",
     "test:browser-geometry-health": "python tests/browser-geometry-health-smoke.py && python tests/browser-mobile-parity-smoke.py",
@@ -16,7 +16,7 @@
     "test:browser-openlayers": "python tests/browser-openlayers-parity-smoke.py",
     "audit": "node scripts/audit-runtime.mjs && node scripts/audit-bindings.mjs",
     "test:browser-processing-execution": "python tests/browser-processing-execution-smoke.py",
-    "test:browser-processing-preview": "python tests/browser-processing-preview-smoke.py",
+    "test:browser-processing-preview": "python tests/browser-processing-preview-smoke.py && python tests/browser-processing-preview-reuse-smoke.py && python tests/browser-processing-preview-interactive-smoke.py",
     "test:browser-geometry-code": "python tests/browser-geometry-code-smoke.py && python tests/browser-point-line-geometry-code-v2.py"
   }
 }
