@@ -1,0 +1,58 @@
+name: Verify Processing preview follow-up
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.head_ref == 'feat/processing-preview-v156'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out preview branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/processing-preview-v156
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install browser-test runtime
+        run: python -m pip install --disable-pip-version-check playwright
+
+      - name: Apply preview follow-up
+        run: |
+          python -m py_compile scripts/apply-processing-preview-followup.py
+          python scripts/apply-processing-preview-followup.py
+          git rm -f scripts/apply-processing-preview-followup.py .github/workflows/preview-followup-verify.yml
+          rm -rf scripts/__pycache__ tests/__pycache__
+          git diff --check
+          node --check docs/assets/gis-processing.js
+
+      - name: Run repository audits and Node tests
+        run: npm run check
+
+      - name: Run full browser smoke suite
+        env:
+          CHROMIUM_PATH: /usr/bin/google-chrome
+        run: npm run test:browser-smoke
+
+      - name: Publish verified candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: refine Processing map preview mode"
+          git push --force origin HEAD:refs/heads/verify/processing-preview-followup
