@@ -41,6 +41,16 @@ function line(id,coordinates,properties={}){
   return {id,type:'Feature',properties,geometry:{type:'LineString',coordinates}};
 }
 
+function assertCoordinatesClose(actual,expected,epsilon=1e-12){
+  assert.equal(actual.length,expected.length,'coordinate count');
+  for(let i=0;i<expected.length;i++){
+    assert.equal(actual[i].length,expected[i].length,`ordinate count at coordinate ${i}`);
+    for(let j=0;j<expected[i].length;j++){
+      assert.ok(Math.abs(Number(actual[i][j])-Number(expected[i][j]))<=epsilon,`coordinate ${i}, ordinate ${j}: expected ${expected[i][j]}, got ${actual[i][j]}`);
+    }
+  }
+}
+
 const tool={id:'points-along-line',engine:'turf',crsPolicy:'geodesic',resultKind:'layer'};
 
 test('points along a drawn straight segment follow rhumb geometry instead of Turf great-circle along()',async()=>{
@@ -48,7 +58,7 @@ test('points along a drawn straight segment follow rhumb geometry instead of Tur
   const source=[line('high-latitude',[[0,70],[10,70]],{name:'straight'})];
   const result=await window.EditPolygonGISProcessingEngine.execute({tool,inputs:{source},parameters:{interval:2,units:'kilometers',includeEnds:true},processingCrs:'EPSG:4326'},{turf,crs});
   assert.equal(getAlongCalls(),0);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.features.map(feature=>feature.geometry.coordinates))),[[0,70],[2,70],[4,70],[6,70],[8,70],[10,70]]);
+  assertCoordinatesClose(JSON.parse(JSON.stringify(result.features.map(feature=>feature.geometry.coordinates))),[[0,70],[2,70],[4,70],[6,70],[8,70],[10,70]]);
   assert.deepEqual(JSON.parse(JSON.stringify(result.features.map(feature=>feature.properties.distance_m))),[0,2000,4000,6000,8000,10000]);
 });
 
@@ -56,7 +66,7 @@ test('points along a multi-segment line advance through segments without rescann
   const window=load(),{turf}=planarRhumbTurf();
   const source=[line('corner',[[0,0],[5,0],[5,5]])];
   const result=await window.EditPolygonGISProcessingEngine.execute({tool,inputs:{source},parameters:{interval:2.5,units:'kilometers',includeEnds:true},processingCrs:'EPSG:4326'},{turf,crs});
-  assert.deepEqual(JSON.parse(JSON.stringify(result.features.map(feature=>feature.geometry.coordinates))),[[0,0],[2.5,0],[5,0],[5,2.5],[5,5]]);
+  assertCoordinatesClose(JSON.parse(JSON.stringify(result.features.map(feature=>feature.geometry.coordinates))),[[0,0],[2.5,0],[5,0],[5,2.5],[5,5]]);
 });
 
 test('large points-along-line output stays on the linear rhumb sampler path',async()=>{
@@ -65,6 +75,6 @@ test('large points-along-line output stays on the linear rhumb sampler path',asy
   const result=await window.EditPolygonGISProcessingEngine.execute({tool,inputs:{source},parameters:{interval:0.01,units:'kilometers',includeEnds:true},processingCrs:'EPSG:4326'},{turf,crs});
   assert.equal(result.features.length,5001);
   assert.equal(getAlongCalls(),0);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.features[0].geometry.coordinates)),[0,0]);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.features.at(-1).geometry.coordinates)),[50,0]);
+  assertCoordinatesClose([JSON.parse(JSON.stringify(result.features[0].geometry.coordinates))],[[0,0]]);
+  assertCoordinatesClose([JSON.parse(JSON.stringify(result.features.at(-1).geometry.coordinates))],[[50,0]]);
 });

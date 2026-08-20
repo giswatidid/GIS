@@ -12,7 +12,7 @@ Authoritative runtime modules:
 - `docs/assets/gis-spatial-core.js` — shared indexing, relationships, nearest and aggregation primitives.
 - `docs/assets/gis-geos-adapter.js` — sole low-level GEOS-WASM adapter, shared with Geometry Health.
 - `docs/assets/gis-processing-worker.js` — sole cancellable Processing worker.
-- `docs/assets/gis-processing.js` / `gis-processing.css` — responsive Toolbox UI.
+- `docs/assets/gis-processing.js` / `gis-processing.css` — responsive Toolbox UI. Includes non-destructive previews, a map-first floating Preview Mode, logarithmic Simplify/Densify controls, specialised metrics, data-result preview tables and fingerprint-safe preview reuse.
 
 Retired/forbidden architecture:
 
@@ -42,6 +42,9 @@ Retired/forbidden architecture:
 - Every layer input supports **All / Filtered / Selected** where applicable; presentation visibility never changes analysis membership.
 - Parameter controls are generated from registry metadata, including field/fields/select/number/boolean/text controls.
 - Result kinds are layer or selection. Maintenance tools may declare **new layer or modify input**; cardinality/schema-changing tools remain new-layer only.
+- Preview policies are declarative: geometry previews render a temporary map overlay, selection previews highlight prospective matches without changing selection, and data-result previews show prospective attributes without committing project state.
+- Simplify and Densify use exact numeric inputs plus logarithmic-style sliders. After an explicit first preview, eligible small jobs live-refresh after a debounce; expensive or large jobs become stale and require **Refresh preview**.
+- Preview results are cancellable and invalidated when their authoritative inputs change. A fingerprint-current prepared preview can be committed through the existing application commit bridge, so the geometry previewed is exactly the geometry committed; otherwise Processing reruns normally.
 - One active worker job is cancellable. Worker failure/cancellation creates no partial project state.
 - New-layer and in-place mutations are one undoable history transaction.
 - Processing requests carry authoritative layer schemas to typed operations.
@@ -76,8 +79,17 @@ npm run test:browser-processing-execution
 
 It executes real worker + GEOS-WASM processing when the test environment is permitted to load the pinned CDN module, and reports a skip when that external import is administratively blocked.
 
-Automated release verification for this package: **319/319 Node tests**, **11/11 browser smoke suites**, **1,676 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
+Automated release verification for this package: **340/340 Node tests**, **15/15 browser smoke suites**, **1,688 named bindings / 196 duplicate names / 369 extra binding sites**, and **0 application engine branches / 0 application native-map calls / 0 native-map escapes**.
 
 ## Next milestone
 
 v1.57 is the large-data performance release: virtualisation, worker-based tabular operations, broader spatial indexing, reduced cloning/memory pressure, progressive import and larger editable datasets.
+
+
+### Local import and tabular export completion
+
+- Direct GeoPackage (`.gpkg`) import.
+- ZIP content routing for GeoPackage archives, Shapefile archives and zipped Esri File Geodatabases rather than treating every `.zip` as a Shapefile.
+- Explicit managed/encrypted or unsupported ZIP diagnostics instead of a misleading “no layers found” result.
+- Attribute-table `CSV — attributes only` export for spreadsheet/BI workflows, with `CSV + WKT` retained as a separate spatial option.
+- Browser-local import regression coverage includes a generated valid GeoPackage and nested-ZIP dispatch.

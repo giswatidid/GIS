@@ -34,7 +34,7 @@ v1.56.1 completes the first full **Processing Toolbox** architecture. Processing
 - `docs/assets/gis-spatial-core.js` owns reusable spatial indexing, exact relationship matching, nearest-candidate handling and aggregations. The Toolbox and Join & Summarize use this same spatial core.
 - `docs/assets/gis-geos-adapter.js` is the sole low-level GEOS-WASM boundary. Geometry Health and Processing share the same adapter for validity/MakeValid and robust topology/maintenance operations.
 - `docs/assets/gis-processing-worker.js` is the sole Toolbox worker. It loads only the engines required by the selected tool and delegates execution to `gis-processing-engine.js`; the retired `gis-analysis-worker.js` must not return.
-- `docs/assets/gis-processing.js` owns the searchable desktop/mobile Toolbox UI, dynamic input/parameter forms, output choices, progress/cancel state and result presentation.
+- `docs/assets/gis-processing.js` owns the searchable desktop/mobile Toolbox UI, dynamic input/parameter forms, output choices, progress/cancel state and result presentation. It also owns non-destructive geometry, selection and data-result previews; Simplify/Densify can live-refresh after explicit preview activation, while expensive jobs use manual refresh. A fingerprint-verified prepared result may be handed back to the existing application commit bridge so the geometry that was previewed is exactly what is committed.
 - `editpolygon-app.js` remains only the project bridge: it supplies canonical project features and typed schemas to a validated request, starts/cancels the worker, and commits the completed result as one history operation.
 
 The v1.56.1 catalogue contains **32 tools** across Vector geometry, Overlay, Aggregation, Geometry conversion, Selection, Spatial analysis and Geometry maintenance. Selection tools return selection state rather than manufacturing a layer. Maintenance tools can declare `new-or-modify`; tools that change geometry cardinality or schema remain new-layer only.
@@ -214,3 +214,11 @@ Node unit tests cover the canonical models and adapter contract. Browser smoke s
 ## Next architecture step
 
 v1.56.1 completes the planned **v1.56 Processing Toolbox consolidation**. The next architecture milestone is **v1.57 large-data performance**: virtualised tables/lists, worker-based data operations, broader spatial indexing, reduced cloning and tighter memory management for much larger datasets.
+
+
+## Browser-local multi-format import (v1.56.1)
+
+- `docs/assets/gis-file-import.js` is the format dispatcher for container formats that require inspection before parsing. ZIP archives are classified before a parser is chosen: Shapefile remains on the existing shpjs path, GeoPackage is extracted/read through GeoPackage JS, and zipped Esri File Geodatabases are routed through the browser FileGDB reader.
+- Standalone `.gpkg` files use the same GeoPackage path as a `.gpkg` nested in a ZIP. GeoPackage feature tables are converted to the app's canonical WGS84 GeoJSON feature model before normal project import continues.
+- GeoPackage and FileGDB parser code/WASM is lazy-loaded only when one of those formats is opened. Geometry bytes remain in the user's browser; EditPolygon does not upload source data to a conversion service.
+- Attribute-table CSV export has two explicit semantics: `CSV — attributes only` omits geometry entirely, while `CSV + WKT` preserves the spatial WKT column.

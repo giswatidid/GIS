@@ -5353,7 +5353,14 @@ async function importFile(file,onProgress=()=>{}){
   }else if(ext==='wkt'||ext==='txt'){
     onProgress(`Parsing ${file.name}…`,35);
     data=wktToGeo(await file.text(),file.name);
-  }else if(ext==='zip'||ext==='shp'){
+  }else if(ext==='gpkg'){
+    if(!window.EditPolygonGISFileImport)throw Error('Advanced local import module is not loaded. Refresh the page and try again.');
+    data=await window.EditPolygonGISFileImport.parseGeoPackageFile(file,onProgress);
+  }else if(ext==='zip'){
+    if(!window.EditPolygonGISFileImport)throw Error('Advanced local import module is not loaded. Refresh the page and try again.');
+    const routed=await window.EditPolygonGISFileImport.parseZip(file,onProgress);
+    data=routed||await shapefileZipToGeo(file,onProgress);
+  }else if(ext==='shp'){
     data=await shapefileZipToGeo(file,onProgress);
   }else if(ext==='epz'){
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
@@ -5362,7 +5369,7 @@ async function importFile(file,onProgress=()=>{}){
     if(!projectPayloadHasContent(payload))throw Error('Project file does not contain any saved polygons, annotations, measurements, images or GIS layers.');
     return {__pedProject:true,name:file.name,payload,projectArchive:archive};
   }else{
-    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT, TXT, zipped Shapefile, or EditPolygon .epz project');
+    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, GeoPackage (GPKG), CSV, WKT, TXT, zipped Shapefile, zipped File Geodatabase, or EditPolygon .epz project');
   }
 const features=[];let i=1;for(const raw of flattenForImport(data.features)){const nf=normalize(raw,'Polygon '+i);if(nf){features.push(nf);i++}}onProgress(`Prepared ${features.length} polygon feature${features.length===1?'':'s'} from ${file.name}.`,92);const color=COLORS[project.files.length%COLORS.length];features.forEach(f=>applyColor(f,color));const importedSchema=data?.editpolygonSchema&&Array.isArray(data.editpolygonSchema.fields)?clone(data.editpolygonSchema):null;return{id:uid('file'),name,sourceFormat:ext,visible:true,color,features,...(importedSchema?{gisSchema:importedSchema}:{})}}
 
@@ -21538,11 +21545,27 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function typedSnapshot(fileId){const file=gisEditableFile(fileId);if(!file)return null;ensureSchema(file);const snapshot=gisEditableSnapshot(fileId);snapshot.schema=schemaSnapshot(file);snapshot.savedFilters=clone(file.gisSavedFilters||[]);snapshot.filter=clone(file.gisFilter||null);return snapshot;}
   function selectedDetailsTyped(){const details=gisSelectedFeatureDetails();if(!details)return null;const file=gisEditableFile(details.fileId);if(file){ensureSchema(file);details.schema=schemaSnapshot(file);}return details;}
   function recordsForScope(file,scope,featureIds=null){const selected=new Set(Array.isArray(featureIds)?featureIds:(window.EditPolygonGIS?.getSelection?.().ids||[]));return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);}
-  function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const features=recordsForScope(file,scope,featureIds);if(!features.length)throw Error('No records match this export scope.');const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');if(format==='csv'){
-      const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];for(const feature of features){lines.push([...fields.map(field=>feature.properties?.[field.name]),(getDisplayGeometry(feature)?geomToWKT(getDisplayGeometry(feature)):'')].map(quote).join(','));}downloadText(`${safe}_${scope}.csv`,lines.join('\n'),'text/csv;charset=utf-8');
-    }else{const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');}return {count:features.length,scope,format};}
+  function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);
+    const features=recordsForScope(file,scope,featureIds);if(!features.length)throw Error('No records match this export scope.');
+    const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');
+    const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;
+    if(format==='csv-attributes'){
+      const lines=[fields.map(field=>field.name).map(quote).join(',')];
+      for(const feature of features)lines.push(fields.map(field=>feature.properties?.[field.name]).map(quote).join(','));
+      downloadText(`${safe}_${scope}.csv`,`\uFEFF${lines.join('\r\n')}`,'text/csv;charset=utf-8');
+    }else if(format==='csv'){
+      const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];
+      for(const feature of features)lines.push([...fields.map(field=>feature.properties?.[field.name]),(getDisplayGeometry(feature)?geomToWKT(getDisplayGeometry(feature)):'')].map(quote).join(','));
+      downloadText(`${safe}_${scope}_wkt.csv`,`\uFEFF${lines.join('\r\n')}`,'text/csv;charset=utf-8');
+    }else if(format==='geojson'){
+      const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};
+      downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');
+    }else throw Error(`Unsupported table export format: ${format}.`);
+    return {count:features.length,scope,format};
+  }
 
-  const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
+    const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
   function saveSelectionTyped(fileId,options){const source=gisEditableFile(fileId);ensureSchema(source);const result=previousSaveSelection.call(window.EditPolygonGIS,fileId,options);const output=gisEditableFile(result.id);if(output){output.gisSchema=clone(source.gisSchema);output.gisSavedFilters=[];ensureSchema(output);}return typedSnapshot(result.id);}
 
   // Replace public data APIs with type-aware implementations while retaining legacy aliases.
@@ -21999,7 +22022,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260819-v1561-point-line-validation-v5';
+  const PROCESSING_KEY='20260821-v1561-local-import-v10';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;
@@ -22016,13 +22039,31 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function modifyProcessingSource(preflight,result,{worker=true}={}){const source=gisEditableFile(preflight.source.id);if(!source)throw Error('The source layer is no longer available.');if(!Array.isArray(result?.features))throw Error('The operation did not return replacement geometry. The source layer was not changed.');const processedIds=new Set((preflight.inputFeatures?.source||[]).map(feature=>feature.id)),untouched=(source.features||[]).filter(feature=>!processedIds.has(feature.id)),replacement=[];for(let index=0;index<result.features.length;index++){const raw=result.features[index],properties=processingClone(raw.properties||{}),old=(source.features||[]).find(feature=>feature.id===raw.id),model=normalize({type:'Feature',properties,geometry:processingClone(raw.geometry)},properties.name||old?.name||`Feature ${index+1}`);if(!model)throw Error('A replacement feature could not be normalised. The source layer was not changed.');model.id=old?.id||uid('feat');model.visible=old?.visible!==false;model.locked=!!old?.locked;model.style=processingClone(old?.style||canonicalEditableFeatureStyle(model.geometry,source.color));model.styleOverride=processingClone(old?.styleOverride||null);model.opacity=old?.opacity;replacement.push(model);}const summary=result.summary||processingCore().resultSummary({sourceCount:preflight.counts.source,outputCount:replacement.length,failures:result.failures||[]}),provenance=processingProvenance(preflight,{...result,summary},worker);pushHistory();source.features=[...untouched,...replacement];source.gisProcessingCrs=result.processingCrs||'EPSG:4326';source.gisProcessing=provenance;source.gisProcessingHistory=[...(Array.isArray(source.gisProcessingHistory)?source.gisProcessingHistory:[]),provenance].slice(-25);try{window.__editPolygonGISSchema?.ensureSchema?.(source);window.__editPolygonGISSchema?.applyTypedFilter?.(source);}catch(_){ }window.EditPolygonGIS?.invalidateSpatialIndex?.(source.id);window.EditPolygonGIS?.invalidateRenderCache?.(source.id);project.selectedFileId=source.id;project.selectedFeatureId=replacement[0]?.id||untouched[0]?.id||null;project.mergeIds=[];renderAll();setDirty(true);gisNotify();logOperation('gis-processing-modify',{fileId:source.id,tool:preflight.tool.id,count:replacement.length});return {kind:'layer',output:{...window.EditPolygonGIS.getEditableLayer(source.id),modified:true},summary,failures:processingClone(result.failures||[]),provenance};}
   function applyProcessingSelection(preflight,result){const ids=Array.isArray(result.selectionIds)?result.selectionIds:[];window.EditPolygonGIS?.setSelection?.(ids,ids.at(-1)||null);const summary=result.summary||{input:preflight.counts.source,processed:preflight.counts.source,output:ids.length,failed:0,partial:false};setStatus(`${ids.length} feature${ids.length===1?'':'s'} selected.`);return {kind:'selection',output:{kind:'selection',count:ids.length},summary,failures:[]};}
   function commitProcessingResult(preflight,result,options){if(result?.kind==='selection'||preflight.tool.resultKind==='selection')return applyProcessingSelection(preflight,result);if(preflight.request.output.mode==='modify-source')return modifyProcessingSource(preflight,result,options);return createProcessingLayer(preflight,result,options);}
+  function processingRequestFingerprint(request={}){
+    const preflight=previewProcessingRequest(request);
+    if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');
+    return processingCore().previewFingerprint(processingTask(preflight));
+  }
+  async function commitPreparedProcessingResult(request={},preparedResult=null,fingerprint='',onProgress=()=>{}){
+    const preflight=previewProcessingRequest(request);
+    if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');
+    const currentFingerprint=processingCore().previewFingerprint(processingTask(preflight));
+    if(!fingerprint||fingerprint!==currentFingerprint)return {reused:false,reason:'stale-preview'};
+    if(!preparedResult||typeof preparedResult!=='object')return {reused:false,reason:'missing-preview-result'};
+    const prepared=processingClone(preparedResult),worker=prepared._previewWorker!==false;
+    delete prepared._previewWorker;
+    onProgress({stage:'Validating preview',done:preflight.counts.source,total:preflight.counts.source,percent:96});
+    const committed=commitProcessingResult(preflight,prepared,{worker,prepared:true});
+    onProgress({stage:'Committing preview result',done:preflight.counts.source,total:preflight.counts.source,percent:100});
+    return {...committed,reused:true,previewFingerprint:currentFingerprint};
+  }
   function cancelProcessing(){if(PROCESSING_RUNTIME.worker){try{PROCESSING_RUNTIME.worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;}if(PROCESSING_RUNTIME.job){PROCESSING_RUNTIME.job.reject(Error('Processing cancelled. No project data was changed.'));PROCESSING_RUNTIME.job=null;}return true;}
   function processingWorker(task,onProgress=()=>{}){if(typeof Worker==='undefined'){const engine=window.EditPolygonGISProcessingEngine;if(!engine)throw Error('The processing engine is unavailable.');return Promise.resolve(engine.execute(task,{turf,crs:window.EditPolygonCRS,onProgress})).then(result=>({result,worker:false}));}cancelProcessing();const worker=new Worker(`assets/gis-processing-worker.js?v=${PROCESSING_KEY}`);PROCESSING_RUNTIME.worker=worker;const id=++PROCESSING_RUNTIME.jobSeq;return new Promise((resolve,reject)=>{PROCESSING_RUNTIME.job={id,reject};worker.onmessage=event=>{const message=event.data||{};if(message.id!==id)return;if(message.type==='progress'){try{onProgress({stage:message.stage||'Processing',done:message.done||0,total:message.total||0,percent:Math.max(0,Math.min(92,Math.round((Number(message.percent)||0)*.92)))});}catch(_){ }return;}try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;if(message.type==='error'){reject(Error(message.message||'Processing failed.'));return;}resolve({result:message.result||{kind:'layer',features:[],failures:[]},worker:true});};worker.onerror=event=>{try{worker.terminate();}catch(_){ }PROCESSING_RUNTIME.worker=null;PROCESSING_RUNTIME.job=null;reject(Error(event.message||'The processing worker failed.'));};worker.postMessage({id,task});});}
   async function runProcessingRequest(request={},onProgress=()=>{}){const preflight=previewProcessingRequest(request);if(!preflight.valid)throw Error(preflight.errors[0]||'The processing request is invalid.');const task=processingTask(preflight);onProgress({stage:'Preparing input',done:0,total:task.inputs.source?.length||0,percent:0});const execution=await processingWorker(task,onProgress);onProgress({stage:'Validating output',done:preflight.counts.source,total:preflight.counts.source,percent:96});const committed=commitProcessingResult(preflight,execution.result,{worker:execution.worker});onProgress({stage:'Committing result',done:preflight.counts.source,total:preflight.counts.source,percent:100});return committed;}
   function zoomProcessingLayer(fileId){const file=gisEditableFile(fileId);if(!file)return false;try{zoomFile(fileId);return true;}catch(_){return false;}}
   function processingCatalog(){return {version:PROCESSING_VERSION,categories:processingRegistry()?.getCategories?.()||[],tools:processingRegistry()?.getTools?.()||[]};}
-  Object.assign(window.EditPolygonGIS,{processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer});
-  window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing};
+  Object.assign(window.EditPolygonGIS,{processingVersion:PROCESSING_VERSION,getProcessingCatalog:processingCatalog,previewProcessingRequest,runProcessingRequest,cancelProcessing,zoomLayer:zoomProcessingLayer,commitPreparedProcessingResult,getProcessingPreviewFingerprint:processingRequestFingerprint});
+  window.__editPolygonGISProcessing={version:PROCESSING_VERSION,previewProcessingRequest,runProcessingRequest,cancelProcessing,commitPreparedProcessingResult,getProcessingPreviewFingerprint:processingRequestFingerprint};
 })();
 
 /* v1.56.1 — runtime authority boundary.

@@ -1,5 +1,5 @@
 'use strict';
-const KEY='20260819-v1561-point-line-validation-v5';
+const KEY='20260821-v1561-local-import-v10';
 importScripts(
   `gis-processing-registry.js?v=${KEY}`,
   `gis-processing-core.js?v=${KEY}`,
