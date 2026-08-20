@@ -6,9 +6,12 @@ import vm from 'node:vm';
 const appSource=fs.readFileSync(new URL('../docs/assets/editpolygon-app.js',import.meta.url),'utf8');
 
 function exportFunctionSource(){
-  const match=appSource.match(/function exportLayerRecords\(fileId,\{scope='all',format='geojson',featureIds=null\}=\{\}\)\{([\s\S]*?)\n\s*\}\n\n\s*const previousSaveSelection=/);
-  assert.ok(match,'exportLayerRecords function was not found');
-  return `function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){${match[1]}\n}`;
+  const startMarker="function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){";
+  const endMarker='  const previousSaveSelection=';
+  const start=appSource.indexOf(startMarker);
+  const end=appSource.indexOf(endMarker,start);
+  assert.ok(start>=0&&end>start,'exportLayerRecords function was not found');
+  return appSource.slice(start,end).trim();
 }
 
 function runExport(format){
