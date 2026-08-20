@@ -10,9 +10,9 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&
 const assetKey=(()=>{
   try{
     const src=global.document?.currentScript?.src||'';
-    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v8';
+    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v9';
   }catch(_){}
-  return '20260820-v1561-processing-preview-v8';
+  return '20260820-v1561-processing-preview-v9';
 })();
 
 const state={
@@ -260,6 +260,85 @@ function geometryVertexPositions(geometry,out=[]){
   return out;
 }
 function previewVertexPositions(features=[]){const out=[];for(const feature of features||[])geometryVertexPositions(feature?.geometry,out);return out;}
+function geometryVertexSequences(geometry,out=[]){
+  if(!geometry)return out;
+  const point=value=>{
+    const x=Number(value?.[0]),y=Number(value?.[1]);
+    return Number.isFinite(x)&&Number.isFinite(y)?[x,y]:null;
+  };
+  const sequence=(coordinates,ring=false)=>{
+    const items=[];
+    for(const value of coordinates||[]){const coordinate=point(value);if(coordinate)items.push(coordinate);}
+    if(ring&&items.length>1&&items[0][0]===items.at(-1)[0]&&items[0][1]===items.at(-1)[1])items.pop();
+    if(items.length)out.push(items);
+  };
+  if(geometry.type==='Point'){const coordinate=point(geometry.coordinates);if(coordinate)out.push([coordinate]);}
+  else if(geometry.type==='MultiPoint')for(const value of geometry.coordinates||[]){const coordinate=point(value);if(coordinate)out.push([coordinate]);}
+  else if(geometry.type==='LineString')sequence(geometry.coordinates);
+  else if(geometry.type==='MultiLineString')for(const line of geometry.coordinates||[])sequence(line);
+  else if(geometry.type==='Polygon')for(const ring of geometry.coordinates||[])sequence(ring,true);
+  else if(geometry.type==='MultiPolygon')for(const polygon of geometry.coordinates||[])for(const ring of polygon||[])sequence(ring,true);
+  else if(geometry.type==='GeometryCollection')for(const child of geometry.geometries||[])geometryVertexSequences(child,out);
+  return out;
+}
+function applySnapVertexMatch(metrics,before,after){
+  const distance=coordinateDistanceM(before,after);
+  if(distance>.001){metrics.verticesMoved++;metrics.maxDisplacementM=Math.max(metrics.maxDisplacementM,distance);}
+}
+function greedySnapSequenceAlignment(before=[],after=[],toleranceM=0){
+  const tolerance=Math.max(.001,Number(toleranceM)||.001),metrics={verticesMoved:0,verticesInserted:0,verticesRemovedBySnap:0,maxDisplacementM:0};
+  let i=0,j=0;
+  while(i<before.length&&j<after.length){
+    const direct=coordinateDistanceM(before[i],after[j]);
+    if(direct<=tolerance*1.000001){applySnapVertexMatch(metrics,before[i],after[j]);i++;j++;continue;}
+    const remainingBefore=before.length-i,remainingAfter=after.length-j,lookAhead=Math.min(24,Math.max(remainingBefore,remainingAfter)-1);
+    let best=null;
+    for(let skip=1;skip<=lookAhead&&j+skip<after.length;skip++){
+      const distance=coordinateDistanceM(before[i],after[j+skip]);
+      if(distance<=tolerance*1.000001){const score=skip+distance/tolerance;if(!best||score<best.score)best={kind:'insert',skip,score};break;}
+    }
+    for(let skip=1;skip<=lookAhead&&i+skip<before.length;skip++){
+      const distance=coordinateDistanceM(before[i+skip],after[j]);
+      if(distance<=tolerance*1.000001){const score=skip+distance/tolerance;if(!best||score<best.score)best={kind:'remove',skip,score};break;}
+    }
+    if(best?.kind==='insert'){metrics.verticesInserted+=best.skip;j+=best.skip;continue;}
+    if(best?.kind==='remove'){metrics.verticesRemovedBySnap+=best.skip;i+=best.skip;continue;}
+    if(remainingAfter>remainingBefore){metrics.verticesInserted++;j++;}else{metrics.verticesRemovedBySnap++;i++;}
+  }
+  metrics.verticesInserted+=Math.max(0,after.length-j);
+  metrics.verticesRemovedBySnap+=Math.max(0,before.length-i);
+  return metrics;
+}
+function snapSequenceAlignment(before=[],after=[],toleranceM=0){
+  const tolerance=Math.max(.001,Number(toleranceM)||.001),n=before.length,m=after.length;
+  if(!n)return {verticesMoved:0,verticesInserted:m,verticesRemovedBySnap:0,maxDisplacementM:0};
+  if(!m)return {verticesMoved:0,verticesInserted:0,verticesRemovedBySnap:n,maxDisplacementM:0};
+  const cells=(n+1)*(m+1);
+  if(cells>1500000)return greedySnapSequenceAlignment(before,after,tolerance);
+  const width=m+1,gapCost=1.05,trace=new Uint8Array((n+1)*width),previous=new Float64Array(width),current=new Float64Array(width);
+  for(let j=1;j<=m;j++){previous[j]=j*gapCost;trace[j]=3;}
+  for(let i=1;i<=n;i++){
+    current[0]=i*gapCost;trace[i*width]=2;
+    for(let j=1;j<=m;j++){
+      const distance=coordinateDistanceM(before[i-1],after[j-1]),match=distance<=tolerance*1.000001?previous[j-1]+distance/tolerance:Number.POSITIVE_INFINITY,remove=previous[j]+gapCost,insert=current[j-1]+gapCost;
+      let cost=match,code=1;
+      if(insert<cost-1e-12){cost=insert;code=3;}
+      if(remove<cost-1e-12){cost=remove;code=2;}
+      current[j]=cost;trace[i*width+j]=code;
+    }
+    previous.set(current);
+  }
+  const metrics={verticesMoved:0,verticesInserted:0,verticesRemovedBySnap:0,maxDisplacementM:0};
+  let i=n,j=m;
+  while(i>0||j>0){
+    const code=trace[i*width+j];
+    if(i>0&&j>0&&code===1){applySnapVertexMatch(metrics,before[i-1],after[j-1]);i--;j--;}
+    else if(i>0&&(code===2||j===0)){metrics.verticesRemovedBySnap++;i--;}
+    else if(j>0){metrics.verticesInserted++;j--;}
+    else break;
+  }
+  return metrics;
+}
 function coordinateDistanceM(a,b){
   if(!Array.isArray(a)||!Array.isArray(b))return 0;
   try{if(global.turf?.distance)return (Number(global.turf.distance(a,b,{units:'kilometers'}))||0)*1000;}catch(_){}
@@ -279,17 +358,24 @@ function longestSegmentM(features=[]){
   for(const feature of features||[])for(const line of geometryLines(feature?.geometry,[]))for(let index=1;index<(line?.length||0);index++)longest=Math.max(longest,coordinateDistanceM(line[index-1],line[index]));
   return longest;
 }
-function snapComparison(before=[],after=[]){
+function snapComparison(before=[],after=[],toleranceM=0){
   const byId=new Map((after||[]).map((feature,index)=>[feature?.id??`#${index}`,feature]));
-  let verticesMoved=0,maxDisplacementM=0,featuresUnchanged=0,featuresChanged=0;
+  const metrics={verticesMoved:0,verticesInserted:0,verticesRemovedBySnap:0,maxDisplacementM:0,featuresUnchanged:0,featuresChanged:0};
   (before||[]).forEach((source,index)=>{
-    const output=byId.get(source?.id??`#${index}`)||after?.[index];if(!output)return;
-    if(JSON.stringify(source?.geometry||null)===JSON.stringify(output?.geometry||null)){featuresUnchanged++;return;}
-    featuresChanged++;
-    const a=geometryVertexPositions(source?.geometry,[]),b=geometryVertexPositions(output?.geometry,[]);
-    for(let i=0;i<Math.min(a.length,b.length);i++){const distance=coordinateDistanceM(a[i],b[i]);if(distance>.001){verticesMoved++;maxDisplacementM=Math.max(maxDisplacementM,distance);}}
+    const output=byId.get(source?.id??`#${index}`)||after?.[index];
+    if(!output){metrics.featuresChanged++;metrics.verticesRemovedBySnap+=geometryVertexCount(source?.geometry);return;}
+    if(JSON.stringify(source?.geometry||null)===JSON.stringify(output?.geometry||null)){metrics.featuresUnchanged++;return;}
+    metrics.featuresChanged++;
+    const sourceSequences=geometryVertexSequences(source?.geometry,[]),outputSequences=geometryVertexSequences(output?.geometry,[]),count=Math.max(sourceSequences.length,outputSequences.length);
+    for(let sequenceIndex=0;sequenceIndex<count;sequenceIndex++){
+      const sourceSequence=sourceSequences[sequenceIndex]||[],outputSequence=outputSequences[sequenceIndex]||[],aligned=snapSequenceAlignment(sourceSequence,outputSequence,toleranceM);
+      metrics.verticesMoved+=aligned.verticesMoved;
+      metrics.verticesInserted+=aligned.verticesInserted;
+      metrics.verticesRemovedBySnap+=aligned.verticesRemovedBySnap;
+      metrics.maxDisplacementM=Math.max(metrics.maxDisplacementM,aligned.maxDisplacementM);
+    }
   });
-  return {verticesMoved,maxDisplacementM,featuresUnchanged,featuresChanged};
+  return metrics;
 }
 function previewComparisonMetrics(task,result,features){
   const source=task.inputs?.source||[],before=previewMetrics(source),after=previewMetrics(features),metrics={...after,inputVertices:before.vertices,outputVertices:after.vertices};
@@ -297,7 +383,7 @@ function previewComparisonMetrics(task,result,features){
     metrics.verticesRemoved=Math.max(0,before.vertices-after.vertices);metrics.reductionPct=before.vertices?metrics.verticesRemoved/before.vertices*100:0;
   }else if(task.toolId==='densify'){
     metrics.verticesAdded=Math.max(0,after.vertices-before.vertices);metrics.longestSegmentBeforeM=longestSegmentM(source);metrics.longestSegmentAfterM=longestSegmentM(features);
-  }else if(task.toolId==='snap')Object.assign(metrics,snapComparison(source,features));
+  }else if(task.toolId==='snap')Object.assign(metrics,snapComparison(source,features,Number(task.parameters?.tolerance)||0));
   return metrics;
 }
 function previewDataResult(task,features=[]){
@@ -430,6 +516,8 @@ function previewHtml(){
   if(Number.isFinite(m.verticesRemoved))detail.push(`${Number(m.verticesRemoved).toLocaleString()} ${Number(m.verticesRemoved)===1?'vertex':'vertices'} removed${Number.isFinite(m.reductionPct)?` (${fmtMetric(m.reductionPct,'%')})`:''}`);
   if(Number.isFinite(m.verticesAdded))detail.push(`${Number(m.verticesAdded).toLocaleString()} ${Number(m.verticesAdded)===1?'vertex':'vertices'} added`);
   if(Number.isFinite(m.longestSegmentBeforeM)&&Number.isFinite(m.longestSegmentAfterM))detail.push(`longest segment ${fmtMetric(m.longestSegmentBeforeM>=1000?m.longestSegmentBeforeM/1000:m.longestSegmentBeforeM,m.longestSegmentBeforeM>=1000?'km':'m')} → ${fmtMetric(m.longestSegmentAfterM>=1000?m.longestSegmentAfterM/1000:m.longestSegmentAfterM,m.longestSegmentAfterM>=1000?'km':'m')}`);
+  if(Number.isFinite(m.verticesInserted)&&m.verticesInserted>0)detail.push(`${Number(m.verticesInserted).toLocaleString()} ${Number(m.verticesInserted)===1?'vertex inserted':'vertices inserted'}`);
+  if(Number.isFinite(m.verticesRemovedBySnap)&&m.verticesRemovedBySnap>0)detail.push(`${Number(m.verticesRemovedBySnap).toLocaleString()} ${Number(m.verticesRemovedBySnap)===1?'vertex removed':'vertices removed'}`);
   if(m.verticesMoved!=null)detail.push(`${Number(m.verticesMoved).toLocaleString()} ${Number(m.verticesMoved)===1?'vertex':'vertices'} moved`);
   if(Number.isFinite(m.maxDisplacementM))detail.push(`maximum displacement ${fmtMetric(m.maxDisplacementM>=1000?m.maxDisplacementM/1000:m.maxDisplacementM,m.maxDisplacementM>=1000?'km':'m')}`);
   if(Number.isFinite(m.featuresUnchanged))detail.push(`${Number(m.featuresUnchanged).toLocaleString()} features unchanged`);
