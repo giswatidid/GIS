@@ -31,7 +31,17 @@ jobs:
 
       - name: Apply staged Snap preview metric fix
         if: github.event_name == 'pull_request'
-        run: python scripts/apply-snap-preview-metrics-fix.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/apply-snap-preview-metrics-fix.py')
+          text=path.read_text(encoding='utf-8')
+          old="const valid=value=>value&&typeof value==='object'&&Number.isFinite(Number(value.length))&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));"
+          new="const valid=value=>Number.isFinite(Number(value?.[0]))&&Number.isFinite(Number(value?.[1]));"
+          if text.count(old)!=1: raise SystemExit(f'expected one coordinate validator, found {text.count(old)}')
+          path.write_text(text.replace(old,new,1),encoding='utf-8')
+          PY
+          python scripts/apply-snap-preview-metrics-fix.py
 
       - name: Diagnose staged Snap metrics
         if: github.event_name == 'pull_request'
