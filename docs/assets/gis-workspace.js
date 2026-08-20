@@ -183,7 +183,7 @@
 
   function renderAddData(){
     return `<div class="gis-privacy-callout"><strong>Data boundary</strong><p>Local files and their geometry remain inside this browser. Remote tiles and services are contacted directly by your browser only when you add or display them. EditPolygon does not proxy these requests.</p></div>
-      <section class="gis-add-section"><h3>Local browser data</h3><div class="gis-quick-actions"><button type="button" class="primary" data-gis-action="open-files">Open GIS files</button><button type="button" data-gis-action="open-image">Add image</button><button type="button" data-gis-action="open-overlays">Existing overlay tools</button></div><p class="gis-help">Use the existing importer for GeoJSON, KML/KMZ, GML, Shapefile ZIP, CSV, WKT, TopoJSON and project files.</p></section>
+      <section class="gis-add-section"><h3>Local browser data</h3><div class="gis-quick-actions"><button type="button" class="primary" data-gis-action="open-files">Open GIS files</button><button type="button" data-gis-action="open-image">Add image</button><button type="button" data-gis-action="open-overlays">Existing overlay tools</button></div><p class="gis-help">Use the browser-local importer for GeoJSON, KML/KMZ, GML, GeoPackage, Shapefile ZIP, zipped File Geodatabase, CSV, WKT, TopoJSON and project files.</p></section>
       <form class="gis-add-section" id="gisTileForm"><h3>XYZ, TMS or TileJSON</h3><div class="gis-form-grid">
         <label>Name<input id="gisTileName" required value="Custom tiles"></label>
         <label>Source type<select id="gisTileType"><option value="xyz">XYZ tiles</option><option value="tms">TMS tiles</option><option value="tilejson">TileJSON URL</option></select></label>

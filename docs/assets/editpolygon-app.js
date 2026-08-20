@@ -5353,7 +5353,14 @@ async function importFile(file,onProgress=()=>{}){
   }else if(ext==='wkt'||ext==='txt'){
     onProgress(`Parsing ${file.name}…`,35);
     data=wktToGeo(await file.text(),file.name);
-  }else if(ext==='zip'||ext==='shp'){
+  }else if(ext==='gpkg'){
+    if(!window.EditPolygonGISFileImport)throw Error('Advanced local import module is not loaded. Refresh the page and try again.');
+    data=await window.EditPolygonGISFileImport.parseGeoPackageFile(file,onProgress);
+  }else if(ext==='zip'){
+    if(!window.EditPolygonGISFileImport)throw Error('Advanced local import module is not loaded. Refresh the page and try again.');
+    const routed=await window.EditPolygonGISFileImport.parseZip(file,onProgress);
+    data=routed||await shapefileZipToGeo(file,onProgress);
+  }else if(ext==='shp'){
     data=await shapefileZipToGeo(file,onProgress);
   }else if(ext==='epz'){
     if(!window.EditPolygonProjectFormat)throw Error('EditPolygon project-format module is not loaded.');
@@ -5362,7 +5369,7 @@ async function importFile(file,onProgress=()=>{}){
     if(!projectPayloadHasContent(payload))throw Error('Project file does not contain any saved polygons, annotations, measurements, images or GIS layers.');
     return {__pedProject:true,name:file.name,payload,projectArchive:archive};
   }else{
-    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, CSV, WKT, TXT, zipped Shapefile, or EditPolygon .epz project');
+    throw Error('Unsupported file type. Supported: GML, KML, KMZ, GeoJSON, JSON, GeoPackage (GPKG), CSV, WKT, TXT, zipped Shapefile, zipped File Geodatabase, or EditPolygon .epz project');
   }
 const features=[];let i=1;for(const raw of flattenForImport(data.features)){const nf=normalize(raw,'Polygon '+i);if(nf){features.push(nf);i++}}onProgress(`Prepared ${features.length} polygon feature${features.length===1?'':'s'} from ${file.name}.`,92);const color=COLORS[project.files.length%COLORS.length];features.forEach(f=>applyColor(f,color));const importedSchema=data?.editpolygonSchema&&Array.isArray(data.editpolygonSchema.fields)?clone(data.editpolygonSchema):null;return{id:uid('file'),name,sourceFormat:ext,visible:true,color,features,...(importedSchema?{gisSchema:importedSchema}:{})}}
 
@@ -21538,11 +21545,27 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
   function typedSnapshot(fileId){const file=gisEditableFile(fileId);if(!file)return null;ensureSchema(file);const snapshot=gisEditableSnapshot(fileId);snapshot.schema=schemaSnapshot(file);snapshot.savedFilters=clone(file.gisSavedFilters||[]);snapshot.filter=clone(file.gisFilter||null);return snapshot;}
   function selectedDetailsTyped(){const details=gisSelectedFeatureDetails();if(!details)return null;const file=gisEditableFile(details.fileId);if(file){ensureSchema(file);details.schema=schemaSnapshot(file);}return details;}
   function recordsForScope(file,scope,featureIds=null){const selected=new Set(Array.isArray(featureIds)?featureIds:(window.EditPolygonGIS?.getSelection?.().ids||[]));return (file.features||[]).filter(feature=>scope==='selected'?selected.has(feature.id):scope==='filtered'?!feature._gisFiltered:scope==='visible'?!feature._gisFiltered&&feature.visible!==false:true);}
-  function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);const features=recordsForScope(file,scope,featureIds);if(!features.length)throw Error('No records match this export scope.');const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');if(format==='csv'){
-      const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];for(const feature of features){lines.push([...fields.map(field=>feature.properties?.[field.name]),(getDisplayGeometry(feature)?geomToWKT(getDisplayGeometry(feature)):'')].map(quote).join(','));}downloadText(`${safe}_${scope}.csv`,lines.join('\n'),'text/csv;charset=utf-8');
-    }else{const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');}return {count:features.length,scope,format};}
+  function exportLayerRecords(fileId,{scope='all',format='geojson',featureIds=null}={}){
+    const file=gisEditableFile(fileId);if(!file)throw Error('Layer not found.');ensureSchema(file);
+    const features=recordsForScope(file,scope,featureIds);if(!features.length)throw Error('No records match this export scope.');
+    const safe=String(file.name||'layer').replace(/[^\w.-]+/g,'_');
+    const fields=file.gisSchema.fields,quote=value=>`"${String(value??'').replace(/"/g,'""')}"`;
+    if(format==='csv-attributes'){
+      const lines=[fields.map(field=>field.name).map(quote).join(',')];
+      for(const feature of features)lines.push(fields.map(field=>feature.properties?.[field.name]).map(quote).join(','));
+      downloadText(`${safe}_${scope}.csv`,`\uFEFF${lines.join('\r\n')}`,'text/csv;charset=utf-8');
+    }else if(format==='csv'){
+      const lines=[[...fields.map(field=>field.name),'geometry_wkt'].map(quote).join(',')];
+      for(const feature of features)lines.push([...fields.map(field=>feature.properties?.[field.name]),(getDisplayGeometry(feature)?geomToWKT(getDisplayGeometry(feature)):'')].map(quote).join(','));
+      downloadText(`${safe}_${scope}_wkt.csv`,`\uFEFF${lines.join('\r\n')}`,'text/csv;charset=utf-8');
+    }else if(format==='geojson'){
+      const collection={type:'FeatureCollection',features:features.map(featJSON),editpolygonSchema:clone(file.gisSchema)};
+      downloadText(`${safe}_${scope}.geojson`,JSON.stringify(collection,null,2),'application/geo+json;charset=utf-8');
+    }else throw Error(`Unsupported table export format: ${format}.`);
+    return {count:features.length,scope,format};
+  }
 
-  const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
+    const previousSaveSelection=window.EditPolygonGIS?.saveSelectionAsLayer;
   function saveSelectionTyped(fileId,options){const source=gisEditableFile(fileId);ensureSchema(source);const result=previousSaveSelection.call(window.EditPolygonGIS,fileId,options);const output=gisEditableFile(result.id);if(output){output.gisSchema=clone(source.gisSchema);output.gisSavedFilters=[];ensureSchema(output);}return typedSnapshot(result.id);}
 
   // Replace public data APIs with type-aware implementations while retaining legacy aliases.
@@ -21999,7 +22022,7 @@ window.__editPolygonRemoteSource={version:GIS_REMOTE_SOURCE_VERSION};
 (function(){
   'use strict';
   const PROCESSING_VERSION='1.56.1';
-  const PROCESSING_KEY='20260820-v1561-processing-preview-v9';
+  const PROCESSING_KEY='20260821-v1561-local-import-v10';
   const PROCESSING_RUNTIME={worker:null,job:null,jobSeq:0};
   const processingCore=()=>window.EditPolygonGISProcessingCore;
   const processingRegistry=()=>window.EditPolygonGISProcessingRegistry;

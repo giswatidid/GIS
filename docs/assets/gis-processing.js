@@ -10,9 +10,9 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&
 const assetKey=(()=>{
   try{
     const src=global.document?.currentScript?.src||'';
-    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260820-v1561-processing-preview-v9';
+    if(src)return new URL(src,global.location?.href||'http://localhost/').searchParams.get('v')||'20260821-v1561-local-import-v10';
   }catch(_){}
-  return '20260820-v1561-processing-preview-v9';
+  return '20260821-v1561-local-import-v10';
 })();
 
 const state={

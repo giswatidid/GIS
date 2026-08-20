@@ -84,3 +84,12 @@ Automated release verification for this package: **340/340 Node tests**, **15/15
 ## Next milestone
 
 v1.57 is the large-data performance release: virtualisation, worker-based tabular operations, broader spatial indexing, reduced cloning/memory pressure, progressive import and larger editable datasets.
+
+
+### Local import and tabular export completion
+
+- Direct GeoPackage (`.gpkg`) import.
+- ZIP content routing for GeoPackage archives, Shapefile archives and zipped Esri File Geodatabases rather than treating every `.zip` as a Shapefile.
+- Explicit managed/encrypted or unsupported ZIP diagnostics instead of a misleading “no layers found” result.
+- Attribute-table `CSV — attributes only` export for spreadsheet/BI workflows, with `CSV + WKT` retained as a separate spatial option.
+- Browser-local import regression coverage includes a generated valid GeoPackage and nested-ZIP dispatch.

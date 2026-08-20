@@ -61,7 +61,7 @@
     "Draw and edit polygon and multipolygon geometry",
     "Validate and repair polygon geometry",
     "Convert common geospatial file formats",
-    "Import GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV",
+    "Import GML, KML, KMZ, GeoJSON, GeoPackage, TopoJSON, Shapefile ZIP, zipped File Geodatabase, WKT and CSV",
     "Export GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV",
     "Process imported geometry files locally in the browser"
   ],
@@ -168,13 +168,13 @@ html.v121-app-ready body{
 </script>
 
 <!-- Stability build v2 · v125 scalable complex-geometry undo -->
-<link rel="stylesheet" href="assets/editpolygon.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/gis-workspace.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/gis-processing.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260820-v1561-processing-preview-v9"/>
-<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260820-v1561-processing-preview-v9"/>
+<link rel="stylesheet" href="assets/editpolygon.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/gis-workspace.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/gis-data-tools.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/gis-processing.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/gis-ui-integration.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/gis-geometry-health.css?v=20260821-v1561-local-import-v10"/>
+<link rel="stylesheet" href="assets/editpolygon-mobile.css?v=20260821-v1561-local-import-v10"/>
 
 
 
@@ -185,7 +185,7 @@ html.v121-app-ready body{
   <div class="no-script-message">
     <div class="no-script-title">EditPolygon – Free Online Polygon Editor</div>
     <p>EditPolygon requires JavaScript to draw, edit, validate, repair and convert polygon files. Use a modern browser and enable JavaScript to open the editor.</p>
-    <p>Supported workflows include GML, KML, KMZ, GeoJSON, TopoJSON, Shapefile ZIP, WKT and CSV. Feedback: <a href="mailto:feedback@editpolygon.com">feedback@editpolygon.com</a>.</p>
+    <p>Supported workflows include GML, KML, KMZ, GeoJSON, GeoPackage, TopoJSON, Shapefile ZIP, zipped File Geodatabase, WKT and CSV. Feedback: <a href="mailto:feedback@editpolygon.com">feedback@editpolygon.com</a>.</p>
   </div>
 </noscript>
 
@@ -194,7 +194,7 @@ html.v121-app-ready body{
 <div class="topbar-brand"><h1 class="title" id="siteTitle">EditPolygon</h1><div class="topbar-subtitle">Free online polygon editor</div></div>
 <div class="topbar-actions topbar-core">
 <button class="primary" id="openBtn">Open</button>
-<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.epz" aria-label="Open polygon or geospatial files" hidden="" id="fileInput" multiple="" type="file"/>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.gpkg,.csv,.wkt,.txt,.zip,.shp,.epz" aria-label="Open polygon or geospatial files" hidden="" id="fileInput" multiple="" type="file"/>
 <button id="saveBtn" title="Save project">Save</button>
 <button class="icon-action" id="undoBtn" title="Undo (Ctrl+Z)">↶</button>
 <button class="icon-action" id="redoBtn" title="Redo (Ctrl+Y)">↷</button>
@@ -441,7 +441,7 @@ html.v121-app-ready body{
 </div>
 <div class="modal-body">
 <div class="coord-help">Convert GML, KML, KMZ, GeoJSON, JSON, CSV, WKT/TXT, zipped Shapefile, or the current project polygons into another polygon format. This does not change the current map unless you separately import the result.</div>
-<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.epz" hidden="" id="converterFileInput" multiple="" type="file"/>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.gpkg,.csv,.wkt,.txt,.zip,.shp,.epz" hidden="" id="converterFileInput" multiple="" type="file"/>
 <div class="converter-grid">
 <div class="converter-panel">
 <h4>Source</h4>
@@ -490,7 +490,7 @@ html.v121-app-ready body{
 </div>
 <div class="modal-body">
 <div class="coord-help">Legacy file-based validator for compatibility and separate-file workflows. For project layers, use GIS → Check &amp; fix geometry (Geometry Health), which provides guided review, robust topology checks and repaired-layer outputs. Legacy Recommended fixes are intentionally conservative.</div>
-<input accept=".gml,.kml,.kmz,.geojson,.json,.csv,.wkt,.txt,.zip,.shp,.epz" hidden="" id="validatorFileInput" multiple="" type="file"/>
+<input accept=".gml,.kml,.kmz,.geojson,.json,.gpkg,.csv,.wkt,.txt,.zip,.shp,.epz" hidden="" id="validatorFileInput" multiple="" type="file"/>
 <div class="validator-grid">
 <div class="validator-panel">
 <h4>Source</h4>
@@ -655,7 +655,7 @@ html.v121-app-ready body{
 
     <section aria-labelledby="editPolygonFormatsTitle">
       <h3 id="editPolygonFormatsTitle">Supported geospatial formats</h3>
-      <p>Work with GML, KML, KMZ, GeoJSON, TopoJSON, ESRI Shapefile ZIP, WKT and CSV polygon data. EditPolygon also supports its own project files and includes tools for image and GeoTIFF reference workflows.</p>
+      <p>Work with GML, KML, KMZ, GeoJSON, GeoPackage, TopoJSON, ESRI Shapefile ZIP, zipped File Geodatabase, WKT and CSV spatial data. EditPolygon also supports its own project files and includes tools for image and GeoTIFF reference workflows.</p>
     </section>
 
     <section id="editPolygonPrivacy" aria-labelledby="editPolygonPrivacyTitle">
@@ -693,36 +693,37 @@ html.v121-app-ready body{
 </div>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.9.0/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@v10.9.0/dist/ol.js"></script>
-<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260820-v1561-processing-preview-v9">
-<script src="assets/editpolygon-map-adapter.js?v=20260820-v1561-processing-preview-v9"></script>
+<link rel="stylesheet" href="assets/editpolygon-openlayers.css?v=20260821-v1561-local-import-v10">
+<script src="assets/editpolygon-map-adapter.js?v=20260821-v1561-local-import-v10"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="assets/editpolygon-project-format.js?v=20260820-v1561-processing-preview-v9"></script>
+<script src="assets/gis-file-import.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/editpolygon-project-format.js?v=20260821-v1561-local-import-v10"></script>
 <script src="https://unpkg.com/@tmcw/togeojson@6.0.1/dist/togeojson.umd.js"></script>
 <script src="https://unpkg.com/shpjs@4.0.4/dist/shp.min.js"></script>
 <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://unpkg.com/topojson-server@3/dist/topojson-server.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
-<script src="assets/gis-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-data-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-schema-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-analysis-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-spatial-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-processing-registry.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-processing-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-join-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-style-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-crs-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-remote-source.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-geometry-health-core.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-geos-adapter.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-processing-engine.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/editpolygon-app.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-workspace.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-processing.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-data-tools.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-ui-integration.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/gis-geometry-health.js?v=20260820-v1561-processing-preview-v9"></script>
-<script src="assets/editpolygon-mobile.js?v=20260820-v1561-processing-preview-v9"></script>
+<script src="assets/gis-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-data-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-schema-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-analysis-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-spatial-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-processing-registry.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-processing-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-join-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-style-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-crs-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-remote-source.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-geometry-health-core.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-geos-adapter.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-processing-engine.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/editpolygon-app.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-workspace.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-processing.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-data-tools.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-ui-integration.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/gis-geometry-health.js?v=20260821-v1561-local-import-v10"></script>
+<script src="assets/editpolygon-mobile.js?v=20260821-v1561-local-import-v10"></script>
 
 
 
