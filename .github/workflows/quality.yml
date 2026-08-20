@@ -31,17 +31,7 @@ jobs:
 
       - name: Apply staged Snap preview metric fix
         if: github.event_name == 'pull_request'
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path=Path('scripts/apply-snap-preview-metrics-fix.py')
-          text=path.read_text(encoding='utf-8')
-          old="const valid=value=>value&&typeof value==='object'&&Number.isFinite(Number(value.length))&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));"
-          new="const valid=value=>Number.isFinite(Number(value?.[0]))&&Number.isFinite(Number(value?.[1]));"
-          if text.count(old)!=1: raise SystemExit(f'expected one coordinate validator, found {text.count(old)}')
-          path.write_text(text.replace(old,new,1),encoding='utf-8')
-          PY
-          python scripts/apply-snap-preview-metrics-fix.py
+        run: python scripts/apply-snap-preview-metrics-fix.py
 
       - name: Diagnose staged Snap metrics
         if: github.event_name == 'pull_request'
@@ -49,22 +39,17 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           import vm from 'node:vm';
-          let uiSource=fs.readFileSync('docs/assets/gis-processing.js','utf8');
-          uiSource=uiSource.replace('global.__editPolygonGISProcessingPreview=Object.freeze({','global.__snapMetricDebug={geometryVertexSequences,snapSequenceAlignment,snapComparison};\nglobal.__editPolygonGISProcessingPreview=Object.freeze({');
+          const uiSource=fs.readFileSync('docs/assets/gis-processing.js','utf8');
           const window={};
           const context=vm.createContext({window,globalThis:window,Object,Map,Set,JSON,String,Array,Number,Math,Date,URL,Error,Promise,Uint8Array,Float64Array});
           vm.runInContext(uiSource,context);
-          const task=vm.runInContext(`({toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}})`,context);
-          const output=vm.runInContext(`[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]`,context);
-          const geometry=task.inputs.source[0].geometry,first=geometry.coordinates[0];
-          console.log('SNAP_RAW_GEOMETRY_DIAGNOSTIC',JSON.stringify({geometry,type:geometry.type,typeMatches:geometry.type==='LineString',coordinateCount:geometry.coordinates.length,first,first0:first?.[0],first1:first?.[1],finite0:Number.isFinite(Number(first?.[0])),finite1:Number.isFinite(Number(first?.[1])),array:Array.isArray(first)}));
-          console.log('SNAP_EXTRACTOR_SOURCE',String(window.__snapMetricDebug.geometryVertexSequences));
-          const sourceSeq=window.__snapMetricDebug.geometryVertexSequences(geometry,[]);
-          const outputSeq=window.__snapMetricDebug.geometryVertexSequences(output[0].geometry,[]);
-          console.log('SNAP_SEQUENCES_DIAGNOSTIC',JSON.stringify({sourceSeq,outputSeq}));
-          console.log('SNAP_ALIGNMENT_DIAGNOSTIC',JSON.stringify(window.__snapMetricDebug.snapSequenceAlignment(sourceSeq[0]||[],outputSeq[0]||[],20000)));
-          console.log('SNAP_COMPARISON_DIAGNOSTIC',JSON.stringify(window.__snapMetricDebug.snapComparison(task.inputs.source,output,20000)));
-          console.log('SNAP_METRICS_DIAGNOSTIC',JSON.stringify(window.__editPolygonGISProcessingPreview.comparisonMetrics(task,{kind:'layer'},output)));
+          const metrics=JSON.parse(vm.runInContext(`JSON.stringify(window.__editPolygonGISProcessingPreview.comparisonMetrics(
+            {toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}},
+            {kind:'layer'},
+            [{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]
+          ))`,context));
+          console.log('SNAP_METRICS_DIAGNOSTIC',JSON.stringify(metrics));
+          if(metrics.verticesInserted!==1||metrics.verticesMoved!==1||metrics.maxDisplacementM<=10000||metrics.maxDisplacementM>=12000||metrics.maxDisplacementM>20000)process.exit(1);
           NODE
 
       - name: Install browser-test runtime
