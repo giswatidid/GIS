@@ -56,7 +56,10 @@ jobs:
           vm.runInContext(uiSource,context);
           const task=vm.runInContext(`({toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}})`,context);
           const output=vm.runInContext(`[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]`,context);
-          const sourceSeq=window.__snapMetricDebug.geometryVertexSequences(task.inputs.source[0].geometry,[]);
+          const geometry=task.inputs.source[0].geometry,first=geometry.coordinates[0];
+          console.log('SNAP_RAW_GEOMETRY_DIAGNOSTIC',JSON.stringify({geometry,type:geometry.type,typeMatches:geometry.type==='LineString',coordinateCount:geometry.coordinates.length,first,first0:first?.[0],first1:first?.[1],finite0:Number.isFinite(Number(first?.[0])),finite1:Number.isFinite(Number(first?.[1])),array:Array.isArray(first)}));
+          console.log('SNAP_EXTRACTOR_SOURCE',String(window.__snapMetricDebug.geometryVertexSequences));
+          const sourceSeq=window.__snapMetricDebug.geometryVertexSequences(geometry,[]);
           const outputSeq=window.__snapMetricDebug.geometryVertexSequences(output[0].geometry,[]);
           console.log('SNAP_SEQUENCES_DIAGNOSTIC',JSON.stringify({sourceSeq,outputSeq}));
           console.log('SNAP_ALIGNMENT_DIAGNOSTIC',JSON.stringify(window.__snapMetricDebug.snapSequenceAlignment(sourceSeq[0]||[],outputSeq[0]||[],20000)));
