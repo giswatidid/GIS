@@ -22,7 +22,7 @@ anchor = "function previewVertexPositions(features=[]){const out=[];for(const fe
 helpers = r'''
 function geometryVertexSequences(geometry,out=[]){
   if(!geometry)return out;
-  const valid=value=>Array.isArray(value)&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));
+  const valid=value=>value&&typeof value==='object'&&Number.isFinite(Number(value.length))&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));
   const sequence=(coordinates,ring=false)=>{
     const items=(coordinates||[]).filter(valid).map(value=>[Number(value[0]),Number(value[1])]);
     if(ring&&items.length>1&&items[0][0]===items.at(-1)[0]&&items[0][1]===items.at(-1)[1])items.pop();
@@ -133,9 +133,7 @@ if 'm.verticesInserted)&&m.verticesInserted>0' not in ui:
 
 UI.write_text(ui.rstrip() + '\n', encoding='utf-8')
 
-# Add a behavioural regression that reproduces the index-shift bug: one output
-# vertex is inserted before a moved source vertex. The displacement must be
-# measured against the aligned original vertex, never against the shifted index.
+# Reproduce the index-shift bug in the same VM realm as the Processing module.
 test_text = TEST.read_text(encoding='utf-8')
 marker = "test('Snap preview metrics align inserted output vertices without inflating displacement'"
 if marker not in test_text:
@@ -146,9 +144,8 @@ test('Snap preview metrics align inserted output vertices without inflating disp
   const window={};
   const context=vm.createContext({window,globalThis:window,Object,Map,Set,JSON,String,Array,Number,Math,Date,URL,Error,Promise,Uint8Array,Float64Array});
   vm.runInContext(uiSource,context);
-  const source=[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}];
-  const output=[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}];
-  const task={toolId:'snap',inputs:{source},parameters:{tolerance:20000}};
+  const task=vm.runInContext(`({toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}})`,context);
+  const output=vm.runInContext(`[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]`,context);
   const metrics=window.__editPolygonGISProcessingPreview.comparisonMetrics(task,{kind:'layer'},output);
   assert.equal(metrics.inputVertices,3);
   assert.equal(metrics.outputVertices,4);
@@ -161,8 +158,7 @@ test('Snap preview metrics align inserted output vertices without inflating disp
 '''
 TEST.write_text(test_text.rstrip() + '\n', encoding='utf-8')
 
-# Advance the deployment cache contract consistently so GitHub Pages cannot
-# serve the previous preview-metric implementation after this fix.
+# Advance the deployment cache contract consistently so Pages cannot serve v8.
 result = subprocess.run(['git', 'grep', '-l', OLD_KEY], cwd=ROOT, text=True, capture_output=True, check=False)
 for relative in [line.strip() for line in result.stdout.splitlines() if line.strip()]:
     path = ROOT / relative
