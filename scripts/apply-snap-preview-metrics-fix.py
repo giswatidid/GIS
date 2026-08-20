@@ -22,14 +22,18 @@ anchor = "function previewVertexPositions(features=[]){const out=[];for(const fe
 helpers = r'''
 function geometryVertexSequences(geometry,out=[]){
   if(!geometry)return out;
-  const valid=value=>value&&typeof value==='object'&&Number.isFinite(Number(value.length))&&value.length>=2&&Number.isFinite(Number(value[0]))&&Number.isFinite(Number(value[1]));
+  const point=value=>{
+    const x=Number(value?.[0]),y=Number(value?.[1]);
+    return Number.isFinite(x)&&Number.isFinite(y)?[x,y]:null;
+  };
   const sequence=(coordinates,ring=false)=>{
-    const items=(coordinates||[]).filter(valid).map(value=>[Number(value[0]),Number(value[1])]);
+    const items=[];
+    for(const value of coordinates||[]){const coordinate=point(value);if(coordinate)items.push(coordinate);}
     if(ring&&items.length>1&&items[0][0]===items.at(-1)[0]&&items[0][1]===items.at(-1)[1])items.pop();
     if(items.length)out.push(items);
   };
-  if(geometry.type==='Point'){if(valid(geometry.coordinates))out.push([[Number(geometry.coordinates[0]),Number(geometry.coordinates[1])]]);}
-  else if(geometry.type==='MultiPoint')for(const coordinate of geometry.coordinates||[])if(valid(coordinate))out.push([[Number(coordinate[0]),Number(coordinate[1])]]);
+  if(geometry.type==='Point'){const coordinate=point(geometry.coordinates);if(coordinate)out.push([coordinate]);}
+  else if(geometry.type==='MultiPoint')for(const value of geometry.coordinates||[]){const coordinate=point(value);if(coordinate)out.push([coordinate]);}
   else if(geometry.type==='LineString')sequence(geometry.coordinates);
   else if(geometry.type==='MultiLineString')for(const line of geometry.coordinates||[])sequence(line);
   else if(geometry.type==='Polygon')for(const ring of geometry.coordinates||[])sequence(ring,true);
@@ -133,7 +137,7 @@ if 'm.verticesInserted)&&m.verticesInserted>0' not in ui:
 
 UI.write_text(ui.rstrip() + '\n', encoding='utf-8')
 
-# Reproduce the index-shift bug in the same VM realm as the Processing module.
+# Reproduce the index-shift bug wholly inside the Processing module VM realm.
 test_text = TEST.read_text(encoding='utf-8')
 marker = "test('Snap preview metrics align inserted output vertices without inflating displacement'"
 if marker not in test_text:
@@ -144,16 +148,18 @@ test('Snap preview metrics align inserted output vertices without inflating disp
   const window={};
   const context=vm.createContext({window,globalThis:window,Object,Map,Set,JSON,String,Array,Number,Math,Date,URL,Error,Promise,Uint8Array,Float64Array});
   vm.runInContext(uiSource,context);
-  const task=vm.runInContext(`({toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}})`,context);
-  const output=vm.runInContext(`[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]`,context);
-  const metrics=window.__editPolygonGISProcessingPreview.comparisonMetrics(task,{kind:'layer'},output);
+  const metrics=JSON.parse(vm.runInContext(`JSON.stringify(window.__editPolygonGISProcessingPreview.comparisonMetrics(
+    {toolId:'snap',inputs:{source:[{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[1,0],[2,0]]}}]},parameters:{tolerance:20000}},
+    {kind:'layer'},
+    [{id:'a',geometry:{type:'LineString',coordinates:[[0,0],[0.5,0],[1.1,0],[2,0]]}}]
+  ))`,context));
   assert.equal(metrics.inputVertices,3);
   assert.equal(metrics.outputVertices,4);
   assert.equal(metrics.verticesInserted,1);
   assert.equal(metrics.verticesRemovedBySnap,0);
   assert.equal(metrics.verticesMoved,1);
   assert.ok(metrics.maxDisplacementM>10000&&metrics.maxDisplacementM<12000,`unexpected displacement ${metrics.maxDisplacementM}`);
-  assert.ok(metrics.maxDisplacementM<=task.parameters.tolerance,'reported displacement must not exceed the Snap tolerance');
+  assert.ok(metrics.maxDisplacementM<=20000,'reported displacement must not exceed the Snap tolerance');
 });
 '''
 TEST.write_text(test_text.rstrip() + '\n', encoding='utf-8')
